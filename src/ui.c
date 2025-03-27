@@ -53,11 +53,15 @@ void edit_header_cell(Table *t, int col) {
     mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
 
     mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
+    attron(COLOR_PAIR(3) | A_BOLD);
     mvprintw(input_box_y + 1, input_box_x + 1, " Rename column \"%s\":", t->columns[col].name);
+    attroff(COLOR_PAIR(3) | A_BOLD);
     mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
 
     mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
+    attron(COLOR_PAIR(4));
     mvprintw(input_box_y + 2, input_box_x + 1, " > ");
+    attroff(COLOR_PAIR(4));
     mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
 
     mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
@@ -98,11 +102,15 @@ void edit_body_cell(Table *t, int row, int col) {
     mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
 
     mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
+    attron(COLOR_PAIR(3) | A_BOLD);
     mvprintw(input_box_y + 1, input_box_x + 1, " Edit value for \"%s (%s)\"", col_name, type);
+    attroff(COLOR_PAIR(3) | A_BOLD);
     mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
 
     mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
+    attron(COLOR_PAIR(4));
     mvprintw(input_box_y + 2, input_box_x + 1, " > ");
+    attroff(COLOR_PAIR(4));
     mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
 
     mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
