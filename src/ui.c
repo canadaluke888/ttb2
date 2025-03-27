@@ -6,6 +6,10 @@
 
 #define MAX_INPUT 128
 
+static int editing_mode = 0;
+static int cursor_row = -1;
+static int cursor_col = 0;
+
 void draw_ui(Table *table);
 void draw_table_grid(Table *t);
 void prompt_add_column(Table *table);
@@ -30,23 +34,172 @@ void init_colors() {
     init_pair(16, COLOR_WHITE, -1);
 }
 
+void edit_header_cell(Table *t, int col) {
+    echo();
+    curs_set(1);
+
+    char name[MAX_INPUT];
+    int input_box_width = COLS - 4;
+    int input_box_x = 2;
+    int input_box_y = LINES / 2 - 2;
+
+    for (int line = 0; line < 5; line++) {
+        move(input_box_y + line, 0);
+        clrtoeol();
+    }
+
+    mvaddch(input_box_y, input_box_x, ACS_ULCORNER);
+    for (int i = 1; i < input_box_width - 1; i++) mvaddch(input_box_y, input_box_x + i, ACS_HLINE);
+    mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
+
+    mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
+    mvprintw(input_box_y + 1, input_box_x + 1, " Rename column \"%s\":", t->columns[col].name);
+    mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
+
+    mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
+    mvprintw(input_box_y + 2, input_box_x + 1, " > ");
+    mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
+
+    mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
+    for (int i = 1; i < input_box_width - 1; i++) mvaddch(input_box_y + 3, input_box_x + i, ACS_HLINE);
+    mvaddch(input_box_y + 3, input_box_x + input_box_width - 1, ACS_LRCORNER);
+
+    move(input_box_y + 2, input_box_x + 4);
+    getnstr(name, MAX_INPUT - 1);
+
+    if (strlen(name) > 0) {
+        free(t->columns[col].name);
+        t->columns[col].name = strdup(name);
+    }
+
+    noecho();
+    curs_set(0);
+}
+
+void edit_body_cell(Table *t, int row, int col) {
+    echo();
+    curs_set(1);
+
+    char value[MAX_INPUT];
+    int input_box_width = COLS - 4;
+    int input_box_x = 2;
+    int input_box_y = LINES / 2 - 2;
+
+    const char *col_name = t->columns[col].name;
+    const char *type = type_to_string(t->columns[col].type);
+
+    for (int line = 0; line < 5; line++) {
+        move(input_box_y + line, 0);
+        clrtoeol();
+    }
+
+    mvaddch(input_box_y, input_box_x, ACS_ULCORNER);
+    for (int i = 1; i < input_box_width - 1; i++) mvaddch(input_box_y, input_box_x + i, ACS_HLINE);
+    mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
+
+    mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
+    mvprintw(input_box_y + 1, input_box_x + 1, " Edit value for \"%s (%s)\"", col_name, type);
+    mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
+
+    mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
+    mvprintw(input_box_y + 2, input_box_x + 1, " > ");
+    mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
+
+    mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
+    for (int i = 1; i < input_box_width - 1; i++) mvaddch(input_box_y + 3, input_box_x + i, ACS_HLINE);
+    mvaddch(input_box_y + 3, input_box_x + input_box_width - 1, ACS_LRCORNER);
+
+    move(input_box_y + 2, input_box_x + 4);
+    getnstr(value, MAX_INPUT - 1);
+
+    // convert and store based on type
+    if (strlen(value) > 0) {
+        void *ptr = NULL;
+        switch (t->columns[col].type) {
+            case TYPE_INT: {
+                int *i = malloc(sizeof(int));
+                *i = atoi(value);
+                ptr = i;
+                break;
+            }
+            case TYPE_FLOAT: {
+                float *f = malloc(sizeof(float));
+                *f = atof(value);
+                ptr = f;
+                break;
+            }
+            case TYPE_BOOL: {
+                int *b = malloc(sizeof(int));
+                *b = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0);
+                ptr = b;
+                break;
+            }
+            case TYPE_STR: {
+                ptr = strdup(value);
+                break;
+            }
+            case TYPE_UNKNOWN:
+            default: {
+                ptr = NULL;  // No-op for unknown type
+                break;
+            }
+        }
+        
+        if (t->rows[row].values[col]) free(t->rows[row].values[col]);
+        t->rows[row].values[col] = ptr;
+    }
+
+    noecho();
+    curs_set(0);
+}
+
 void start_ui_loop(Table *table) {
+    keypad(stdscr, TRUE);  // Needed for arrow keys
     int ch;
 
     while (1) {
         draw_ui(table);
         ch = getch();
 
-        if (ch == 'q' || ch == 'Q') {
-            break;
-        } else if (ch == 'c' || ch == 'C') {
-            prompt_add_column(table);
-        } else if (ch == 'r' || ch == 'R') {
-            if (table->column_count == 0) {
-                mvprintw(LINES - 4, 2, "You must add at least one column before adding rows.");
-                getch();
-            } else {
-                prompt_add_row(table);
+        if (!editing_mode) {
+            if (ch == 'q' || ch == 'Q') break;
+            else if (ch == 'c' || ch == 'C') prompt_add_column(table);
+            else if (ch == 'r' || ch == 'R') {
+                if (table->column_count == 0) {
+                    mvprintw(LINES - 4, 2, "You must add at least one column before adding rows.");
+                    getch();
+                } else {
+                    prompt_add_row(table);
+                }
+            } else if (ch == 'e' || ch == 'E') {
+                editing_mode = 1;
+                cursor_row = -1;  // Header
+                cursor_col = 0;
+            }
+        } else {
+            switch (ch) {
+                case KEY_LEFT:
+                    if (cursor_col > 0) cursor_col--;
+                    break;
+                case KEY_RIGHT:
+                    if (cursor_col < table->column_count - 1) cursor_col++;
+                    break;
+                case KEY_UP:
+                    if (cursor_row > -1) cursor_row--;
+                    break;
+                case KEY_DOWN:
+                    if (cursor_row < table->row_count - 1) cursor_row++;
+                    break;
+                case 27: // ESC
+                    editing_mode = 0;
+                    break;
+                case '\n': // ENTER
+                    if (cursor_row == -1) {
+                        edit_header_cell(table, cursor_col);
+                    } else {
+                        edit_body_cell(table, cursor_row, cursor_col);
+                    }
+                    break;
             }
         }
     }
@@ -54,14 +207,22 @@ void start_ui_loop(Table *table) {
 
 void draw_ui(Table *table) {
     clear();
+
     int title_x = (COLS - strlen(table->name)) / 2;
     attron(COLOR_PAIR(1) | A_BOLD);
     mvprintw(0, title_x, "%s", table->name);
     attroff(COLOR_PAIR(1) | A_BOLD);
+
     draw_table_grid(table);
+
     attron(COLOR_PAIR(5));
-    mvprintw(LINES - 2, 2, "[C] Add Column    [R] Add Row    [Q] Quit");
+    if (!editing_mode) {
+        mvprintw(LINES - 2, 2, "[C] Add Column    [R] Add Row    [E] Edit Mode    [Q] Quit");
+    } else {
+        mvprintw(LINES - 2, 2, "[←][→][↑][↓] Navigate    [Enter] Edit Cell    [Esc] Exit Edit Mode");
+    }
     attroff(COLOR_PAIR(5));
+
     refresh();
 }
 
@@ -262,6 +423,9 @@ void draw_table_grid(Table *t) {
         const char *name = t->columns[j].name;
         const char *type = type_to_string(t->columns[j].type);
 
+        if (editing_mode && cursor_row == -1 && cursor_col == j)
+            attron(A_REVERSE);
+
         attron(COLOR_PAIR(t->columns[j].color_pair_id) | A_BOLD);
         printw(" %s", name);
         attroff(COLOR_PAIR(t->columns[j].color_pair_id) | A_BOLD);
@@ -270,7 +434,10 @@ void draw_table_grid(Table *t) {
         printw(" (%s)", type);
         attroff(COLOR_PAIR(3));
 
-        int used = strlen(name) + strlen(type) + 4; // space + parens
+        if (editing_mode && cursor_row == -1 && cursor_col == j)
+            attroff(A_REVERSE);
+
+        int used = strlen(name) + strlen(type) + 4;
         for (int s = used; s < col_widths[j]; s++) addch(' ');
 
         attron(COLOR_PAIR(6)); addstr("┃"); attroff(COLOR_PAIR(6));
@@ -298,11 +465,17 @@ void draw_table_grid(Table *t) {
             else if (t->rows[i].values[j])
                 snprintf(buf, sizeof(buf), "%s", (char *)t->rows[i].values[j]);
 
+            if (editing_mode && cursor_row == i && cursor_col == j)
+                attron(A_REVERSE);
+
             attron(COLOR_PAIR(t->columns[j].color_pair_id));
             printw(" %s", buf);
             int used = strlen(buf) + 1;
             for (int s = used; s < col_widths[j]; s++) addch(' ');
             attroff(COLOR_PAIR(t->columns[j].color_pair_id));
+
+            if (editing_mode && cursor_row == i && cursor_col == j)
+                attroff(A_REVERSE);
 
             attron(COLOR_PAIR(6)); addstr("│"); attroff(COLOR_PAIR(6));
         }
