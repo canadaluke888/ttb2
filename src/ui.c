@@ -11,6 +11,25 @@ void draw_table_grid(Table *t);
 void prompt_add_column(Table *table);
 void prompt_add_row(Table *table);
 
+void init_colors() {
+    start_color();
+    use_default_colors();  // Transparent background support
+
+    init_pair(1, COLOR_GREEN, -1);    // Title
+    init_pair(2, COLOR_WHITE, -1); // Table body
+    init_pair(3, COLOR_CYAN, -1); // Input box labels
+    init_pair(4, COLOR_YELLOW, -1); // Input prompts
+    init_pair(5, COLOR_MAGENTA, -1);  // Footer / hotkeys
+    init_pair(6, COLOR_BLUE, -1); // Unicode borders
+    init_pair(10, COLOR_RED, -1);
+    init_pair(11, COLOR_GREEN, -1);
+    init_pair(12, COLOR_YELLOW, -1);    
+    init_pair(13, COLOR_BLUE, -1);
+    init_pair(14, COLOR_MAGENTA, -1);
+    init_pair(15, COLOR_CYAN, -1);
+    init_pair(16, COLOR_WHITE, -1);
+}
+
 void start_ui_loop(Table *table) {
     int ch;
 
@@ -36,9 +55,13 @@ void start_ui_loop(Table *table) {
 void draw_ui(Table *table) {
     clear();
     int title_x = (COLS - strlen(table->name)) / 2;
+    attron(COLOR_PAIR(1) | A_BOLD);
     mvprintw(0, title_x, "%s", table->name);
+    attroff(COLOR_PAIR(1) | A_BOLD);
     draw_table_grid(table);
+    attron(COLOR_PAIR(5));
     mvprintw(LINES - 2, 2, "[C] Add Column    [R] Add Row    [Q] Quit");
+    attroff(COLOR_PAIR(5));
     refresh();
 }
 
@@ -67,11 +90,15 @@ void prompt_add_column(Table *table) {
     mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
 
     mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
+    attron(COLOR_PAIR(3) | A_BOLD);
     mvprintw(input_box_y + 1, input_box_x + 1, "[1/2] Enter column name");
+    attroff(COLOR_PAIR(3) | A_BOLD);
     mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
 
     mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
+    attron(COLOR_PAIR(4));
     mvprintw(input_box_y + 2, input_box_x + 1, " > ");
+    attroff(COLOR_PAIR(4));
     mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
 
     mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
@@ -96,11 +123,15 @@ void prompt_add_column(Table *table) {
     mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
 
     mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
+    attron(COLOR_PAIR(3) | A_BOLD);
     mvprintw(input_box_y + 1, input_box_x + 1, "[2/2] Enter type for \"%s\" (int, float, str, bool)", name);
+    attroff(COLOR_PAIR(3) | A_BOLD);
     mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
 
     mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
+    attron(COLOR_PAIR(4));
     mvprintw(input_box_y + 2, input_box_x + 1, " > ");
+    attroff(COLOR_PAIR(4));
     mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
 
     mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
@@ -151,13 +182,17 @@ void prompt_add_row(Table *table) {
 
         // Row 1 (prompt)
         mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
+        attron(COLOR_PAIR(3) | A_BOLD);
         mvprintw(input_box_y + 1, input_box_x + 1, " [%d/%d] Enter value for \"%s (%s)\"",
                 i + 1, table->column_count, col_name, col_type);
+        attroff(COLOR_PAIR(3) | A_BOLD);
         mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
 
         // Row 2 (input)
         mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
+        attron(COLOR_PAIR(4));
         mvprintw(input_box_y + 2, input_box_x + 1, " > ");
+        attroff(COLOR_PAIR(4));
         mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
 
         // Bottom border
@@ -189,7 +224,6 @@ void draw_table_grid(Table *t) {
     int *col_widths = malloc(t->column_count * sizeof(int));
 
     for (int j = 0; j < t->column_count; j++) {
-        // ✅ NEW: use full header label for width
         char header_buf[128];
         snprintf(header_buf, sizeof(header_buf), "%s (%s)",
                  t->columns[j].name, type_to_string(t->columns[j].type));
@@ -214,36 +248,45 @@ void draw_table_grid(Table *t) {
         col_widths[j] = max;
     }
 
-    // Top border
+    attron(COLOR_PAIR(6));
     mvprintw(y++, x, "┏");
     for (int j = 0; j < t->column_count; j++) {
         for (int i = 0; i < col_widths[j]; i++) addstr("━");
         addstr((j < t->column_count - 1) ? "┳" : "┓");
     }
+    attroff(COLOR_PAIR(6));
 
-    // Header row
     move(y++, x);
-    addstr("┃");
+    attron(COLOR_PAIR(6)); addstr("┃"); attroff(COLOR_PAIR(6));
     for (int j = 0; j < t->column_count; j++) {
-        char buf[128];
-        snprintf(buf, sizeof(buf), "%s (%s)", t->columns[j].name, type_to_string(t->columns[j].type));
-        printw(" %s", buf);
-        int used = strlen(buf) + 1;
+        const char *name = t->columns[j].name;
+        const char *type = type_to_string(t->columns[j].type);
+
+        attron(COLOR_PAIR(t->columns[j].color_pair_id) | A_BOLD);
+        printw(" %s", name);
+        attroff(COLOR_PAIR(t->columns[j].color_pair_id) | A_BOLD);
+
+        attron(COLOR_PAIR(3));
+        printw(" (%s)", type);
+        attroff(COLOR_PAIR(3));
+
+        int used = strlen(name) + strlen(type) + 4; // space + parens
         for (int s = used; s < col_widths[j]; s++) addch(' ');
-        addstr("┃");
+
+        attron(COLOR_PAIR(6)); addstr("┃"); attroff(COLOR_PAIR(6));
     }
 
-    // Header separator
+    attron(COLOR_PAIR(6));
     mvprintw(y++, x, "┡");
     for (int j = 0; j < t->column_count; j++) {
         for (int i = 0; i < col_widths[j]; i++) addstr("━");
         addstr((j < t->column_count - 1) ? "╇" : "┩");
     }
+    attroff(COLOR_PAIR(6));
 
-    // Body rows
     for (int i = 0; i < t->row_count; i++) {
         move(y++, x);
-        addstr("│");
+        attron(COLOR_PAIR(6)); addstr("│"); attroff(COLOR_PAIR(6));
         for (int j = 0; j < t->column_count; j++) {
             char buf[64] = "";
             if (t->columns[j].type == TYPE_INT && t->rows[i].values[j])
@@ -255,28 +298,34 @@ void draw_table_grid(Table *t) {
             else if (t->rows[i].values[j])
                 snprintf(buf, sizeof(buf), "%s", (char *)t->rows[i].values[j]);
 
+            attron(COLOR_PAIR(t->columns[j].color_pair_id));
             printw(" %s", buf);
             int used = strlen(buf) + 1;
             for (int s = used; s < col_widths[j]; s++) addch(' ');
-            addstr("│");
+            attroff(COLOR_PAIR(t->columns[j].color_pair_id));
+
+            attron(COLOR_PAIR(6)); addstr("│"); attroff(COLOR_PAIR(6));
         }
 
         if (i < t->row_count - 1) {
             move(y++, x);
+            attron(COLOR_PAIR(6));
             addstr("├");
             for (int j = 0; j < t->column_count; j++) {
                 for (int k = 0; k < col_widths[j]; k++) addstr("─");
                 addstr((j < t->column_count - 1) ? "┼" : "┤");
             }
+            attroff(COLOR_PAIR(6));
         }
     }
 
-    // Bottom border
+    attron(COLOR_PAIR(6));
     mvprintw(y++, x, "└");
     for (int j = 0; j < t->column_count; j++) {
         for (int i = 0; i < col_widths[j]; i++) addstr("─");
         addstr((j < t->column_count - 1) ? "┴" : "┘");
     }
+    attroff(COLOR_PAIR(6));
 
     free(col_widths);
 }

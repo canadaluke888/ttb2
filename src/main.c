@@ -5,6 +5,7 @@
 #include "../include/tablecraft.h"
 
 void start_ui_loop(Table *table);
+void init_colors(void);
 
 int main(void) {
     setlocale(LC_ALL, "");
@@ -13,6 +14,7 @@ int main(void) {
     noecho();
     cbreak();
     keypad(stdscr, TRUE);
+    init_colors();
     curs_set(0);
 
     Table *table = create_table("Untitled Table");

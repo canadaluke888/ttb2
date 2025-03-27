@@ -12,6 +12,7 @@ typedef enum {
 typedef struct {
     char *name;
     DataType type;
+    int color_pair_id;
 } Column;
 
 typedef struct {

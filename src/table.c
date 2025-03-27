@@ -44,8 +44,15 @@ int add_column(Table *t, const char *name, DataType type) {
         t->capacity_columns += 4;
         t->columns = realloc(t->columns, t->capacity_columns * sizeof(Column));
     }
+
     t->columns[t->column_count].name = strdup(name);
     t->columns[t->column_count].type = type;
+
+    // 🌈 Assign rainbow color
+    int color_cycle[] = {10, 11, 12, 13, 14, 15, 16};
+    int color_count = sizeof(color_cycle) / sizeof(color_cycle[0]);
+    t->columns[t->column_count].color_pair_id = color_cycle[t->column_count % color_count];
+
     t->column_count++;
 
     for (int i = 0; i < t->row_count; i++) {
@@ -55,6 +62,7 @@ int add_column(Table *t, const char *name, DataType type) {
 
     return 0;
 }
+
 
 int add_row(Table *t, const char **input_strings) {
     if (t->row_count == t->capacity_rows) {
