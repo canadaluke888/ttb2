@@ -142,10 +142,10 @@ void draw_table_grid(Table *t) {
     }
 
     // Header separator
-    mvprintw(y++, x, "┣");
+    mvprintw(y++, x, "┡");
     for (int j = 0; j < t->column_count; j++) {
         for (int i = 0; i < col_widths[j]; i++) addstr("━");
-        addstr((j < t->column_count - 1) ? "╇" : "┫");
+        addstr((j < t->column_count - 1) ? "╇" : "┩");
     }
 
     // Body rows
