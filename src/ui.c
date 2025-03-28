@@ -34,6 +34,32 @@ void init_colors() {
     init_pair(16, COLOR_WHITE, -1);
 }
 
+bool validate_input(const char *input, DataType type) {
+    if (!input || strlen(input) == 0) return false;
+
+    char *endptr;
+
+    switch (type) {
+        case TYPE_INT:
+            strtol(input, &endptr, 10);
+            return *endptr == '\0';
+        case TYPE_FLOAT:
+            strtof(input, &endptr);
+            return *endptr == '\0';
+        case TYPE_BOOL:
+            return (
+                strcasecmp(input, "true") == 0 ||
+                strcasecmp(input, "false") == 0 ||
+                strcmp(input, "1") == 0 ||
+                strcmp(input, "0") == 0
+            );
+        case TYPE_STR:
+            return true;
+        default:
+            return false;
+    }
+}
+
 void edit_header_cell(Table *t, int col) {
     echo();
     curs_set(1);
@@ -92,36 +118,47 @@ void edit_body_cell(Table *t, int row, int col) {
     const char *col_name = t->columns[col].name;
     const char *type = type_to_string(t->columns[col].type);
 
-    for (int line = 0; line < 5; line++) {
-        move(input_box_y + line, 0);
-        clrtoeol();
-    }
+    while (1) {
+        for (int line = 0; line < 6; line++) {
+            move(input_box_y + line, 0);
+            clrtoeol();
+        }
 
-    mvaddch(input_box_y, input_box_x, ACS_ULCORNER);
-    for (int i = 1; i < input_box_width - 1; i++) mvaddch(input_box_y, input_box_x + i, ACS_HLINE);
-    mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
+        // Top border
+        mvaddch(input_box_y, input_box_x, ACS_ULCORNER);
+        for (int i = 1; i < input_box_width - 1; i++) mvaddch(input_box_y, input_box_x + i, ACS_HLINE);
+        mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
 
-    mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
-    attron(COLOR_PAIR(3) | A_BOLD);
-    mvprintw(input_box_y + 1, input_box_x + 1, " Edit value for \"%s (%s)\"", col_name, type);
-    attroff(COLOR_PAIR(3) | A_BOLD);
-    mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
+        // Prompt line
+        mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
+        attron(COLOR_PAIR(3) | A_BOLD);
+        mvprintw(input_box_y + 1, input_box_x + 1, " Edit value for \"%s (%s)\"", col_name, type);
+        attroff(COLOR_PAIR(3) | A_BOLD);
+        mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
 
-    mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
-    attron(COLOR_PAIR(4));
-    mvprintw(input_box_y + 2, input_box_x + 1, " > ");
-    attroff(COLOR_PAIR(4));
-    mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
+        // Input line
+        mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
+        attron(COLOR_PAIR(4));
+        mvprintw(input_box_y + 2, input_box_x + 1, " > ");
+        attroff(COLOR_PAIR(4));
+        mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
 
-    mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
-    for (int i = 1; i < input_box_width - 1; i++) mvaddch(input_box_y + 3, input_box_x + i, ACS_HLINE);
-    mvaddch(input_box_y + 3, input_box_x + input_box_width - 1, ACS_LRCORNER);
+        // Bottom border
+        mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
+        for (int i = 1; i < input_box_width - 1; i++) mvaddch(input_box_y + 3, input_box_x + i, ACS_HLINE);
+        mvaddch(input_box_y + 3, input_box_x + input_box_width - 1, ACS_LRCORNER);
 
-    move(input_box_y + 2, input_box_x + 4);
-    getnstr(value, MAX_INPUT - 1);
+        move(input_box_y + 2, input_box_x + 4);
+        getnstr(value, MAX_INPUT - 1);
 
-    // convert and store based on type
-    if (strlen(value) > 0) {
+        if (!validate_input(value, t->columns[col].type)) {
+            attron(COLOR_PAIR(10) | A_BOLD);
+            mvprintw(input_box_y + 4, input_box_x + 2, "Invalid input. Press any key to retry.");
+            attroff(COLOR_PAIR(10) | A_BOLD);
+            getch();
+            continue;
+        }
+
         void *ptr = NULL;
         switch (t->columns[col].type) {
             case TYPE_INT: {
@@ -138,7 +175,7 @@ void edit_body_cell(Table *t, int row, int col) {
             }
             case TYPE_BOOL: {
                 int *b = malloc(sizeof(int));
-                *b = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0);
+                *b = (strcasecmp(value, "true") == 0 || strcmp(value, "1") == 0);
                 ptr = b;
                 break;
             }
@@ -148,18 +185,20 @@ void edit_body_cell(Table *t, int row, int col) {
             }
             case TYPE_UNKNOWN:
             default: {
-                ptr = NULL;  // No-op for unknown type
+                ptr = NULL;
                 break;
             }
         }
-        
+
         if (t->rows[row].values[col]) free(t->rows[row].values[col]);
         t->rows[row].values[col] = ptr;
+        break; // Valid input complete
     }
 
     noecho();
     curs_set(0);
 }
+
 
 void start_ui_loop(Table *table) {
     keypad(stdscr, TRUE);  // Needed for arrow keys
@@ -337,42 +376,53 @@ void prompt_add_row(Table *table) {
         const char *col_name = table->columns[i].name;
         const char *col_type = type_to_string(table->columns[i].type);
 
-        // Clear the input box area
-        for (int line = 0; line < 5; line++) {
-            move(input_box_y + line, 0);
-            clrtoeol();
+        while (1) {
+            // Clear input box area
+            for (int line = 0; line < 6; line++) {
+                move(input_box_y + line, 0);
+                clrtoeol();
+            }
+
+            // Top border
+            mvaddch(input_box_y, input_box_x, ACS_ULCORNER);
+            for (int i = 1; i < input_box_width - 1; i++)
+                mvaddch(input_box_y, input_box_x + i, ACS_HLINE);
+            mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
+
+            // Row 1 (prompt)
+            mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
+            attron(COLOR_PAIR(3) | A_BOLD);
+            mvprintw(input_box_y + 1, input_box_x + 1, " [%d/%d] Enter value for \"%s (%s)\"",
+                     i + 1, table->column_count, col_name, col_type);
+            attroff(COLOR_PAIR(3) | A_BOLD);
+            mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
+
+            // Row 2 (input)
+            mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
+            attron(COLOR_PAIR(4));
+            mvprintw(input_box_y + 2, input_box_x + 1, " > ");
+            attroff(COLOR_PAIR(4));
+            mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
+
+            // Bottom border
+            mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
+            for (int i = 1; i < input_box_width - 1; i++)
+                mvaddch(input_box_y + 3, input_box_x + i, ACS_HLINE);
+            mvaddch(input_box_y + 3, input_box_x + input_box_width - 1, ACS_LRCORNER);
+
+            // Input position
+            move(input_box_y + 2, input_box_x + 4);
+            getnstr(input_strings[i], MAX_INPUT - 1);
+
+            if (validate_input(input_strings[i], table->columns[i].type)) {
+                break;
+            } else {
+                attron(COLOR_PAIR(10) | A_BOLD);
+                mvprintw(input_box_y + 4, input_box_x + 2, "Invalid input. Press any key to retry.");
+                attroff(COLOR_PAIR(10) | A_BOLD);
+                getch();
+            }
         }
-
-        // Top border
-        mvaddch(input_box_y, input_box_x, ACS_ULCORNER);
-        for (int i = 1; i < input_box_width - 1; i++)
-            mvaddch(input_box_y, input_box_x + i, ACS_HLINE);
-        mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
-
-        // Row 1 (prompt)
-        mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
-        attron(COLOR_PAIR(3) | A_BOLD);
-        mvprintw(input_box_y + 1, input_box_x + 1, " [%d/%d] Enter value for \"%s (%s)\"",
-                i + 1, table->column_count, col_name, col_type);
-        attroff(COLOR_PAIR(3) | A_BOLD);
-        mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
-
-        // Row 2 (input)
-        mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
-        attron(COLOR_PAIR(4));
-        mvprintw(input_box_y + 2, input_box_x + 1, " > ");
-        attroff(COLOR_PAIR(4));
-        mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
-
-        // Bottom border
-        mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
-        for (int i = 1; i < input_box_width - 1; i++)
-            mvaddch(input_box_y + 3, input_box_x + i, ACS_HLINE);
-        mvaddch(input_box_y + 3, input_box_x + input_box_width - 1, ACS_LRCORNER);
-
-        // Input position
-        move(input_box_y + 2, input_box_x + 4);
-        getnstr(input_strings[i], MAX_INPUT - 1);
     }
 
     add_row(table, (const char **)input_strings);
@@ -385,6 +435,7 @@ void prompt_add_row(Table *table) {
     noecho();
     curs_set(0);
 }
+
 
 void draw_table_grid(Table *t) {
     if (t->column_count == 0) return;
