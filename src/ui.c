@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <locale.h>
 #include "../include/tablecraft.h"
+#include "../include/errors.h"
 
 #define MAX_INPUT 128
 
@@ -152,10 +153,7 @@ void edit_body_cell(Table *t, int row, int col) {
         getnstr(value, MAX_INPUT - 1);
 
         if (!validate_input(value, t->columns[col].type)) {
-            attron(COLOR_PAIR(10) | A_BOLD);
-            mvprintw(input_box_y + 4, input_box_x + 2, "Invalid input. Press any key to retry.");
-            attroff(COLOR_PAIR(10) | A_BOLD);
-            getch();
+            show_error_message("Invalid input.");
             continue;
         }
 
@@ -213,8 +211,7 @@ void start_ui_loop(Table *table) {
             else if (ch == 'c' || ch == 'C') prompt_add_column(table);
             else if (ch == 'r' || ch == 'R') {
                 if (table->column_count == 0) {
-                    mvprintw(LINES - 4, 2, "You must add at least one column before adding rows.");
-                    getch();
+                    show_error_message("You must add at least one column before adding rows.");
                 } else {
                     prompt_add_row(table);
                 }
@@ -417,10 +414,7 @@ void prompt_add_row(Table *table) {
             if (validate_input(input_strings[i], table->columns[i].type)) {
                 break;
             } else {
-                attron(COLOR_PAIR(10) | A_BOLD);
-                mvprintw(input_box_y + 4, input_box_x + 2, "Invalid input. Press any key to retry.");
-                attroff(COLOR_PAIR(10) | A_BOLD);
-                getch();
+                show_error_message("Invalid input.");
             }
         }
     }
