@@ -2,3 +2,6 @@ makefile.txt
 *.o
 tmp_export.csv
 build/tablecraft
+test.pdf
+test.xlsx
+test2.pdf
