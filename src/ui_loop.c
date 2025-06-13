@@ -32,6 +32,9 @@ void start_ui_loop(Table *table) {
                 cursor_row = -1;  // Set focus to header
                 cursor_col = 0;
             }
+            else if (ch == 'm' || ch == 'M') {
+                show_table_menu(table);
+            }
         } else {
             switch (ch) {
                 case KEY_LEFT:

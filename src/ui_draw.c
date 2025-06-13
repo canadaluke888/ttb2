@@ -149,7 +149,7 @@ void draw_ui(Table *table) {
 
     attron(COLOR_PAIR(5));
     if (!editing_mode) {
-        mvprintw(LINES - 2, 2, "[C] Add Column    [R] Add Row    [E] Edit Mode    [Q] Quit");
+        mvprintw(LINES - 2, 2, "[C] Add Column    [R] Add Row    [E] Edit Mode    [M] Menu    [Q] Quit");
     } else {
         mvprintw(LINES - 2, 2, "[←][→][↑][↓] Navigate    [Enter] Edit Cell    [Esc] Exit Edit Mode");
     }

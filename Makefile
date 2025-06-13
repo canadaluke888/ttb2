@@ -1,14 +1,26 @@
 CC = gcc
-CFLAGS = -Wall -Iinclude
-LDFLAGS = -lncursesw
+PYTHON_CONFIG = python3.12-config
+CFLAGS = -Wall -Iinclude $(shell $(PYTHON_CONFIG) --includes)
+LDFLAGS = -lncursesw $(shell $(PYTHON_CONFIG) --ldflags) -lpython3.12
 
-SRC = src/main.c src/table.c src/errors.c \
-      src/ui_init.c src/ui_draw.c src/ui_edit.c src/ui_prompt.c src/ui_loop.c
-OUT = build/tablecraft
+SRC_DIR = src
+OBJ_DIR = build/obj
+BIN_DIR = build
+OUT = $(BIN_DIR)/tablecraft
 
-$(OUT): $(SRC)
-	mkdir -p build
-	$(CC) $(CFLAGS) -o $(OUT) $(SRC) $(LDFLAGS)
+SRC = $(wildcard $(SRC_DIR)/*.c)
+OBJ = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRC))
+
+all: $(OUT)
+
+$(OUT): $(OBJ)
+	mkdir -p $(BIN_DIR)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf build
+	rm -rf $(BIN_DIR)
+	rm -rf $(OBJ_DIR)

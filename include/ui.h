@@ -24,6 +24,9 @@ void edit_body_cell(Table *table, int row, int col);
 // Prompt functions
 void prompt_add_column(Table *table);
 void prompt_add_row(Table *table);
+void show_table_menu(Table *table);
+void show_save_format_menu(Table *table);
+void prompt_rename_table(Table *table);
 
 // UI loop function
 void start_ui_loop(Table *table);

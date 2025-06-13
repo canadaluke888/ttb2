@@ -1,1 +1,4 @@
 makefile.txt
+*.o
+tmp_export.csv
+build/tablecraft
