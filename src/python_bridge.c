@@ -1,5 +1,7 @@
 #include <Python.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
 
 void call_python_export(const char *format, const char *output_filename) {
     Py_Initialize();
@@ -39,4 +41,9 @@ void call_python_export(const char *format, const char *output_filename) {
     }
 
     Py_Finalize();
+}
+
+bool is_python_available(void) {
+    int ret = system("python3 --version > /dev/null 2>&1");
+    return (ret == 0);
 }

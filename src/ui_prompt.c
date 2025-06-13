@@ -244,6 +244,10 @@ void show_table_menu(Table *table) {
 }
 
 void show_save_format_menu(Table *table) {
+    if (!is_python_available()) {
+        show_error_message("Python 3 not found; export disabled.");
+        return;
+    }
     clear();
     refresh();
 
@@ -269,15 +273,11 @@ void show_save_format_menu(Table *table) {
     for (int i = 1; i < box_width - 1; i++) mvaddch(box_y + box_height - 1, box_x + i, ACS_HLINE);
     mvaddch(box_y + box_height - 1, box_x + box_width - 1, ACS_LRCORNER);
 
-    // Format options
     attron(COLOR_PAIR(3) | A_BOLD);
     mvprintw(box_y + 1, box_x + 2, "Select format to save:");
-    mvprintw(box_y + 2, box_x + 2, "[1] CSV");
-    mvprintw(box_y + 3, box_x + 2, "[2] PDF");
-    mvprintw(box_y + 4, box_x + 2, "[3] ODS");
-    mvprintw(box_y + 5, box_x + 2, "[4] XLSX");
-    mvprintw(box_y + 6, box_x + 2, "[5] JSON");
-    mvprintw(box_y + 7, box_x + 2, "[Q] Cancel");
+    mvprintw(box_y + 2, box_x + 2, "[1] PDF");
+    mvprintw(box_y + 3, box_x + 2, "[2] XLSX");
+    mvprintw(box_y + 4, box_x + 2, "[Q] Cancel");
     attroff(COLOR_PAIR(3) | A_BOLD);
     refresh();
 
@@ -285,11 +285,8 @@ void show_save_format_menu(Table *table) {
     const char *format = NULL;
 
     switch (choice) {
-        case '1': format = "csv"; break;
-        case '2': format = "pdf"; break;
-        case '3': format = "ods"; break;
-        case '4': format = "xlsx"; break;
-        case '5': format = "json"; break;
+        case '1': format = "pdf"; break;
+        case '2': format = "xlsx"; break;
         case 'q':
         case 'Q':
             return;
