@@ -8,45 +8,22 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table as PDFTable, TableStyle
 from reportlab.lib import colors
 
-table_data = {"columns": [], "rows": []}
-
-def main():
-    if len(sys.argv) != 4:
-        print("Usage: export.py input.csv format output_file")
-        sys.exit(1)
-
-    input_csv = sys.argv[1]
-    format = sys.argv[2].lower()
-    output = sys.argv[3]
-
-    data = read_csv(input_csv)
-
-    if format == "csv":
-        write_csv(data, output)
-    elif format == "json":
-        write_json(data, output)
-    elif format == "xlsx":
-        write_excel(data, output)
-    elif format == "ods":
-        write_ods(data, output)
-    elif format == "pdf":
-        write_pdf(data, output)
-    else:
-        print(f"Unsupported format: {format}")
-        sys.exit(1)
-
 def read_csv(path):
     with open(path, "r", encoding='utf-8') as csv_file:
         reader = csv.reader(csv_file)
         rows = list(reader)
 
-        table_data["columns"] = [{"name": col, "type": "str"} for col in rows[0]]
+    if not rows:
+        print("CSV file is empty.")
+        sys.exit(1)
 
-        table_data["rows"] = [
-            {col: value for col, value in zip([c["name"] for c in table_data["columns"]], row)}
-            for row in rows[1:]
-        ]
+    columns = [{"name": col, "type": "str"} for col in rows[0]]
+    rows_data = [
+        {col: value for col, value in zip([c["name"] for c in columns], row)}
+        for row in rows[1:]
+    ]
 
+    return {"columns": columns, "rows": rows_data}
 
 def write_csv(data, filename):
     if not filename.endswith(".csv"):
@@ -121,6 +98,34 @@ def write_pdf(data, filename):
 
     elements.append(table)
     pdf.build(elements)
+
+def export_data(input_csv, format, output_file):
+    format = format.lower()
+    data = read_csv(input_csv)
+
+    if format == "csv":
+        write_csv(data, output_file)
+    elif format == "json":
+        write_json(data, output_file)
+    elif format == "xlsx":
+        write_excel(data, output_file)
+    elif format == "ods":
+        write_ods(data, output_file)
+    elif format == "pdf":
+        write_pdf(data, output_file)
+    else:
+        raise ValueError(f"Unsupported format: {format}")
+
+def main():
+    if len(sys.argv) != 4:
+        print("Usage: export.py input.csv format output_file")
+        sys.exit(1)
+
+    input_csv = sys.argv[1]
+    format = sys.argv[2]
+    output = sys.argv[3]
+
+    export_data(input_csv, format, output)
 
 if __name__ == "__main__":
     main()

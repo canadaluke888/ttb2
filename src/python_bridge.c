@@ -5,7 +5,7 @@ void call_python_export(const char *format, const char *output_filename) {
     Py_Initialize();
 
     PyRun_SimpleString("import sys");
-    PyRun_SimpleString("sys.path.append('python)");
+    PyRun_SimpleString("sys.path.append('python')");
 
     PyObject *pName = PyUnicode_FromString("export");
     PyObject *pModule = PyImport_Import(pName);

@@ -1,0 +1,9 @@
+{
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "/home/luke/programming_projects/C_Stuff/TableCraft-c/build",
+            "binaryPath": "/home/luke/programming_projects/C_Stuff/TableCraft-c/build/tablecraft",
+            "binaryArgs": []
+        }
+    ]
+}

@@ -4,7 +4,7 @@
 #include "tablecraft.h"
 #include "ui.h"
 #include "python_bridge.h"
-#include "errors.h"  // Added to provide declaration for show_error_message
+#include "errors.h"
 
 #define MAX_INPUT 128
 
@@ -243,8 +243,6 @@ void show_table_menu(Table *table) {
 
 }
 
-#include "python_bridge.h"  // Add this at the top of the file
-
 void show_save_format_menu(Table *table) {
     clear();
     refresh();
@@ -363,12 +361,15 @@ void show_save_format_menu(Table *table) {
 
     fclose(f);
 
-    // Call embedded Python export
-    call_python_export("tmp_export.csv", format, filename);
+    // Append file extension and call Python export
+    char final_filename[256];
+    snprintf(final_filename, sizeof(final_filename), "%s.%s", filename, format);
+    call_python_export(format, final_filename);
 
     clear();
     refresh();
     noecho();
     curs_set(0);
 }
+
 
