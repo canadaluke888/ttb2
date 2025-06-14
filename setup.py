@@ -5,7 +5,6 @@ module = Extension(
     sources=[
         "src/py_tablecraft_module.c",
         "src/table.c",
-        "src/commands.c",
         "src/errors.c",
         "src/python_bridge.c",
         "src/ui_draw.c",
@@ -13,7 +12,6 @@ module = Extension(
         "src/ui_init.c",
         "src/ui_loop.c",
         "src/ui_prompt.c",  # include prompt_add_row and related prompts
-        "src/utils.c",
     ],
     include_dirs=["include"],
     libraries=["ncursesw"],
@@ -21,7 +19,7 @@ module = Extension(
 
 setup(
     name="tablecraft",
-    version="0.1.0",
+    version="0.1.1",
     description="Terminal-based table editor (ncurses UI)",
     ext_modules=[module],
 )
