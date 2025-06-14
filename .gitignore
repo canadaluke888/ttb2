@@ -5,3 +5,4 @@ build/tablecraft
 test.pdf
 test.xlsx
 test2.pdf
+__pycache__/
