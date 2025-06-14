@@ -12,6 +12,7 @@ module = Extension(
         "src/ui_edit.c",
         "src/ui_init.c",
         "src/ui_loop.c",
+        "src/ui_prompt.c",  # include prompt_add_row and related prompts
         "src/utils.c",
     ],
     include_dirs=["include"],
