@@ -60,6 +60,9 @@ Run the `tablecraft` executable:
 
 _Note: Python 3 must be available on your PATH for export formats (PDF, XLSX, etc.)._
 
+### Example Screenshot
+![example_table](assets/example_table.png)
+
 ### Keybindings
 
  - `c` - Add a new column
