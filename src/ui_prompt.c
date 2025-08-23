@@ -5,6 +5,7 @@
 #include "ui.h"
 #include "python_bridge.h"
 #include "errors.h"
+#include "ui/panel_manager.h"
 
 #define MAX_INPUT 128
 
@@ -14,65 +15,49 @@ void prompt_add_column(Table *table) {
 
     char name[MAX_INPUT];
     char type_str[MAX_INPUT];
-    int input_box_width = COLS - 4;
-    int input_box_x = 2;
-    int input_box_y = LINES / 2 - 2;
+    int h = 4;
+    int w = COLS - 4;
+    int y = (LINES - h) / 2;
+    int x = 2;
 
-    // Step 1: Prompt for Column Name
-    for (int line = 0; line < 5; line++) {
-        move(input_box_y + line, 0);
-        clrtoeol();
-    }
-    mvaddch(input_box_y, input_box_x, ACS_ULCORNER);
-    for (int i = 1; i < input_box_width - 1; i++)
-        mvaddch(input_box_y, input_box_x + i, ACS_HLINE);
-    mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
-    mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
-    attron(COLOR_PAIR(3) | A_BOLD);
-    mvprintw(input_box_y + 1, input_box_x + 1, "[1/2] Enter column name");
-    attroff(COLOR_PAIR(3) | A_BOLD);
-    mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
-    mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
-    attron(COLOR_PAIR(4));
-    mvprintw(input_box_y + 2, input_box_x + 1, " > ");
-    attroff(COLOR_PAIR(4));
-    mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
-    mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
-    for (int i = 1; i < input_box_width - 1; i++)
-        mvaddch(input_box_y + 3, input_box_x + i, ACS_HLINE);
-    mvaddch(input_box_y + 3, input_box_x + input_box_width - 1, ACS_LRCORNER);
-    move(input_box_y + 2, input_box_x + 4);
-    getnstr(name, MAX_INPUT - 1);
+    PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+    PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
 
-    // Step 2: Prompt for Data Type
-    for (int line = 0; line < 5; line++) {
-        move(input_box_y + line, 0);
-        clrtoeol();
-    }
-    mvaddch(input_box_y, input_box_x, ACS_ULCORNER);
-    for (int i = 1; i < input_box_width - 1; i++)
-        mvaddch(input_box_y, input_box_x + i, ACS_HLINE);
-    mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
-    mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
-    attron(COLOR_PAIR(3) | A_BOLD);
-    mvprintw(input_box_y + 1, input_box_x + 1, "[2/2] Enter type for \"%s\" (int, float, str, bool)", name);
-    attroff(COLOR_PAIR(3) | A_BOLD);
-    mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
-    mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
-    attron(COLOR_PAIR(4));
-    mvprintw(input_box_y + 2, input_box_x + 1, " > ");
-    attroff(COLOR_PAIR(4));
-    mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
-    mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
-    for (int i = 1; i < input_box_width - 1; i++)
-        mvaddch(input_box_y + 3, input_box_x + i, ACS_HLINE);
-    mvaddch(input_box_y + 3, input_box_x + input_box_width - 1, ACS_LRCORNER);
-    move(input_box_y + 2, input_box_x + 4);
-    getnstr(type_str, MAX_INPUT - 1);
+    // Step 1: column name
+    werase(modal->win);
+    box(modal->win, 0, 0);
+    wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
+    mvwprintw(modal->win, 1, 2, "[1/2] Enter column name");
+    wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+    wattron(modal->win, COLOR_PAIR(4));
+    mvwprintw(modal->win, 2, 2, " > ");
+    wattroff(modal->win, COLOR_PAIR(4));
+    pm_wnoutrefresh(shadow);
+    pm_wnoutrefresh(modal);
+    pm_update();
+    mvwgetnstr(modal->win, 2, 5, name, MAX_INPUT - 1);
+
+    // Step 2: column type
+    werase(modal->win);
+    box(modal->win, 0, 0);
+    wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
+    mvwprintw(modal->win, 1, 2, "[2/2] Enter type for \"%s\" (int, float, str, bool)", name);
+    wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+    wattron(modal->win, COLOR_PAIR(4));
+    mvwprintw(modal->win, 2, 2, " > ");
+    wattroff(modal->win, COLOR_PAIR(4));
+    pm_wnoutrefresh(shadow);
+    pm_wnoutrefresh(modal);
+    pm_update();
+    mvwgetnstr(modal->win, 2, 5, type_str, MAX_INPUT - 1);
 
     DataType type = parse_type_from_string(type_str);
     if (type != TYPE_UNKNOWN)
         add_column(table, name, type);
+
+    pm_remove(modal);
+    pm_remove(shadow);
+    pm_update();
 
     noecho();
     curs_set(0);
