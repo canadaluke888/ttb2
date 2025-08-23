@@ -1,7 +1,7 @@
 #include <ncurses.h>
 #include <string.h>
 #include "../include/errors.h"
-#include "ui/panel_manager.h"
+#include "panel_manager.h"
 
 void show_error_message(const char *msg) {
     int h = 4;

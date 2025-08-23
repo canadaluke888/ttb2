@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include "tablecraft.h"
 #include "ui.h"
-#include "ui/panel_manager.h"
+#include "panel_manager.h"
 
 int main(void) {
     setlocale(LC_ALL, "");

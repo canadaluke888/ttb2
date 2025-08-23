@@ -5,7 +5,7 @@
 #include "ui.h"
 #include "python_bridge.h"
 #include "errors.h"
-#include "ui/panel_manager.h"
+#include "panel_manager.h"
 
 #define MAX_INPUT 128
 

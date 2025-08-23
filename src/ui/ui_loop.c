@@ -2,7 +2,7 @@
 #include "tablecraft.h"
 #include "ui.h"
 #include "errors.h"  // Added to provide declaration for show_error_message
-#include "ui/panel_manager.h"
+#include "panel_manager.h"
 
 // Define global UI state variables
 int editing_mode = 0;
