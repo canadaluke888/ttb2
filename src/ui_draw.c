@@ -155,5 +155,5 @@ void draw_ui(Table *table) {
     }
     attroff(COLOR_PAIR(5));
 
-    refresh();
+    wnoutrefresh(stdscr);
 }

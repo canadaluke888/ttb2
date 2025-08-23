@@ -3,10 +3,12 @@
 #include <stdlib.h>
 #include "tablecraft.h"
 #include "ui.h"
+#include "ui/panel_manager.h"
 
 int main(void) {
     setlocale(LC_ALL, "");
     initscr();
+    pm_init();
     noecho();
     cbreak();
     keypad(stdscr, TRUE);
@@ -17,6 +19,7 @@ int main(void) {
     start_ui_loop(table);  // From ui_loop.c
 
     free_table(table);
+    pm_teardown();
     endwin();
     return 0;
 }

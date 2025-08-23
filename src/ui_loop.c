@@ -2,6 +2,7 @@
 #include "tablecraft.h"
 #include "ui.h"
 #include "errors.h"  // Added to provide declaration for show_error_message
+#include "ui/panel_manager.h"
 
 // Define global UI state variables
 int editing_mode = 0;
@@ -14,7 +15,13 @@ void start_ui_loop(Table *table) {
 
     while (1) {
         draw_ui(table);
+        pm_update();
         ch = getch();
+
+        if (ch == KEY_RESIZE) {
+            pm_on_resize();
+            continue;
+        }
 
         if (!editing_mode) {
             if (ch == 'q' || ch == 'Q')
