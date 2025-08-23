@@ -174,52 +174,64 @@ void prompt_rename_table(Table *table) {
 void show_table_menu(Table *table) {
     echo();
     curs_set(1);
-    int box_width = 30;
-    int box_height = 7;
-    int box_x = (COLS - box_width) / 2;
-    int box_y = (LINES - box_height) / 2;
-    PmNode *shadow = pm_add(box_y + 1, box_x + 2, box_height, box_width,
-                             PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
-    PmNode *modal = pm_add(box_y, box_x, box_height, box_width,
-                           PM_LAYER_MODAL, PM_LAYER_MODAL);
+
+    int options_count = 4;
+    int h = options_count + 3; /* title + options + padding */
+    if (h < 7) h = 7; /* minimum height for comfort */
+    int w = COLS - 4;
+    int y = (LINES - h) / 2;
+    int x = 2;
+
+    PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+    PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
     keypad(modal->win, TRUE);
+
+    const char *labels[] = {"Rename", "Save", "Load", "Cancel"};
     int selected = 0; /* 0=Rename,1=Save,2=Load,3=Cancel */
     int ch;
+
     while (1) {
         werase(modal->win);
         box(modal->win, 0, 0);
         wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
-        mvwprintw(modal->win, 1, 2, "Table Menu");
+        mvwprintw(modal->win, 1, 2, "Table Menu:");
         wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
-        if (selected == 0) wattron(modal->win, A_REVERSE);
-        mvwprintw(modal->win, 2, 2, "Rename Table"); if (selected == 0) wattroff(modal->win, A_REVERSE);
-        if (selected == 1) wattron(modal->win, A_REVERSE);
-        mvwprintw(modal->win, 2, 18, "Save Table"); if (selected == 1) wattroff(modal->win, A_REVERSE);
-        if (selected == 2) wattron(modal->win, A_REVERSE);
-        mvwprintw(modal->win, 2, 32, "Load Table"); if (selected == 2) wattroff(modal->win, A_REVERSE);
-        if (selected == 3) wattron(modal->win, A_REVERSE);
-        mvwprintw(modal->win, 3, 2, "Cancel"); if (selected == 3) wattroff(modal->win, A_REVERSE);
-        mvwprintw(modal->win, 5, 2,
-                  "Use arrow keys and Enter to select (Esc to cancel)");
+
+        int yoff = 2;
+        for (int i = 0; i < options_count; i++) {
+            if (i == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+            mvwprintw(modal->win, yoff + i, 2, "%s", labels[i]);
+            if (i == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+        }
+
         pm_wnoutrefresh(shadow);
         pm_wnoutrefresh(modal);
         pm_update();
+
         ch = wgetch(modal->win);
-        if (ch == KEY_LEFT || ch == KEY_UP) selected = (selected > 0) ? selected - 1 : 3;
-        else if (ch == KEY_RIGHT || ch == KEY_DOWN) selected = (selected < 3) ? selected + 1 : 0;
-        else if (ch == '\n') break;
-        else if (ch == 27) { selected = 3; break; }
+        if (ch == KEY_UP) {
+            selected = (selected > 0) ? selected - 1 : options_count - 1;
+        } else if (ch == KEY_DOWN) {
+            selected = (selected + 1) % options_count;
+        } else if (ch == '\n') {
+            break;
+        } else if (ch == 27) { /* Esc */
+            selected = options_count - 1; /* Cancel */
+            break;
+        }
     }
+
     pm_remove(modal);
     pm_remove(shadow);
     pm_update();
     noecho();
     curs_set(0);
+
     switch (selected) {
-    case 0: prompt_rename_table(table); break;
-    case 1: show_save_format_menu(table); break;
-    case 2: /* load not implemented */        break;
-    default: break;
+        case 0: prompt_rename_table(table); break;
+        case 1: show_save_format_menu(table); break;
+        case 2: /* Load not implemented yet */ break;
+        default: break; /* Cancel */
     }
 }
 
@@ -228,83 +240,86 @@ void show_save_format_menu(Table *table) {
         show_error_message("Python 3 not found; export disabled.");
         return;
     }
-    clear();
-    refresh();
 
     echo();
     curs_set(1);
 
-    int box_width = 30;
-    int box_height = 9;
-    int box_x = (COLS - box_width) / 2;
-    int box_y = (LINES - box_height) / 2;
+    /* Modal selection styled like header edit */
+    const char *labels[] = {"PDF", "XLSX", "Cancel"};
+    const char *values[] = {"pdf", "xlsx", NULL};
+    int options_count = 3;
+    int h = options_count + 3;
+    if (h < 7) h = 7;
+    int w = COLS - 4;
+    int y = (LINES - h) / 2;
+    int x = 2;
 
-    // Draw menu border
-    mvaddch(box_y, box_x, ACS_ULCORNER);
-    for (int i = 1; i < box_width - 1; i++) mvaddch(box_y, box_x + i, ACS_HLINE);
-    mvaddch(box_y, box_x + box_width - 1, ACS_URCORNER);
+    PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+    PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+    keypad(modal->win, TRUE);
 
-    for (int i = 1; i < box_height - 1; i++) {
-        mvaddch(box_y + i, box_x, ACS_VLINE);
-        mvaddch(box_y + i, box_x + box_width - 1, ACS_VLINE);
+    int selected = 0; /* default to first item */
+    int ch;
+    while (1) {
+        werase(modal->win);
+        box(modal->win, 0, 0);
+        wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
+        mvwprintw(modal->win, 1, 2, "Select format to save:");
+        wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+
+        for (int i = 0; i < options_count; i++) {
+            if (i == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+            mvwprintw(modal->win, 2 + i, 2, "%s", labels[i]);
+            if (i == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+        }
+
+        pm_wnoutrefresh(shadow);
+        pm_wnoutrefresh(modal);
+        pm_update();
+
+        ch = wgetch(modal->win);
+        if (ch == KEY_UP) selected = (selected > 0) ? selected - 1 : options_count - 1;
+        else if (ch == KEY_DOWN) selected = (selected + 1) % options_count;
+        else if (ch == '\n') break;
+        else if (ch == 27) { selected = options_count - 1; break; } /* Cancel */
     }
 
-    mvaddch(box_y + box_height - 1, box_x, ACS_LLCORNER);
-    for (int i = 1; i < box_width - 1; i++) mvaddch(box_y + box_height - 1, box_x + i, ACS_HLINE);
-    mvaddch(box_y + box_height - 1, box_x + box_width - 1, ACS_LRCORNER);
+    const char *format = values[selected];
 
-    attron(COLOR_PAIR(3) | A_BOLD);
-    mvprintw(box_y + 1, box_x + 2, "Select format to save:");
-    mvprintw(box_y + 2, box_x + 2, "[1] PDF");
-    mvprintw(box_y + 3, box_x + 2, "[2] XLSX");
-    mvprintw(box_y + 4, box_x + 2, "[Q] Cancel");
-    attroff(COLOR_PAIR(3) | A_BOLD);
-    refresh();
-
-    int choice = getch();
-    const char *format = NULL;
-
-    switch (choice) {
-        case '1': format = "pdf"; break;
-        case '2': format = "xlsx"; break;
-        case 'q':
-        case 'Q':
-            return;
-        default:
-            show_error_message("Invalid selection.");
-            return;
+    pm_remove(modal);
+    pm_remove(shadow);
+    pm_update();
+    if (!format) { /* Cancel */
+        noecho();
+        curs_set(0);
+        return;
     }
 
-    // Prompt for filename
+    // Prompt for filename (consistent wide modal style)
     char filename[128];
-    int prompt_y = box_y + box_height + 1;
-    int prompt_width = 50;
+    int box_w = COLS - 4;
+    int bx = 2;
+    int by = LINES / 2 - 2;
 
-    for (int line = 0; line < 5; line++) {
-        move(prompt_y + line, 0);
-        clrtoeol();
-    }
+    for (int line = 0; line < 5; line++) { move(by + line, 0); clrtoeol(); }
+    mvaddch(by, bx, ACS_ULCORNER);
+    for (int i = 1; i < box_w - 1; i++) mvaddch(by, bx + i, ACS_HLINE);
+    mvaddch(by, bx + box_w - 1, ACS_URCORNER);
 
-    mvaddch(prompt_y, box_x, ACS_ULCORNER);
-    for (int i = 1; i < prompt_width - 1; i++)
-        mvaddch(prompt_y, box_x + i, ACS_HLINE);
-    mvaddch(prompt_y, box_x + prompt_width - 1, ACS_URCORNER);
-
-    mvaddch(prompt_y + 1, box_x, ACS_VLINE);
+    mvaddch(by + 1, bx, ACS_VLINE);
     attron(COLOR_PAIR(4));
-    mvprintw(prompt_y + 1, box_x + 2, "Enter filename (no ext): ");
+    mvprintw(by + 1, bx + 2, "Enter filename (no ext): ");
     attroff(COLOR_PAIR(4));
-    mvaddch(prompt_y + 1, box_x + prompt_width - 1, ACS_VLINE);
+    mvaddch(by + 1, bx + box_w - 1, ACS_VLINE);
 
-    mvaddch(prompt_y + 2, box_x, ACS_VLINE);
-    mvaddch(prompt_y + 2, box_x + prompt_width - 1, ACS_VLINE);
+    mvaddch(by + 2, bx, ACS_VLINE);
+    mvaddch(by + 2, bx + box_w - 1, ACS_VLINE);
 
-    mvaddch(prompt_y + 3, box_x, ACS_LLCORNER);
-    for (int i = 1; i < prompt_width - 1; i++)
-        mvaddch(prompt_y + 3, box_x + i, ACS_HLINE);
-    mvaddch(prompt_y + 3, box_x + prompt_width - 1, ACS_LRCORNER);
+    mvaddch(by + 3, bx, ACS_LLCORNER);
+    for (int i = 1; i < box_w - 1; i++) mvaddch(by + 3, bx + i, ACS_HLINE);
+    mvaddch(by + 3, bx + box_w - 1, ACS_LRCORNER);
 
-    move(prompt_y + 2, box_x + 2);
+    move(by + 2, bx + 2);
     getnstr(filename, sizeof(filename) - 1);
 
     // Write temp CSV file
@@ -348,4 +363,3 @@ void show_save_format_menu(Table *table) {
     noecho();
     curs_set(0);
 }
-
