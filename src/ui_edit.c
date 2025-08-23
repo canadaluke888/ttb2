@@ -11,14 +11,16 @@
 
 // Allow editing header cell: rename or change type with validation warning
 void edit_header_cell(Table *t, int col) {
-    int selected = 0; // 0 = rename, 1 = change type, -1 = cancel
+    int selected = 0; /* 0=rename,1=change type */
     int ch;
-    int h = 5;
+    int h = 4;
     int w = COLS - 4;
     int y = (LINES - h) / 2;
     int x = 2;
-    PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
-    PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+    PmNode *shadow = pm_add(y + 1, x + 2, h, w,
+                             PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+    PmNode *modal = pm_add(y, x, h, w,
+                           PM_LAYER_MODAL, PM_LAYER_MODAL);
     keypad(modal->win, TRUE);
 
     while (1) {
@@ -28,13 +30,12 @@ void edit_header_cell(Table *t, int col) {
         mvwprintw(modal->win, 1, 2, "Edit column '%s':", t->columns[col].name);
         wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
         // Options
-        if (selected == 0) wattron(modal->win, A_REVERSE);
-        mvwprintw(modal->win, 2, 2, "Rename Name");
-        if (selected == 0) wattroff(modal->win, A_REVERSE);
-        if (selected == 1) wattron(modal->win, A_REVERSE);
-        mvwprintw(modal->win, 2, 20, "Edit Type");
-        if (selected == 1) wattroff(modal->win, A_REVERSE);
-        mvwprintw(modal->win, 3, 2, "Use arrow keys and Enter to select (Esc to cancel)");
+        if (selected == 0) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+        mvwprintw(modal->win, 2, 2, "Rename Column");
+        if (selected == 0) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+        if (selected == 1) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+        mvwprintw(modal->win, 2, 20, "Change Type");
+        if (selected == 1) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
         pm_wnoutrefresh(shadow);
         pm_wnoutrefresh(modal);
         pm_update();
@@ -104,30 +105,104 @@ void edit_header_cell(Table *t, int col) {
         wattron(mo2->win, COLOR_PAIR(4)); mvwprintw(mo2->win, 2, 2, " > "); wattroff(mo2->win, COLOR_PAIR(4));
         pm_wnoutrefresh(sh2); pm_wnoutrefresh(mo2); pm_update();
         mvwgetnstr(mo2->win, 2, 5, type_str, MAX_INPUT - 1);
+        DataType old_type = t->columns[col].type;
         DataType new_type = parse_type_from_string(type_str);
         if (new_type == TYPE_UNKNOWN) {
+            /* close prompt panels before showing warning */
+            pm_remove(mo2);
+            pm_remove(sh2);
+            pm_update();
             show_error_message("Unknown type, no change applied.");
         } else {
-            t->columns[col].type = new_type;
-            // Validate existing data
+            /* validate convertibility of existing data to the new type */
             int conflicts = 0;
             for (int r = 0; r < t->row_count; r++) {
-                char buf[MAX_INPUT];
-                void *v = t->rows[r].values[col];
-                switch (new_type) {
-                    case TYPE_INT: snprintf(buf, sizeof(buf), "%d", *(int *)v); break;
-                    case TYPE_FLOAT: snprintf(buf, sizeof(buf), "%f", *(float *)v); break;
-                    case TYPE_BOOL: snprintf(buf, sizeof(buf), "%s", (*(int *)v) ? "true" : "false"); break;
-                    case TYPE_STR: snprintf(buf, sizeof(buf), "%s", (char *)v); break;
-                    default: buf[0] = '\0';
+                void *v = (t->rows[r].values ? t->rows[r].values[col] : NULL);
+                if (!v) continue; /* empty cell */
+                char buf[128];
+                switch (old_type) {
+                    case TYPE_INT:
+                        snprintf(buf, sizeof(buf), "%d", *(int *)v);
+                        break;
+                    case TYPE_FLOAT:
+                        snprintf(buf, sizeof(buf), "%g", *(float *)v);
+                        break;
+                    case TYPE_BOOL:
+                        snprintf(buf, sizeof(buf), "%s", (*(int *)v) ? "true" : "false");
+                        break;
+                    case TYPE_STR:
+                    default:
+                        snprintf(buf, sizeof(buf), "%s", (char *)v);
+                        break;
                 }
-                if (!validate_input(buf, new_type)) conflicts++;
+                if (!validate_input(buf, new_type))
+                    conflicts++;
             }
-            pm_remove(mo2); pm_remove(sh2); pm_update();
+
+            pm_remove(mo2);
+            pm_remove(sh2);
+            pm_update();
+
             if (conflicts > 0) {
                 char warn[MAX_INPUT];
                 snprintf(warn, sizeof(warn), "%d cell(s) conflict with new type.", conflicts);
                 show_error_message(warn);
+            } else {
+                /* perform in-place conversion for existing data */
+                for (int r = 0; r < t->row_count; r++) {
+                    void *v = (t->rows[r].values ? t->rows[r].values[col] : NULL);
+                    if (!v) continue;
+                    char buf[128];
+                    switch (old_type) {
+                        case TYPE_INT:
+                            snprintf(buf, sizeof(buf), "%d", *(int *)v);
+                            break;
+                        case TYPE_FLOAT:
+                            snprintf(buf, sizeof(buf), "%g", *(float *)v);
+                            break;
+                        case TYPE_BOOL:
+                            snprintf(buf, sizeof(buf), "%s", (*(int *)v) ? "true" : "false");
+                            break;
+                        case TYPE_STR:
+                        default:
+                            snprintf(buf, sizeof(buf), "%s", (char *)v);
+                            break;
+                    }
+
+                    void *new_ptr = NULL;
+                    switch (new_type) {
+                        case TYPE_INT: {
+                            int *i = malloc(sizeof(int));
+                            *i = atoi(buf);
+                            new_ptr = i;
+                            break;
+                        }
+                        case TYPE_FLOAT: {
+                            float *f = malloc(sizeof(float));
+                            *f = strtof(buf, NULL);
+                            new_ptr = f;
+                            break;
+                        }
+                        case TYPE_BOOL: {
+                            int *b = malloc(sizeof(int));
+                            *b = (strcasecmp(buf, "true") == 0 || strcmp(buf, "1") == 0);
+                            new_ptr = b;
+                            break;
+                        }
+                        case TYPE_STR: {
+                            new_ptr = strdup(buf);
+                            break;
+                        }
+                        default:
+                            new_ptr = NULL;
+                            break;
+                    }
+
+                    /* replace old value */
+                    free(t->rows[r].values[col]);
+                    t->rows[r].values[col] = new_ptr;
+                }
+                t->columns[col].type = new_type;
             }
         }
         noecho();

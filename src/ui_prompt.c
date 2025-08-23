@@ -174,58 +174,53 @@ void prompt_rename_table(Table *table) {
 void show_table_menu(Table *table) {
     echo();
     curs_set(1);
-
     int box_width = 30;
     int box_height = 7;
     int box_x = (COLS - box_width) / 2;
     int box_y = (LINES - box_height) / 2;
-
-    // Clear area
-    for (int i = 0; i < box_height; i++) {
-        move(box_y + i, 0);
-        clrtoeol();
+    PmNode *shadow = pm_add(box_y + 1, box_x + 2, box_height, box_width,
+                             PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+    PmNode *modal = pm_add(box_y, box_x, box_height, box_width,
+                           PM_LAYER_MODAL, PM_LAYER_MODAL);
+    keypad(modal->win, TRUE);
+    int selected = 0; /* 0=Rename,1=Save,2=Load,3=Cancel */
+    int ch;
+    while (1) {
+        werase(modal->win);
+        box(modal->win, 0, 0);
+        wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
+        mvwprintw(modal->win, 1, 2, "Table Menu");
+        wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+        if (selected == 0) wattron(modal->win, A_REVERSE);
+        mvwprintw(modal->win, 2, 2, "Rename Table"); if (selected == 0) wattroff(modal->win, A_REVERSE);
+        if (selected == 1) wattron(modal->win, A_REVERSE);
+        mvwprintw(modal->win, 2, 18, "Save Table"); if (selected == 1) wattroff(modal->win, A_REVERSE);
+        if (selected == 2) wattron(modal->win, A_REVERSE);
+        mvwprintw(modal->win, 2, 32, "Load Table"); if (selected == 2) wattroff(modal->win, A_REVERSE);
+        if (selected == 3) wattron(modal->win, A_REVERSE);
+        mvwprintw(modal->win, 3, 2, "Cancel"); if (selected == 3) wattroff(modal->win, A_REVERSE);
+        mvwprintw(modal->win, 5, 2,
+                  "Use arrow keys and Enter to select (Esc to cancel)");
+        pm_wnoutrefresh(shadow);
+        pm_wnoutrefresh(modal);
+        pm_update();
+        ch = wgetch(modal->win);
+        if (ch == KEY_LEFT || ch == KEY_UP) selected = (selected > 0) ? selected - 1 : 3;
+        else if (ch == KEY_RIGHT || ch == KEY_DOWN) selected = (selected < 3) ? selected + 1 : 0;
+        else if (ch == '\n') break;
+        else if (ch == 27) { selected = 3; break; }
     }
-
-    // Border
-    mvaddch(box_y, box_x, ACS_ULCORNER);
-    for (int i = 1; i < box_width - 1; i++) mvaddch(box_y, box_x + i, ACS_HLINE);
-    mvaddch(box_y, box_x + box_width - 1, ACS_URCORNER);
-
-    for (int i = 1; i < box_height - 1; i++) {
-        mvaddch(box_y + i, box_x, ACS_VLINE);
-        mvaddch(box_y + i, box_x + box_width - 1, ACS_VLINE);
-    }
-
-    mvaddch(box_y + box_height - 1, box_x, ACS_LLCORNER);
-    for (int i = 1; i < box_width - 1; i++) mvaddch(box_y + box_height - 1, box_x + i, ACS_HLINE);
-    mvaddch(box_y + box_height - 1, box_x + box_width - 1, ACS_LRCORNER);
-
-    // Menu text
-    attron(COLOR_PAIR(3) | A_BOLD);
-    mvprintw(box_y + 1, box_x + 2, "[1] Rename Table");
-    mvprintw(box_y + 2, box_x + 2, "[2] Save Table");
-    mvprintw(box_y + 3, box_x + 2, "[3] Load Table");
-    mvprintw(box_y + 4, box_x + 2, "[Q] Cancel");
-    attroff(COLOR_PAIR(3) | A_BOLD);
-    refresh();
-
-    int choice = getch();
-    if (choice == '1') {
-        prompt_rename_table(table);
-    }
-    else if (choice == '2') {
-        show_save_format_menu(table);
-    }
-
-    // Clear menu after
-    for (int i = 0; i < box_height + 1; i++) {
-        move(box_y + i, 0);
-        clrtoeol();
-    }
-
+    pm_remove(modal);
+    pm_remove(shadow);
+    pm_update();
     noecho();
     curs_set(0);
-
+    switch (selected) {
+    case 0: prompt_rename_table(table); break;
+    case 1: show_save_format_menu(table); break;
+    case 2: /* load not implemented */        break;
+    default: break;
+    }
 }
 
 void show_save_format_menu(Table *table) {
@@ -353,5 +348,4 @@ void show_save_format_menu(Table *table) {
     noecho();
     curs_set(0);
 }
-
 

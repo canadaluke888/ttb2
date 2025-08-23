@@ -111,5 +111,5 @@ DataType parse_type_from_string(const char *str) {
     if (strcmp(str, "float") == 0) return TYPE_FLOAT;
     if (strcmp(str, "str") == 0) return TYPE_STR;
     if (strcmp(str, "bool") == 0) return TYPE_BOOL;
-    return TYPE_STR;
+    return TYPE_UNKNOWN;
 }
