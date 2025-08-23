@@ -144,9 +144,81 @@ void edit_header_cell(Table *t, int col) {
             pm_update();
 
             if (conflicts > 0) {
-                char warn[MAX_INPUT];
-                snprintf(warn, sizeof(warn), "%d cell(s) conflict with new type.", conflicts);
-                show_error_message(warn);
+                /* offer force option: convert where possible; clear incompatible */
+                int h = 5;
+                int w = COLS - 8;
+                int y = (LINES - h) / 2;
+                int x = 4;
+                PmNode *sh3 = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+                PmNode *mo3 = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+                box(mo3->win, 0, 0);
+                wattron(mo3->win, COLOR_PAIR(10) | A_BOLD);
+                mvwprintw(mo3->win, 1, 2, "%d cell(s) conflict with new type.", conflicts);
+                wattroff(mo3->win, COLOR_PAIR(10) | A_BOLD);
+                wattron(mo3->win, COLOR_PAIR(11));
+                mvwprintw(mo3->win, 2, 2, "Press F to force (incompatible cells cleared), or Esc to cancel");
+                wattroff(mo3->win, COLOR_PAIR(11));
+                pm_wnoutrefresh(sh3); pm_wnoutrefresh(mo3); pm_update();
+                int key = wgetch(mo3->win);
+
+                bool do_force = (key == 'f' || key == 'F');
+                pm_remove(mo3); pm_remove(sh3); pm_update();
+
+                if (!do_force) {
+                    /* keep old type and abort */
+                    // no change; just return to UI
+                } else {
+                    /* perform conversion; clear incompatible cells */
+                    for (int r = 0; r < t->row_count; r++) {
+                        void *v = (t->rows[r].values ? t->rows[r].values[col] : NULL);
+                        if (!v) {
+                            /* set explicit default for new typed columns */
+                            void *new_ptr = NULL;
+                            switch (new_type) {
+                                case TYPE_INT: { int *i = malloc(sizeof(int)); *i = 0; new_ptr = i; break; }
+                                case TYPE_FLOAT: { float *f = malloc(sizeof(float)); *f = 0.0f; new_ptr = f; break; }
+                                case TYPE_BOOL: { int *b = malloc(sizeof(int)); *b = 0; new_ptr = b; break; }
+                                case TYPE_STR: new_ptr = strdup(""); break;
+                                default: new_ptr = NULL; break;
+                            }
+                            t->rows[r].values[col] = new_ptr;
+                            continue;
+                        }
+
+                        char buf[128];
+                        switch (old_type) {
+                            case TYPE_INT: snprintf(buf, sizeof(buf), "%d", *(int *)v); break;
+                            case TYPE_FLOAT: snprintf(buf, sizeof(buf), "%g", *(float *)v); break;
+                            case TYPE_BOOL: snprintf(buf, sizeof(buf), "%s", (*(int *)v) ? "true" : "false"); break;
+                            case TYPE_STR: default: snprintf(buf, sizeof(buf), "%s", (char *)v); break;
+                        }
+
+                        void *new_ptr = NULL;
+                        bool convertible = validate_input(buf, new_type);
+                        if (convertible) {
+                            switch (new_type) {
+                                case TYPE_INT: { int *i = malloc(sizeof(int)); *i = atoi(buf); new_ptr = i; break; }
+                                case TYPE_FLOAT: { float *f = malloc(sizeof(float)); *f = strtof(buf, NULL); new_ptr = f; break; }
+                                case TYPE_BOOL: { int *b = malloc(sizeof(int)); *b = (strcasecmp(buf, "true") == 0 || strcmp(buf, "1") == 0); new_ptr = b; break; }
+                                case TYPE_STR: new_ptr = strdup(buf); break;
+                                default: new_ptr = NULL; break;
+                            }
+                        } else {
+                            /* not convertible: clear to default */
+                            switch (new_type) {
+                                case TYPE_INT: { int *i = malloc(sizeof(int)); *i = 0; new_ptr = i; break; }
+                                case TYPE_FLOAT: { float *f = malloc(sizeof(float)); *f = 0.0f; new_ptr = f; break; }
+                                case TYPE_BOOL: { int *b = malloc(sizeof(int)); *b = 0; new_ptr = b; break; }
+                                case TYPE_STR: new_ptr = strdup(""); break;
+                                default: new_ptr = NULL; break;
+                            }
+                        }
+
+                        free(t->rows[r].values[col]);
+                        t->rows[r].values[col] = new_ptr;
+                    }
+                    t->columns[col].type = new_type;
+                }
             } else {
                 /* perform in-place conversion for existing data */
                 for (int r = 0; r < t->row_count; r++) {
