@@ -172,8 +172,9 @@ void prompt_rename_table(Table *table) {
 }
 
 void show_table_menu(Table *table) {
-    echo();
-    curs_set(1);
+    /* Menu uses key navigation only: hide cursor */
+    noecho();
+    curs_set(0);
 
     int options_count = 4;
     int h = options_count + 3; /* title + options + padding */
@@ -241,8 +242,9 @@ void show_save_format_menu(Table *table) {
         return;
     }
 
-    echo();
-    curs_set(1);
+    /* Selection uses keys only: hide cursor */
+    noecho();
+    curs_set(0);
 
     /* Modal selection styled like header edit */
     const char *labels[] = {"PDF", "XLSX", "Cancel"};
@@ -294,6 +296,10 @@ void show_save_format_menu(Table *table) {
         curs_set(0);
         return;
     }
+
+    // Switch to visible cursor + echo for text input
+    echo();
+    curs_set(1);
 
     // Prompt for filename (consistent wide modal style)
     char filename[128];
