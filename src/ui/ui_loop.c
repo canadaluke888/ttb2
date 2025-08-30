@@ -8,6 +8,9 @@
 int editing_mode = 0;
 int cursor_row = -1;
 int cursor_col = 0;
+int col_page = 0;
+int cols_visible = 0;
+int total_pages = 1;
 
 void start_ui_loop(Table *table) {
     keypad(stdscr, TRUE);  // Enable arrow keys
@@ -41,16 +44,20 @@ void start_ui_loop(Table *table) {
             }
             else if (ch == 'm' || ch == 'M') {
                 show_table_menu(table);
+            } else if (ch == KEY_LEFT) {
+                if (col_page > 0) col_page--;
+            } else if (ch == KEY_RIGHT) {
+                if (col_page < total_pages - 1) col_page++;
             }
         } else {
             switch (ch) {
                 case KEY_LEFT:
-                    if (cursor_col > 0)
-                        cursor_col--;
+                    if (cursor_col > 0) cursor_col--;
+                    if (cursor_col < col_page) col_page = cursor_col;
                     break;
                 case KEY_RIGHT:
-                    if (cursor_col < table->column_count - 1)
-                        cursor_col++;
+                    if (cursor_col < table->column_count - 1) cursor_col++;
+                    if (cols_visible > 0 && cursor_col >= col_page + cols_visible) col_page = cursor_col - (cols_visible - 1);
                     break;
                 case KEY_UP:
                     if (cursor_row > -1)

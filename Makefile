@@ -1,7 +1,7 @@
 CC = gcc
 PYTHON_CONFIG = python3.12-config
 CFLAGS = -Wall -Iinclude -Isrc/ui $(shell $(PYTHON_CONFIG) --includes)
-LDFLAGS = -lncursesw -lpanelw $(shell $(PYTHON_CONFIG) --ldflags) -lpython3.12
+LDFLAGS = -lncursesw -lpanelw -lsqlite3 -ljson-c $(shell $(PYTHON_CONFIG) --ldflags) -lpython3.12
 
 SRC_DIR = src
 OBJ_DIR = build/obj

@@ -6,6 +6,7 @@
 #include "ui.h"
 #include "errors.h"  // Added to provide declaration for show_error_message
 #include "panel_manager.h"
+#include "db_manager.h"
 
 #define MAX_INPUT 128
 
@@ -84,6 +85,8 @@ void edit_header_cell(Table *t, int col) {
         if (strlen(name) > 0) {
             free(t->columns[col].name);
             t->columns[col].name = strdup(name);
+            char err[256] = {0};
+            db_autosave_table(t, err, sizeof(err));
         }
         noecho();
         curs_set(0);
@@ -218,6 +221,10 @@ void edit_header_cell(Table *t, int col) {
                         t->rows[r].values[col] = new_ptr;
                     }
                     t->columns[col].type = new_type;
+                    {
+                        char err[256] = {0};
+                        db_autosave_table(t, err, sizeof(err));
+                    }
                 }
             } else {
                 /* perform in-place conversion for existing data */
@@ -275,6 +282,10 @@ void edit_header_cell(Table *t, int col) {
                     t->rows[r].values[col] = new_ptr;
                 }
                 t->columns[col].type = new_type;
+                {
+                    char err[256] = {0};
+                    db_autosave_table(t, err, sizeof(err));
+                }
             }
         }
         noecho();
@@ -365,6 +376,10 @@ void edit_body_cell(Table *t, int row, int col) {
         if (t->rows[row].values[col])
             free(t->rows[row].values[col]);
         t->rows[row].values[col] = ptr;
+        {
+            char err[256] = {0};
+            db_autosave_table(t, err, sizeof(err));
+        }
         break; // Valid input complete
     }
 

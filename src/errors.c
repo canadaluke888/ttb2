@@ -9,8 +9,8 @@ void show_error_message(const char *msg) {
     int y = (LINES - h) / 2;
     int x = 2;
 
-    echo();
-    curs_set(0);
+    // Preserve cursor visibility; do not change echo state
+    int prev_curs = curs_set(0);
 
     PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
     PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
@@ -26,11 +26,11 @@ void show_error_message(const char *msg) {
     pm_wnoutrefresh(shadow);
     pm_wnoutrefresh(modal);
     pm_update();
-    getch();
+    wgetch(modal->win);
 
     pm_remove(modal);
     pm_remove(shadow);
     pm_update();
 
-    noecho();
+    if (prev_curs != ERR) curs_set(prev_curs);
 }

@@ -8,6 +8,9 @@
 extern int editing_mode;
 extern int cursor_row;
 extern int cursor_col;
+extern int col_page; // column paging start index
+extern int cols_visible; // number of visible columns on current page
+extern int total_pages;  // total column pages
 
 // Initialization functions
 void init_colors(void);
@@ -27,6 +30,8 @@ void prompt_add_row(Table *table);
 void show_table_menu(Table *table);
 void show_save_format_menu(Table *table);
 void prompt_rename_table(Table *table);
+void show_db_manager(Table *table);
+void show_settings_menu(void);
 
 // UI loop function
 void start_ui_loop(Table *table);

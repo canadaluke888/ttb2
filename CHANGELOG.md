@@ -1,0 +1,65 @@
+# Changelog
+
+All notable changes in this batch are documented here.
+
+## [Unreleased] - 2025-08-30
+
+### Added
+- Database manager (native sqlite3) and TUI integration:
+  - `include/db_manager.h` redesigned to a clean, opaque API.
+  - `src/db_manager.c` implementing open/close, list databases/tables, delete database/table, search, save table, load table.
+  - New DB Manager UI (`src/ui/ui_db.c`) with arrow-key menu: Connect, Create, Delete DB, Delete Table, Close, Search, Back.
+  - Autosave-on-by-default with a global active DB; changes persist automatically when connected.
+- Settings support backed by JSON-C:
+  - `include/settings.h`, `src/settings.c` for load/save (`settings.json`).
+  - `src/ui/ui_settings.c` settings modal (toggle Autosave; Save & Close; Cancel).
+  - `src/main.c` loads settings on startup and saves on exit.
+- Column paging for wide tables:
+  - Compute visible columns to fit terminal width; navigate with ←/→.
+  - Footer hint shows current page and available paging keys.
+- Search results modal:
+  - Collects results and displays them in a styled mini-window with pager (x/y), navigable via ←/→.
+- SQL table loading:
+  - Table Menu → Load: pick a table from active DB and replace in-memory table.
+- New Table option:
+  - Table Menu → New Table: saves current table (if connected), optionally confirms if risky, then clears to a new "Untitled Table".
+
+### Changed
+- Table Menu updated: Rename, Save, Load, New Table, DB Manager, Settings, Cancel.
+- DB label displayed at the top-right:
+  - Shows `DB: <basename>` when connected; otherwise "No Database Connected".
+  - Truncates with ellipsis as needed to avoid overlapping the centered title.
+- UI drawing & loop:
+  - `src/ui/ui_draw.c` now draws only the visible set of columns and the DB label.
+  - `src/ui/ui_loop.c` tracks `col_page`, `cols_visible`, and `total_pages`; handles paging with arrow keys.
+- Autosave hooks added across flows:
+  - After Add Column, Add Row, rename column/table, type changes, and body cell edit.
+
+### Fixed
+- Invalid input warning box interfering with input state:
+  - `show_error_message` no longer toggles echo and preserves cursor visibility.
+- DB search UI polish:
+  - Results window uses clearer colors and layout.
+  - Query input artifacts cleared before showing list/results.
+- DB path/title overlap:
+  - DB label is shortened and truncated to prevent overwriting table title.
+- Memory safety when starting a New Table:
+  - Free logic adjusted to avoid referencing updated counts.
+
+### Build
+- Makefile updated to link sqlite3 and json-c:
+  - `-lsqlite3` and `-ljson-c` added to `LDFLAGS`.
+
+### Files (key additions/updates)
+- Added:
+  - `src/db_manager.c`, `include/db_manager.h`
+  - `src/ui/ui_db.c`
+  - `include/settings.h`, `src/settings.c`, `src/ui/ui_settings.c`
+  - `CHANGELOG.md`
+- Updated (not exhaustive):
+  - `src/ui/ui_draw.c`, `src/ui/ui_loop.c`, `src/ui/ui_edit.c`, `src/ui/ui_prompt.c`, `src/main.c`, `src/errors.c`, `Makefile`
+
+### Notes
+- Default database directory: `./databases/`.
+- Autosave is ON by default; can be toggled in Settings.
+
