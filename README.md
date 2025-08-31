@@ -1,5 +1,7 @@
 # TTB2 — Terminal Table Builder 2.0
 
+![logo](assets/ttb2_img.png)
+
 TTB2 is the new and improved 2.0 version of the terminal table builder. It features a clean ncurses UI that displays table data live, menus have been remodeled into a list based selection system rather than a command based system, an integrated SQLite database manager, autosave, paging for wide tables, a search results modal, and a simple JSON-backed settings system.
 
 All of the features you're used to, just improved.
