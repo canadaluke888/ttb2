@@ -21,6 +21,8 @@ static void free_string_list(char **list, int count) {
 }
 
 static void draw_simple_list_modal(const char *title, const char **items, int count, int *io_selected) {
+    int prev_vis = curs_set(0);
+    noecho();
     int h = (count + 3); if (h < 7) h = 7;
     int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
     PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
@@ -48,6 +50,7 @@ static void draw_simple_list_modal(const char *title, const char **items, int co
     }
     if (io_selected) *io_selected = selected;
     pm_remove(modal); pm_remove(shadow); pm_update();
+    if (prev_vis != -1) curs_set(prev_vis);
 }
 
 void prompt_add_column(Table *table) {
@@ -78,21 +81,16 @@ void prompt_add_column(Table *table) {
     pm_update();
     mvwgetnstr(modal->win, 2, 5, name, MAX_INPUT - 1);
 
-    // Step 2: column type
-    werase(modal->win);
-    box(modal->win, 0, 0);
-    wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
-    mvwprintw(modal->win, 1, 2, "[2/2] Enter type for \"%s\" (int, float, str, bool)", name);
-    wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
-    wattron(modal->win, COLOR_PAIR(4));
-    mvwprintw(modal->win, 2, 2, " > ");
-    wattroff(modal->win, COLOR_PAIR(4));
-    pm_wnoutrefresh(shadow);
-    pm_wnoutrefresh(modal);
-    pm_update();
-    mvwgetnstr(modal->win, 2, 5, type_str, MAX_INPUT - 1);
+    // Step 2: column type via list menu
+    const char *type_items[] = { "int", "float", "str", "bool" };
+    int selected = 0;
+    draw_simple_list_modal("[2/2] Select column type", type_items, 4, &selected);
 
-    DataType type = parse_type_from_string(type_str);
+    DataType type = TYPE_UNKNOWN;
+    if (selected == 0) type = TYPE_INT;
+    else if (selected == 1) type = TYPE_FLOAT;
+    else if (selected == 2) type = TYPE_STR;
+    else if (selected == 3) type = TYPE_BOOL;
     if (type != TYPE_UNKNOWN) {
         add_column(table, name, type);
         char err[256] = {0};

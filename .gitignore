@@ -26,3 +26,6 @@ databases/
 
 # VS Code settings
 .vscode/settings.json
+
+# Test files
+test_files/

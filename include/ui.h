@@ -11,6 +11,11 @@ extern int cursor_col;
 extern int col_page; // column paging start index
 extern int cols_visible; // number of visible columns on current page
 extern int total_pages;  // total column pages
+extern int col_start;    // current visible column start index (computed)
+// Row paging state
+extern int row_page;      // row paging start page index
+extern int rows_visible;  // number of visible rows on current page
+extern int total_row_pages; // total row pages
 
 // Initialization functions
 void init_colors(void);

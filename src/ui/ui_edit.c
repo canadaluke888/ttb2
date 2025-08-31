@@ -91,25 +91,41 @@ void edit_header_cell(Table *t, int col) {
         noecho();
         curs_set(0);
     } else {
-        // Change column type
-        echo();
-        curs_set(1);
-        char type_str[MAX_INPUT];
-        int box_w = COLS - 4;
-        int bx = 2;
-        int by = LINES / 2 - 2;
-        PmNode *sh2 = pm_add(by + 1, bx + 2, 4, box_w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
-        PmNode *mo2 = pm_add(by, bx, 4, box_w, PM_LAYER_MODAL, PM_LAYER_MODAL);
-        werase(mo2->win);
-        box(mo2->win, 0, 0);
-        wattron(mo2->win, COLOR_PAIR(3) | A_BOLD);
-        mvwprintw(mo2->win, 1, 2, "New type for '%s' (int, float, str, bool):", t->columns[col].name);
-        wattroff(mo2->win, COLOR_PAIR(3) | A_BOLD);
-        wattron(mo2->win, COLOR_PAIR(4)); mvwprintw(mo2->win, 2, 2, " > "); wattroff(mo2->win, COLOR_PAIR(4));
-        pm_wnoutrefresh(sh2); pm_wnoutrefresh(mo2); pm_update();
-        mvwgetnstr(mo2->win, 2, 5, type_str, MAX_INPUT - 1);
+        // Change column type via list modal (no typing)
+        noecho();
+        curs_set(0);
+        const char *type_items[] = { "int", "float", "str", "bool" };
+        int selected_type = 0;
+        // Use the same simple list modal pattern as other menus
+        int h2 = 7; int w2 = COLS - 4; int y2 = (LINES - h2) / 2; int x2 = 2;
+        PmNode *sh2 = pm_add(y2 + 1, x2 + 2, h2, w2, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+        PmNode *mo2 = pm_add(y2, x2, h2, w2, PM_LAYER_MODAL, PM_LAYER_MODAL);
+        keypad(mo2->win, TRUE);
+        int ch2;
+        while (1) {
+            werase(mo2->win);
+            box(mo2->win, 0, 0);
+            wattron(mo2->win, COLOR_PAIR(3) | A_BOLD);
+            mvwprintw(mo2->win, 1, 2, "New type for '%s'", t->columns[col].name);
+            wattroff(mo2->win, COLOR_PAIR(3) | A_BOLD);
+            for (int i = 0; i < 4; ++i) {
+                if (i == selected_type) wattron(mo2->win, COLOR_PAIR(4) | A_BOLD);
+                mvwprintw(mo2->win, 2 + i, 2, "%s", type_items[i]);
+                if (i == selected_type) wattroff(mo2->win, COLOR_PAIR(4) | A_BOLD);
+            }
+            pm_wnoutrefresh(sh2); pm_wnoutrefresh(mo2); pm_update();
+            ch2 = wgetch(mo2->win);
+            if (ch2 == KEY_UP) selected_type = (selected_type > 0) ? selected_type - 1 : 3;
+            else if (ch2 == KEY_DOWN) selected_type = (selected_type + 1) % 4;
+            else if (ch2 == '\n') break;
+            else if (ch2 == 27) { selected_type = -1; break; }
+        }
         DataType old_type = t->columns[col].type;
-        DataType new_type = parse_type_from_string(type_str);
+        DataType new_type = TYPE_UNKNOWN;
+        if (selected_type == 0) new_type = TYPE_INT;
+        else if (selected_type == 1) new_type = TYPE_FLOAT;
+        else if (selected_type == 2) new_type = TYPE_STR;
+        else if (selected_type == 3) new_type = TYPE_BOOL;
         if (new_type == TYPE_UNKNOWN) {
             /* close prompt panels before showing warning */
             pm_remove(mo2);
