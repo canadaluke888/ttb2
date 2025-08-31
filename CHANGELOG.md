@@ -2,7 +2,36 @@
 
 All notable changes in this batch are documented here.
 
-## [Unreleased] - 2025-08-31
+## [2025-08-31]
+
+### Added
+- Row paging for tall tables:
+  - Adds `row_page`, `rows_visible`, `total_row_pages` to support paging down/up when rows exceed screen height.
+  - Non-edit mode uses ↑/↓ to page rows.
+
+### Changed
+- Type selector is now a list menu (no typing):
+  - Used when adding a column and when changing a column type in the header edit flow.
+- Footer hint colors:
+  - General actions use one color; paging hints (Cols/Rows Pg x/y) use a distinct color for clarity.
+- Header styling restored:
+  - Bold header cells with mixed heavy/light intersections (heavy header rules with light verticals below), matching earlier visuals.
+- Column pager behavior:
+  - `col_page` is a page index mapped to computed `page_starts` for accurate paging across variable column widths.
+  - Exposes `col_start` for edit-mode bounds and disables paging during edit mode.
+
+### Fixed
+- Type selector cursor flicker:
+  - Cursor hidden and echo disabled while list modal is active to avoid floating cursor artifacts.
+- Column border breakage when paging:
+  - Box-drawing characters normalized so header/body intersections render cleanly when moving between pages.
+- Pager jumping across pages:
+  - Fixed page index math so column pager increments/decrements by one page; total pages reflect computed page starts.
+
+### Files (updated)
+- `src/ui/ui_draw.c`, `src/ui/ui_loop.c`, `src/ui/ui_edit.c`, `src/ui/ui_prompt.c`, `include/ui.h`
+
+## [2025-08-30]
 
 ### Added
 - Database manager (native sqlite3) and TUI integration:
@@ -23,9 +52,6 @@ All notable changes in this batch are documented here.
   - Table Menu → Load: pick a table from active DB and replace in-memory table.
 - New Table option:
   - Table Menu → New Table: saves current table (if connected), optionally confirms if risky, then clears to a new "Untitled Table".
- - Row paging for tall tables:
-   - Adds `row_page`, `rows_visible`, `total_row_pages` to support paging down/up when rows exceed screen height.
-   - Non-edit mode uses ↑/↓ to page rows.
 
 ### Changed
 - Table Menu updated: Rename, Save, Load, New Table, DB Manager, Settings, Cancel.
@@ -34,16 +60,7 @@ All notable changes in this batch are documented here.
   - Truncates with ellipsis as needed to avoid overlapping the centered title.
 - UI drawing & loop:
   - `src/ui/ui_draw.c` now draws only the visible set of columns and the DB label.
-  - `src/ui/ui_loop.c` tracks `col_page`, `cols_visible`, `total_pages`, plus row paging state; handles paging with arrow keys.
- - Type selector is now a list menu (no typing):
-  - Used when adding a column and when changing a column type in the header edit flow.
- - Footer hint colors:
-  - General actions use one color; paging hints (Cols/Rows Pg x/y) use a distinct color for clarity.
- - Header styling restored:
-  - Bold header cells with mixed heavy/light intersections (heavy header rules with light verticals below), matching earlier visuals.
- - Column pager behavior:
-  - `col_page` is a page index mapped to computed `page_starts` for accurate paging across variable column widths.
-  - Exposes `col_start` for edit-mode bounds without auto-paging.
+  - `src/ui/ui_loop.c` tracks `col_page`, `cols_visible`, and `total_pages`; handles paging with arrow keys.
 - Autosave hooks added across flows:
   - After Add Column, Add Row, rename column/table, type changes, and body cell edit.
 
@@ -57,12 +74,6 @@ All notable changes in this batch are documented here.
   - DB label is shortened and truncated to prevent overwriting table title.
 - Memory safety when starting a New Table:
   - Free logic adjusted to avoid referencing updated counts.
- - Type selector cursor flicker:
-  - Cursor hidden and echo disabled while list modal is active to avoid floating cursor artifacts.
- - Column border breakage when paging:
-  - Box-drawing characters normalized so header/body intersections render cleanly when moving between pages.
- - Pager jumping across pages:
-  - Fixed page index math so column pager increments/decrements by one page; total pages reflect computed page starts.
 
 ### Build
 - Makefile updated to link sqlite3 and json-c:
@@ -75,7 +86,7 @@ All notable changes in this batch are documented here.
   - `include/settings.h`, `src/settings.c`, `src/ui/ui_settings.c`
   - `CHANGELOG.md`
 - Updated (not exhaustive):
-  - `src/ui/ui_draw.c`, `src/ui/ui_loop.c`, `src/ui/ui_edit.c`, `src/ui/ui_prompt.c`, `include/ui.h`, `src/main.c`, `src/errors.c`, `Makefile`
+  - `src/ui/ui_draw.c`, `src/ui/ui_loop.c`, `src/ui/ui_edit.c`, `src/ui/ui_prompt.c`, `src/main.c`, `src/errors.c`, `Makefile`
 
 ### Notes
 - Default database directory: `./databases/`.
