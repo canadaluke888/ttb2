@@ -4,6 +4,7 @@
 #include "tablecraft.h"
 #include "ui.h"
 #include "python_bridge.h"
+#include "csv.h"
 #include "db_manager.h"
 #include "errors.h"
 #include "panel_manager.h"
@@ -235,8 +236,8 @@ void show_table_menu(Table *table) {
     PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
     keypad(modal->win, TRUE);
 
-    const char *labels[] = {"Rename", "Save", "Load", "New Table", "DB Manager", "Settings", "Cancel"};
-    int selected = 0; /* 0=Rename,1=Save,2=Load,3=New,4=DB,5=Settings,6=Cancel */
+    const char *labels[] = {"Rename", "Save", "Open File", "New Table", "DB Manager", "Settings", "Cancel"};
+    int selected = 0; /* 0=Rename,1=Save,2=Open,3=New,4=DB,5=Settings,6=Cancel */
     int ch;
 
     while (1) {
@@ -279,53 +280,7 @@ void show_table_menu(Table *table) {
     switch (selected) {
         case 0: prompt_rename_table(table); break;
         case 1: show_save_format_menu(table); break;
-        case 2: {
-            // Load table from current DB
-            DbManager *cur = db_get_active();
-            if (!cur || !db_is_connected(cur)) { show_error_message("No database connected."); break; }
-            char err[256] = {0};
-            char **tables = NULL; int tcount = 0;
-            if (db_list_tables(cur, &tables, &tcount, err, sizeof(err)) != 0 || tcount == 0) {
-                show_error_message("No tables to load.");
-                free_string_list(tables, tcount);
-                break;
-            }
-            const char **items = (const char**)tables; int pick = 0;
-            // reuse DB modal helper
-            extern void draw_list_modal(const char *, const char **, int, int *); // forward from ui_db.c
-            draw_simple_list_modal("Select table to load", items, tcount, &pick);
-            if (pick >= 0) {
-                Table *loaded = db_load_table(cur, tables[pick], err, sizeof(err));
-                if (!loaded) { show_error_message(err[0] ? err : "Load failed"); }
-                else {
-                    // Replace table content in place
-                    // Free existing members
-                    if (table->name) free(table->name);
-                    for (int i = 0; i < table->column_count; i++) { if (table->columns[i].name) free(table->columns[i].name); }
-                    free(table->columns);
-                    for (int i = 0; i < table->row_count; i++) {
-                        if (table->rows[i].values) {
-                            for (int j = 0; j < table->column_count; j++) { if (table->rows[i].values[j]) free(table->rows[i].values[j]); }
-                            free(table->rows[i].values);
-                        }
-                    }
-                    free(table->rows);
-                    // Move from loaded
-                    table->name = loaded->name;
-                    table->columns = loaded->columns;
-                    table->column_count = loaded->column_count;
-                    table->rows = loaded->rows;
-                    table->row_count = loaded->row_count;
-                    table->capacity_columns = loaded->capacity_columns;
-                    table->capacity_rows = loaded->capacity_rows;
-                    free(loaded);
-                    // Save immediately (sync)
-                    db_autosave_table(table, err, sizeof(err));
-                }
-            }
-            free_string_list(tables, tcount);
-            break;
-        }
+        case 2: show_open_file(table); break;
         case 3: {
             // New Table: ensure current table saved, then clear to start fresh
             DbManager *cur = db_get_active();
@@ -373,19 +328,16 @@ void show_table_menu(Table *table) {
 }
 
 void show_save_format_menu(Table *table) {
-    if (!is_python_available()) {
-        show_error_message("Python 3 not found; export disabled.");
-        return;
-    }
+    // Note: PDF/XLSX require Python; CSV is native.
 
     /* Selection uses keys only: hide cursor */
     noecho();
     curs_set(0);
 
     /* Modal selection styled like header edit */
-    const char *labels[] = {"PDF", "XLSX", "Cancel"};
-    const char *values[] = {"pdf", "xlsx", NULL};
-    int options_count = 3;
+    const char *labels[] = {"CSV", "PDF", "XLSX", "Cancel"};
+    const char *values[] = {NULL, "pdf", "xlsx", NULL};
+    int options_count = 4;
     int h = options_count + 3;
     if (h < 7) h = 7;
     int w = COLS - 4;
@@ -464,41 +416,50 @@ void show_save_format_menu(Table *table) {
     move(by + 2, bx + 2);
     getnstr(filename, sizeof(filename) - 1);
 
-    // Write temp CSV file
-    FILE *f = fopen("tmp_export.csv", "w");
-    if (!f) {
-        show_error_message("Failed to write temp CSV.");
-        return;
-    }
-
-    for (int j = 0; j < table->column_count; j++) {
-        fprintf(f, "%s (%s)%s", table->columns[j].name, type_to_string(table->columns[j].type),
-                (j < table->column_count - 1) ? "," : "\n");
-    }
-
-    for (int i = 0; i < table->row_count; i++) {
-        for (int j = 0; j < table->column_count; j++) {
-            void *v = table->rows[i].values[j];
-            if (table->columns[j].type == TYPE_INT)
-                fprintf(f, "%d", *(int *)v);
-            else if (table->columns[j].type == TYPE_FLOAT)
-                fprintf(f, "%.2f", *(float *)v);
-            else if (table->columns[j].type == TYPE_BOOL)
-                fprintf(f, "%s", (*(int *)v) ? "true" : "false");
-            else
-                fprintf(f, "%s", (char *)v);
-            if (j < table->column_count - 1)
-                fprintf(f, ",");
+    // If CSV selected, save natively and return. Otherwise, use Python exporter.
+    if (selected == 0) {
+        char outpath[256];
+        snprintf(outpath, sizeof(outpath), "%s.csv", filename);
+        char err[256] = {0};
+        if (csv_save(table, outpath, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to save CSV");
         }
-        fprintf(f, "\n");
+    } else {
+        if (!is_python_available()) {
+            show_error_message("Python 3 not found; export disabled.");
+            return;
+        }
+        // Write temp CSV file to feed Python exporter
+        FILE *f = fopen("tmp_export.csv", "w");
+        if (!f) {
+            show_error_message("Failed to write temp CSV.");
+            return;
+        }
+        for (int j = 0; j < table->column_count; j++) {
+            fprintf(f, "%s (%s)%s", table->columns[j].name, type_to_string(table->columns[j].type),
+                    (j < table->column_count - 1) ? "," : "\n");
+        }
+        for (int i = 0; i < table->row_count; i++) {
+            for (int j = 0; j < table->column_count; j++) {
+                void *v = table->rows[i].values[j];
+                if (table->columns[j].type == TYPE_INT)
+                    fprintf(f, "%d", *(int *)v);
+                else if (table->columns[j].type == TYPE_FLOAT)
+                    fprintf(f, "%.2f", *(float *)v);
+                else if (table->columns[j].type == TYPE_BOOL)
+                    fprintf(f, "%s", (*(int *)v) ? "true" : "false");
+                else
+                    fprintf(f, "%s", (char *)v);
+                if (j < table->column_count - 1)
+                    fprintf(f, ",");
+            }
+            fprintf(f, "\n");
+        }
+        fclose(f);
+        char final_filename[256];
+        snprintf(final_filename, sizeof(final_filename), "%s.%s", filename, format);
+        call_python_export(format, final_filename);
     }
-
-    fclose(f);
-
-    // Append file extension and call Python export
-    char final_filename[256];
-    snprintf(final_filename, sizeof(final_filename), "%s.%s", filename, format);
-    call_python_export(format, final_filename);
 
     clear();
     refresh();

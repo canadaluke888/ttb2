@@ -31,6 +31,35 @@ All notable changes in this batch are documented here.
 ### Files (updated)
 - `src/ui/ui_draw.c`, `src/ui/ui_loop.c`, `src/ui/ui_edit.c`, `src/ui/ui_prompt.c`, `include/ui.h`
 
+### 19:02 EST
+
+#### Added
+- Open File (mini file explorer):
+  - Replaces Table Menu “Load” with “Open File” to browse directories and pick a `.csv`.
+- Native CSV support (no Python bridge):
+  - `csv_load` reads headers as `name` or `name (type)`, loads rows, and names the table from the file basename.
+  - Optional type inference (int/float/bool/str) when loading; falls back to `str` when disabled.
+  - `csv_save` writes headers with types and all rows.
+- Settings toggle: Type inference
+  - New `type_infer_enabled` in `settings.json` and Settings UI; defaults ON.
+- Edit-mode position indicator:
+  - Displays at top-left: `R current/total  C current/total` (Row 0 indicates header focus).
+
+#### Changed
+- Save menu:
+  - Added “CSV” option for native save; PDF/XLSX continue via Python exporter.
+- DB Manager:
+  - “Load Table” moved from Table Menu into DB Manager.
+- Table Menu labels:
+  - “Load” → “Open File”.
+
+#### Notes
+- CSV parser is simple (no quoted-field or escaped-comma handling yet).
+
+#### Files (key additions/updates)
+- Added: `include/csv.h`, `src/csv.c`, `src/ui/ui_file.c`
+- Updated: `src/ui/ui_prompt.c`, `src/ui/ui_db.c`, `src/ui/ui_draw.c`, `src/ui/ui_settings.c`, `include/settings.h`, `src/settings.c`
+
 ## [2025-08-30]
 
 ### Added

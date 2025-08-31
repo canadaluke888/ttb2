@@ -209,6 +209,17 @@ void draw_ui(Table *table) {
     mvprintw(0, title_x, "%s", table->name);
     attroff(COLOR_PAIR(1) | A_BOLD);
 
+    // Show cursor position at top-left when in edit mode
+    if (editing_mode) {
+        int rcur = (cursor_row < 0) ? 0 : (cursor_row + 1);
+        int rtot = table->row_count;
+        int ccur = (table->column_count > 0) ? (cursor_col + 1) : 0;
+        int ctot = table->column_count;
+        attron(COLOR_PAIR(4) | A_BOLD);
+        mvprintw(0, 2, "R %d/%d  C %d/%d", rcur, rtot, ccur, ctot);
+        attroff(COLOR_PAIR(4) | A_BOLD);
+    }
+
     // Show current DB at top right
     // Show DB status at top-right without overlapping title
     const char *db_label = NULL;

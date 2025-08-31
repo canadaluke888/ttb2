@@ -5,6 +5,7 @@
 
 typedef struct {
     bool autosave_enabled;
+    bool type_infer_enabled;
 } AppSettings;
 
 // Initialize defaults
@@ -15,4 +16,3 @@ int settings_load(const char *path, AppSettings *out);
 int settings_save(const char *path, const AppSettings *s);
 
 #endif
-

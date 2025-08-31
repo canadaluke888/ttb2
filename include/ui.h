@@ -37,6 +37,7 @@ void show_save_format_menu(Table *table);
 void prompt_rename_table(Table *table);
 void show_db_manager(Table *table);
 void show_settings_menu(void);
+void show_open_file(Table *table);
 
 // UI loop function
 void start_ui_loop(Table *table);

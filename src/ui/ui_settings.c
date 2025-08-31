@@ -21,8 +21,8 @@ static void ensure_loaded(void) {
 void show_settings_menu(void) {
     ensure_loaded();
     noecho(); curs_set(0);
-    const char *labels[] = {"Autosave: ", "Save & Close", "Cancel"};
-    int count = 3;
+    const char *labels[] = {"Autosave: ", "Type inference: ", "Save & Close", "Cancel"};
+    int count = 4;
     int sel = 0; int ch;
     int h = 7; int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
     PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
@@ -35,11 +35,9 @@ void show_settings_menu(void) {
         wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
         for (int i = 0; i < count; ++i) {
             if (i == sel) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
-            if (i == 0) {
-                mvwprintw(modal->win, 2 + i, 2, "%s%s", labels[i], g_settings.autosave_enabled ? "On" : "Off");
-            } else {
-                mvwprintw(modal->win, 2 + i, 2, "%s", labels[i]);
-            }
+            if (i == 0) mvwprintw(modal->win, 2 + i, 2, "%s%s", labels[i], g_settings.autosave_enabled ? "On" : "Off");
+            else if (i == 1) mvwprintw(modal->win, 2 + i, 2, "%s%s", labels[i], g_settings.type_infer_enabled ? "On" : "Off");
+            else mvwprintw(modal->win, 2 + i, 2, "%s", labels[i]);
             if (i == sel) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
         }
         pm_wnoutrefresh(shadow); pm_wnoutrefresh(modal); pm_update();
@@ -48,10 +46,10 @@ void show_settings_menu(void) {
         else if (ch == KEY_DOWN) sel = (sel + 1) % count;
         else if (ch == '\n') {
             if (sel == 0) { g_settings.autosave_enabled = !g_settings.autosave_enabled; db_set_autosave_enabled(g_settings.autosave_enabled); }
-            else if (sel == 1) { settings_save(SETTINGS_PATH, &g_settings); break; }
-            else if (sel == 2) { break; }
+            else if (sel == 1) { g_settings.type_infer_enabled = !g_settings.type_infer_enabled; }
+            else if (sel == 2) { settings_save(SETTINGS_PATH, &g_settings); break; }
+            else if (sel == 3) { break; }
         } else if (ch == 27) { break; }
     }
     pm_remove(modal); pm_remove(shadow); pm_update();
 }
-

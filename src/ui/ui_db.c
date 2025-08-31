@@ -178,7 +178,7 @@ static void free_string_list(char **list, int count) {
 void show_db_manager(Table *table) {
     noecho(); curs_set(0);
 
-    const char *menu[] = { "Connect", "Create", "Delete DB", "Delete Table", "Close", "Search", "Back" };
+    const char *menu[] = { "Connect", "Create", "Delete DB", "Load Table", "Delete Table", "Close", "Search", "Back" };
     int menu_count = (int)(sizeof(menu) / sizeof(menu[0]));
     int selected = 0;
 
@@ -242,6 +242,44 @@ void show_db_manager(Table *table) {
                 }
             }
             free_string_list(dbs, n);
+        } else if (strcmp(menu[selected], "Load Table") == 0) {
+            DbManager *cur = db_get_active();
+            if (!cur || !db_is_connected(cur)) { show_error_message("No database connected."); continue; }
+            char err[256] = {0};
+            char **tables = NULL; int tcount = 0;
+            if (db_list_tables(cur, &tables, &tcount, err, sizeof(err)) != 0 || tcount == 0) {
+                show_error_message("No tables to load.");
+                free_string_list(tables, tcount);
+                continue;
+            }
+            const char **items = (const char**)tables; int pick = 0;
+            draw_list_modal("Select table to load", items, tcount, &pick);
+            if (pick >= 0) {
+                Table *loaded = db_load_table(cur, tables[pick], err, sizeof(err));
+                if (!loaded) { show_error_message(err[0] ? err : "Load failed"); }
+                else if (table) {
+                    if (table->name) free(table->name);
+                    for (int i = 0; i < table->column_count; i++) { if (table->columns[i].name) free(table->columns[i].name); }
+                    free(table->columns);
+                    for (int i = 0; i < table->row_count; i++) {
+                        if (table->rows[i].values) {
+                            for (int j = 0; j < table->column_count; j++) { if (table->rows[i].values[j]) free(table->rows[i].values[j]); }
+                            free(table->rows[i].values);
+                        }
+                    }
+                    free(table->rows);
+                    table->name = loaded->name;
+                    table->columns = loaded->columns;
+                    table->column_count = loaded->column_count;
+                    table->rows = loaded->rows;
+                    table->row_count = loaded->row_count;
+                    table->capacity_columns = loaded->capacity_columns;
+                    table->capacity_rows = loaded->capacity_rows;
+                    free(loaded);
+                    db_autosave_table(table, err, sizeof(err));
+                }
+            }
+            free_string_list(tables, tcount);
         } else if (strcmp(menu[selected], "Delete Table") == 0) {
             DbManager *cur = db_get_active();
             if (!cur || !db_is_connected(cur)) { show_error_message("No database connected."); continue; }
