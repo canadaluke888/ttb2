@@ -6,7 +6,7 @@ LDFLAGS = -lncursesw -lpanelw -lsqlite3 -ljson-c $(shell $(PYTHON_CONFIG) --ldfl
 SRC_DIR = src
 OBJ_DIR = build/obj
 BIN_DIR = build
-OUT = $(BIN_DIR)/tablecraft
+OUT = $(BIN_DIR)/ttb2
 
 SRC = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/ui/*.c)
 OBJ = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRC))

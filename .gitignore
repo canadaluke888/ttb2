@@ -6,3 +6,4 @@ build/tablecraft
 __pycache__/
 AGENTS.md
 ttb2_updates.md
+databases/

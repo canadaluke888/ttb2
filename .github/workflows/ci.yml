@@ -4,19 +4,13 @@ on:
   push:
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential libncursesw5-dev python3-dev
-      - name: Build and install extension
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python setup.py build
-          python setup.py install
-      - name: Run import test
-        run: python test_import.py
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncursesw5-dev libsqlite3-dev libjson-c-dev python3-dev
+      - name: Build
+        run: make
