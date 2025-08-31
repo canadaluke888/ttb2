@@ -36,8 +36,10 @@ Run locally:
 
 ## Highlights
 - Interactive table editing (add columns/rows; edit headers and cells)
+- Fast load and render times
 - Data types: int, float, str, bool (color-coded)
 - Column paging with ←/→ and footer hints
+- Row paging with ↑/↓
 - DB Manager: Connect/Create/Delete DB, Delete Table, Search
 - Autosave to active DB (toggle via Settings)
 - Settings modal (saved to `settings.json`)
