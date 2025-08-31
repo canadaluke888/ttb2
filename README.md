@@ -22,7 +22,7 @@ Build the native binary:
 ```
 make
 ```
-This produces `./build/tablecraft`.
+This produces `./build/ttb2`.
 
 Clean:
 ```
@@ -31,7 +31,7 @@ make clean
 
 Run locally:
 ```
-./build/tablecraft
+./build/ttb2
 ```
 
 ## Highlights
