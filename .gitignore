@@ -1,9 +1,28 @@
+
+# OBJ files
 *.o
+
+# Temporary CSV file for exporting to other formats 
 tmp_export.csv
-build/tablecraft
+
+# Build artifacts
+build/
+
+# Export file types
 *.pdf
 *.xlsx
+
+# Python artifacts
 __pycache__/
+
+# CODEX config
 AGENTS.md
+
+# Update file for developmnet 
 ttb2_updates.md
+
+# Generated databases directory from app
 databases/
+
+# VS Code settings
+.vscode/settings.json
