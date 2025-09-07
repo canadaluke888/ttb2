@@ -238,12 +238,48 @@ void draw_table_grid(Table *t) {
             if (editing_mode && del_col_mode && j == cursor_col) highlight_cell = 1;
             if (highlight_cell) attron(A_REVERSE);
 
-            attron(COLOR_PAIR(t->columns[j].color_pair_id));
-            printw(" %s", buf);
-            int used = strlen(buf) + 1;
-            for (int s = used; s < col_widths[j]; s++)
+            // Draw cell with optional search substring highlight if selected in search mode
+            if (search_mode && cursor_row == i && cursor_col == j) {
+                int totalw = col_widths[j];
+                // left space padding one: we print a leading space to match earlier layout
                 addch(' ');
-            attroff(COLOR_PAIR(t->columns[j].color_pair_id));
+                // Recompute match on the fly using current query for robust highlighting
+                int qlen = (int)strlen(search_query);
+                int start = -1;
+                if (qlen > 0) {
+                    for (int p = 0; buf[p]; ++p) {
+                        int k = 0; while (buf[p + k] && k < qlen) {
+                            char a = buf[p + k]; if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
+                            char b = search_query[k]; if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
+                            if (a != b) break; k++;
+                        }
+                        if (k == qlen) { start = p; break; }
+                    }
+                }
+                if (start >= 0 && qlen > 0) {
+                    int pre_len = start; if (pre_len > (int)strlen(buf)) pre_len = (int)strlen(buf);
+                    int match_len = qlen; if (pre_len + match_len > (int)strlen(buf)) match_len = (int)strlen(buf) - pre_len; if (match_len < 0) match_len = 0;
+                    int post_len = (int)strlen(buf) - (pre_len + match_len); if (post_len < 0) post_len = 0;
+                    if (pre_len > 0) addnstr(buf, pre_len);
+                    if (match_len > 0) { attron(COLOR_PAIR(10) | A_BOLD); addnstr(buf + pre_len, match_len); attroff(COLOR_PAIR(10) | A_BOLD); }
+                    if (post_len > 0) addnstr(buf + pre_len + match_len, post_len);
+                    int used = 1 + (int)strlen(buf);
+                    for (int s = used; s < totalw; s++) addch(' ');
+                } else {
+                    // No match in this cell despite search mode; draw normally inside highlighted cell
+                    attron(COLOR_PAIR(t->columns[j].color_pair_id));
+                    printw(" %s", buf);
+                    int used = (int)strlen(buf) + 1;
+                    for (int s = used; s < col_widths[j]; s++) addch(' ');
+                    attroff(COLOR_PAIR(t->columns[j].color_pair_id));
+                }
+            } else {
+                attron(COLOR_PAIR(t->columns[j].color_pair_id));
+                printw(" %s", buf);
+                int used = (int)strlen(buf) + 1;
+                for (int s = used; s < col_widths[j]; s++) addch(' ');
+                attroff(COLOR_PAIR(t->columns[j].color_pair_id));
+            }
 
             if (highlight_cell) attroff(A_REVERSE);
 
@@ -355,7 +391,7 @@ void draw_ui(Table *table) {
         attroff(COLOR_PAIR(4));
         // During search mode, we still want the table to scroll to the match; hints are simplified
     } else if (!editing_mode) {
-        printw("[C] Add Column  [R] Add Row  [F] Search  [E] Edit Mode  [M] Menu  [Q] Quit");
+        printw("[C] Add Column  [R] Add Row  [F] Search  [E] Edit Mode  [M] Menu  [Q] Quit  [Ctrl+H] Top-Left");
         attroff(COLOR_PAIR(5));
         // Paging hints in a distinct color
         if (total_pages > 1 || total_row_pages > 1) {
@@ -375,7 +411,7 @@ void draw_ui(Table *table) {
         } else if (del_col_mode) {
             printw("Delete Column: [←][→] Select  [Enter] Confirm  [Esc] Cancel");
         } else {
-            printw("[←][→][↑][↓] Navigate    [Enter] Edit Cell    [x] Del Row    [^X] Del Col    [Backspace] Clear    [Esc] Exit Edit Mode");
+            printw("[←][→][↑][↓] Navigate    [Enter] Edit Cell    [x] Del Row    [Shift+X] Del Col    [Backspace] Clear    [Ctrl+H] Top-Left    [Esc] Exit Edit Mode");
         }
         attroff(COLOR_PAIR(5));
         // Also show paging context in edit mode if applicable

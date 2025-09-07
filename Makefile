@@ -24,3 +24,8 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 clean:
 	rm -rf $(BIN_DIR)
 	rm -rf $(OBJ_DIR)
+
+.PHONY: seekdb_bench
+seekdb_bench: tools/seekdb_bench.c src/seekdb.c include/seekdb.h
+	mkdir -p $(BIN_DIR)
+	$(CC) -O2 -Wall -Iinclude -o $(BIN_DIR)/seekdb_bench tools/seekdb_bench.c src/seekdb.c -lsqlite3

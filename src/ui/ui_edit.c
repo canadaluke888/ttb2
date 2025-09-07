@@ -353,7 +353,10 @@ void edit_body_cell(Table *t, int row, int col) {
         mvaddch(input_box_y + 3, input_box_x + input_box_width - 1, ACS_LRCORNER);
 
         move(input_box_y + 2, input_box_x + 4);
+        // Temporarily disable nodelay so input waits for user typing
+        nodelay(stdscr, FALSE);
         getnstr(value, MAX_INPUT - 1);
+        nodelay(stdscr, TRUE);
 
         if (!validate_input(value, t->columns[col].type)) {
             show_error_message("Invalid input.");

@@ -2,7 +2,7 @@
 
 ![logo](assets/ttb2_img.png)
 
-TTB2 is the new and improved 2.0 version of the terminal table builder. It features a clean ncurses UI that displays table data live, menus have been remodeled into a list based selection system rather than a command based system, an integrated SQLite database manager, autosave, paging for wide tables, a search results modal, and a simple JSON-backed settings system.
+TTB2 is the new and improved 2.0 version of the terminal table builder. It features a clean ncurses UI that displays table data live, list-based menus, an integrated SQLite database manager, autosave, paging for wide and tall tables, an inline search mode, interactive row/column deletion, and a simple JSON-backed settings system. CSV import/export is built-in; PDF/XLSX export remains available via the Python helper.
 
 All of the features you're used to, just improved.
 
@@ -37,15 +37,20 @@ Run locally:
 ```
 
 ## Highlights
-- Interactive table editing (add columns/rows; edit headers and cells)
-- Fast load and render times
-- Data types: int, float, str, bool (color-coded)
+- Interactive table editing (add columns/rows; rename columns; change types; edit cells)
+- Fast load and render times; smooth scrolling even on large tables
+- Low‑RAM seek paging (SQLite-backed, streaming windows; no OFFSET) — toggle in Settings
+- Row‑number gutter (centered, toggle in Settings)
+- Data types: int, float, str, bool (color‑coded)
 - Column paging with ←/→ and footer hints
 - Row paging with ↑/↓
-- DB Manager: Connect/Create/Delete DB, Delete Table, Search
+- Search mode: press F to search; navigate matches with ←/→/↑/↓; Esc exits; exact substring highlight inside the selected cell
+- Edit mode tools: [x] Delete Row, [Shift+X] Delete Column (guarded), [Backspace] Clear Cell
+- DB Manager: Connect/Create/Delete DB, Load Table, Delete Table, Close
+- Smart sync prompts when connecting/creating DB or loading CSV with a conflicting table name
 - Autosave to active DB (toggle via Settings)
-- Settings modal (saved to `settings.json`)
-- Exports via embedded Python helpers (optional)
+- Settings modal (saved to `settings.json`; includes type inference, Low‑RAM seek paging, row gutter)
+- Exports: native CSV save; PDF/XLSX via embedded Python helper (optional)
 
 ## Screenshots
 
@@ -69,8 +74,23 @@ Run locally:
 - `c` Add column
 - `r` Add row
 - `e` Edit mode (arrows to navigate, Enter to edit, Esc to exit)
+- `f` Search mode (arrows to jump matches, Esc to exit)
+- `Ctrl+H` Jump to top‑left (Home)
 - `m` Table menu (Rename, Save, Load, New Table, DB Manager, Settings)
+- In Edit mode:
+  - `x` Delete row (interactive; Enter confirms)
+  - `Shift+X` Delete column (interactive; Enter confirms)
+  - `Backspace` Clear cell (with confirmation)
+  - `Ctrl+H` Jump to top‑left (Home)
 - `q` Quit
+
+Notes:
+- Terminals often report Home as `Ctrl+H`; both are shown as “Home” in the footer.
+
+## Performance / Low‑RAM Mode
+- Enable “Low‑RAM seek paging” in Settings to browse large datasets without loading everything into memory.
+- Rows are fetched in small windows and rendered incrementally to keep memory and latency stable.
+- On Windows terminals, flicker is minimized by double‑buffered updates and scanning only visible rows for column widths.
 
 ## Exports
 The app writes a temporary CSV (`tmp_export.csv`) and calls `python/export.py` to generate PDF/XLSX (ensure required Python libs are installed).

@@ -15,6 +15,7 @@ All notable changes in this batch are documented here.
 - Flicker reduction using erase + wnoutrefresh + doupdate and leaveok; width scan limited to visible rows.
 - Edit‑mode focus starts at the top‑left of the current page.
 - Cursor bounds enforced: prevent cursor from moving past viewport edges in search and edit modes.
+- Footer hints: show Home as [Ctrl+H] to jump to top‑left; Edit footer uses [Shift+X] for Delete Column.
 
 #### Fixed
 - Search prompt no longer immediately closes under nodelay.
