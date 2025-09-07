@@ -16,7 +16,7 @@ Dependencies (Debian/Ubuntu packages):
 - SQLite3 (`libsqlite3-dev`) 
   `sudo apt install libsqlite3-dev`
 - JSON-C (`libjson-c-dev`) 
-  `sudo apt install libjson-c`
+  `sudo apt install libjson-c-dev`
 - Python 3 headers (`python3-dev`) — required for export feature 
   `sudo apt install python3-dev`
 
