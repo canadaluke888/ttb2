@@ -66,6 +66,26 @@ void draw_table_grid(Table *t) {
         i = j;
     }
 
+    // If in search mode, ensure the page shows the cursor column
+    if (search_mode && t->column_count > 0 && cursor_col >= 0 && cursor_col < t->column_count) {
+        for (int p = 0; p < pages; ++p) {
+            int s = page_starts[p];
+            int wsum2 = 0, vis2 = 0;
+            for (int j = s; j < t->column_count; ++j) {
+                if (vis2 == 0) {
+                    if (col_widths[j] > available) { vis2 = 1; break; }
+                    wsum2 = col_widths[j];
+                    vis2 = 1;
+                } else {
+                    if (wsum2 + 1 + col_widths[j] > available) break;
+                    wsum2 += 1 + col_widths[j];
+                    vis2++;
+                }
+            }
+            int e = s + (vis2 > 0 ? vis2 : 1);
+            if (cursor_col >= s && cursor_col < e) { col_page = p; break; }
+        }
+    }
     // Clamp page index and derive current start from page index
     if (col_page < 0) col_page = 0;
     if (col_page >= pages) col_page = (pages > 0 ? pages - 1 : 0);
@@ -104,7 +124,7 @@ void draw_table_grid(Table *t) {
         const char *name = t->columns[j].name;
         const char *type = type_to_string(t->columns[j].type);
 
-        if (editing_mode && cursor_row == -1 && cursor_col == j)
+        if ((editing_mode || search_mode) && cursor_row == -1 && cursor_col == j)
             attron(A_REVERSE);
 
         attron(COLOR_PAIR(t->columns[j].color_pair_id) | A_BOLD);
@@ -115,7 +135,7 @@ void draw_table_grid(Table *t) {
         printw(" (%s)", type);
         attroff(COLOR_PAIR(3));
 
-        if (editing_mode && cursor_row == -1 && cursor_col == j)
+        if ((editing_mode || search_mode) && cursor_row == -1 && cursor_col == j)
             attroff(A_REVERSE);
 
         int used = strlen(name) + strlen(type) + 4;
@@ -140,6 +160,10 @@ void draw_table_grid(Table *t) {
     if (max_rows < 1) max_rows = 1;
     rows_visible = max_rows;
     total_row_pages = (t->row_count + rows_visible - 1) / rows_visible;
+    // If in search mode, ensure the visible rows include the cursor row
+    if (search_mode && cursor_row >= 0 && cursor_row < t->row_count && rows_visible > 0) {
+        row_page = cursor_row / rows_visible;
+    }
     if (row_page >= total_row_pages) row_page = (total_row_pages > 0 ? total_row_pages - 1 : 0);
     int rstart = row_page * rows_visible;
     if (rstart < 0) rstart = 0;
@@ -160,7 +184,7 @@ void draw_table_grid(Table *t) {
             else if (t->rows[i].values[j])
                 snprintf(buf, sizeof(buf), "%s", (char *)t->rows[i].values[j]);
 
-            if (editing_mode && cursor_row == i && cursor_col == j)
+            if ((editing_mode || search_mode) && cursor_row == i && cursor_col == j)
                 attron(A_REVERSE);
 
             attron(COLOR_PAIR(t->columns[j].color_pair_id));
@@ -170,7 +194,7 @@ void draw_table_grid(Table *t) {
                 addch(' ');
             attroff(COLOR_PAIR(t->columns[j].color_pair_id));
 
-            if (editing_mode && cursor_row == i && cursor_col == j)
+            if ((editing_mode || search_mode) && cursor_row == i && cursor_col == j)
                 attroff(A_REVERSE);
 
             attron(COLOR_PAIR(6)); addstr("│"); attroff(COLOR_PAIR(6));
@@ -209,8 +233,8 @@ void draw_ui(Table *table) {
     mvprintw(0, title_x, "%s", table->name);
     attroff(COLOR_PAIR(1) | A_BOLD);
 
-    // Show cursor position at top-left when in edit mode
-    if (editing_mode) {
+    // Show cursor position at top-left when in edit or search mode
+    if (editing_mode || search_mode) {
         int rcur = (cursor_row < 0) ? 0 : (cursor_row + 1);
         int rtot = table->row_count;
         int ccur = (table->column_count > 0) ? (cursor_col + 1) : 0;
@@ -222,7 +246,6 @@ void draw_ui(Table *table) {
 
     // Show current DB at top right
     // Show DB status at top-right without overlapping title
-    const char *db_label = NULL;
     DbManager *adb = db_get_active();
     const char *full = (adb && db_is_connected(adb)) ? db_current_path(adb) : NULL;
     char shown[128];
@@ -266,8 +289,17 @@ void draw_ui(Table *table) {
     int fy = LINES - 2;
     move(fy, 2);
     attron(COLOR_PAIR(5));
-    if (!editing_mode) {
-        printw("[C] Add Column  [R] Add Row  [E] Edit Mode  [M] Menu  [Q] Quit");
+    if (search_mode) {
+        printw("[←][→][↑][↓] Prev/Next Match   [Esc] Exit Search");
+        attroff(COLOR_PAIR(5));
+        // Show match index/total in paging color for grounding
+        attron(COLOR_PAIR(4));
+        extern int search_hit_index; extern int search_hit_count;
+        printw("  |  Matches %d/%d", (search_hit_count > 0 ? (search_hit_index + 1) : 0), search_hit_count);
+        attroff(COLOR_PAIR(4));
+        // During search mode, we still want the table to scroll to the match; hints are simplified
+    } else if (!editing_mode) {
+        printw("[C] Add Column  [R] Add Row  [F] Search  [E] Edit Mode  [M] Menu  [Q] Quit");
         attroff(COLOR_PAIR(5));
         // Paging hints in a distinct color
         if (total_pages > 1 || total_row_pages > 1) {

@@ -41,23 +41,7 @@ static void join_path(char *out, size_t out_sz, const char *a, const char *b) {
     snprintf(out, out_sz, needs_sep ? "%s/%s" : "%s%s", a, b);
 }
 
-// Case-insensitive substring search (ASCII)
-static int ci_contains(const char *hay, const char *need) {
-    if (!hay || !need) return 0;
-    size_t nlen = strlen(need);
-    if (nlen == 0) return 1;
-    for (const char *p = hay; *p; ++p) {
-        size_t i = 0;
-        while (p[i] && i < nlen) {
-            char a = p[i]; if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
-            char b = need[i]; if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
-            if (a != b) break;
-            i++;
-        }
-        if (i == nlen) return 1;
-    }
-    return 0;
-}
+// (search helpers removed; UI implements search mode)
 
 // Forwards for helpers used below
 static void quote_ident(char *out, size_t out_sz, const char *name);
@@ -191,6 +175,19 @@ int db_list_tables(DbManager *db, char ***names_out, int *count_out, char *err, 
     return 0;
 }
 
+int db_table_exists(DbManager *db, const char *name) {
+    if (!db || !db->conn || !name || !*name) return 0;
+    char **names = NULL; int count = 0; char err[64] = {0};
+    if (db_list_tables(db, &names, &count, err, sizeof(err)) != 0) return 0;
+    int found = 0;
+    for (int i = 0; i < count; ++i) {
+        if (strcmp(names[i], name) == 0) { found = 1; }
+        free(names[i]);
+    }
+    free(names);
+    return found;
+}
+
 int db_delete_table(DbManager *db, const char *name, char *err, size_t err_sz) {
     if (!db || !db->conn) { set_err(err, err_sz, "Not connected"); return -1; }
     if (!name || !*name) { set_err(err, err_sz, "No table name"); return -1; }
@@ -272,55 +269,7 @@ static int fetch_columns(DbManager *db, const char *table, char ***names, char *
     return 0;
 }
 
-int db_search(DbManager *db, const char *query, const char *table_name,
-              db_search_cb on_match, void *user, char *err, size_t err_sz) {
-    if (!db || !db->conn) { set_err(err, err_sz, "Not connected"); return -1; }
-    if (!query || !*query) { set_err(err, err_sz, "Empty query"); return -1; }
-
-    int rc = 0;
-    char **tables = NULL; int tcount = 0;
-    if (table_name && *table_name) {
-        tables = (char**)malloc(sizeof(char*));
-        tables[0] = strdup(table_name);
-        tcount = 1;
-    } else {
-        rc = db_list_tables(db, &tables, &tcount, err, err_sz);
-        if (rc != 0) return -1;
-    }
-
-    for (int ti = 0; ti < tcount; ++ti) {
-        const char *tbl = tables[ti];
-        // Fetch all rows
-        char sql[512]; snprintf(sql, sizeof(sql), "SELECT * FROM \"%s\";", tbl);
-        sqlite3_stmt *st = NULL;
-        if (sqlite3_prepare_v2(db->conn, sql, -1, &st, NULL) != SQLITE_OK) { rc = -1; break; }
-
-        char **col_names = NULL; char **col_types = NULL; int col_count = 0;
-        fetch_columns(db, tbl, &col_names, &col_types, &col_count);
-
-        int row_idx = 0;
-        while (sqlite3_step(st) == SQLITE_ROW) {
-            row_idx++;
-            int cols = sqlite3_column_count(st);
-            for (int c = 0; c < cols; ++c) {
-                const unsigned char *txt = sqlite3_column_text(st, c);
-                if (!txt) continue;
-                const char *val = (const char*)txt;
-                if (ci_contains(val, query)) {
-                    const char *cn = (c < col_count ? col_names[c] : "");
-                    const char *ct = (c < col_count ? col_types[c] : "");
-                    if (on_match) on_match(tbl, row_idx, cn, ct, val, user);
-                }
-            }
-        }
-        sqlite3_finalize(st);
-        for (int i = 0; i < col_count; ++i) { free(col_names[i]); free(col_types[i]); }
-        free(col_names); free(col_types);
-    }
-    for (int i = 0; i < tcount; ++i) free(tables[i]);
-    free(tables);
-    return rc;
-}
+// (db_search removed)
 
 // Helpers for saving Table to SQLite
 static const char *map_dtype(DataType t) {

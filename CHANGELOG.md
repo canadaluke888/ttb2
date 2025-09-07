@@ -2,6 +2,22 @@
 
 All notable changes in this batch are documented here.
 
+## [2025-09-07]
+
+### Changed
+- DB Manager: removed the "Search" menu option and all related DB-side search code; the existing UI search mode remains unchanged.
+- Connect/Create flows now include sync prompts when a table with the same name exists in the connected DB, avoiding silent overwrites.
+
+### Fixed
+- Column Add flow layering: type selection list now appears above the name prompt (prompt modal is closed before showing the list).
+- Compiler warnings cleanup: removed unused functions/variables, fixed misleading indentation, and addressed truncation warning.
+
+### API
+- `db_table_exists` added to `db_manager` to support quick existence checks for sync prompts.
+
+### Files (key updates)
+- Updated: `src/ui/ui_prompt.c`, `src/ui/ui_db.c`, `src/ui/ui_file.c`, `src/db_manager.c`, `include/db_manager.h`, `src/ui/ui_draw.c`, `src/ui/ui_loop.c`
+
 ## [2025-08-31]
 
 ### Added

@@ -9,6 +9,7 @@
 #include "errors.h"
 #include "settings.h"
 #include "csv.h"
+#include "db_manager.h"
 #include "ui.h"
 
 typedef struct {
@@ -46,7 +47,9 @@ static Entry *list_dir(const char *path, int *out_count) {
 }
 
 static void free_entries(Entry *arr, int n) {
-    if (!arr) return; for (int i = 0; i < n; ++i) free(arr[i].name); free(arr);
+    if (!arr) return;
+    for (int i = 0; i < n; ++i) free(arr[i].name);
+    free(arr);
 }
 
 void show_open_file(Table *table) {
@@ -139,10 +142,49 @@ void show_open_file(Table *table) {
             table->capacity_columns = loaded->capacity_columns;
             table->capacity_rows = loaded->capacity_rows;
             free(loaded);
+
+            // If a DB is connected and a table of same name exists, prompt to sync
+            DbManager *cur = db_get_active();
+            if (cur && db_is_connected(cur) && table->name && db_table_exists(cur, table->name)) {
+                const char *opts[] = { "Overwrite DB", "Keep DB (no save)" };
+                int pick = 0;
+                // Clear screen to avoid artifacts from file modal before showing prompt
+                clear(); refresh();
+                // Reuse a simple list modal from DB UI by declaring here
+                // Use a minimal inline modal to avoid cross-file dependency; quick prompt
+                // We'll just use show_error_message for now if user chooses overwrite
+                // but present a simple choice list via panels as with other modals
+                // Build a tiny modal inline
+                int h = 7; int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
+                PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+                PmNode *modal  = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+                keypad(modal->win, TRUE);
+                while (1) {
+                    werase(modal->win); box(modal->win, 0, 0);
+                    wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
+                    mvwprintw(modal->win, 1, 2, "Table '%s' exists in DB. Sync?", table->name);
+                    wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+                    for (int i = 0; i < 2; ++i) {
+                        if (i == pick) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+                        mvwprintw(modal->win, 2 + i, 2, "%s", opts[i]);
+                        if (i == pick) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+                    }
+                    pm_wnoutrefresh(shadow); pm_wnoutrefresh(modal); pm_update();
+                    int ch = wgetch(modal->win);
+                    if (ch == KEY_UP) pick = (pick > 0) ? pick - 1 : 1;
+                    else if (ch == KEY_DOWN) pick = (pick + 1) % 2;
+                    else if (ch == '\n' || ch == 27) break;
+                }
+                pm_remove(modal); pm_remove(shadow); pm_update();
+                if (pick == 0) {
+                    char serr[256] = {0};
+                    if (db_save_table(cur, table, serr, sizeof(serr)) != 0) show_error_message(serr[0] ? serr : "Save failed");
+                    else show_error_message("Database table overwritten with loaded data.");
+                }
+            }
         }
         pm_remove(modal); pm_remove(shadow); pm_update();
         free_entries(ents, count);
         return;
     }
 }
-

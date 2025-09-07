@@ -13,13 +13,7 @@
 #define MAX_INPUT 128
 
 static void draw_simple_list_modal(const char *title, const char **items, int count, int *io_selected);
-static void free_string_list(char **list, int count); // local helper
-
-static void free_string_list(char **list, int count) {
-    if (!list) return;
-    for (int i = 0; i < count; ++i) free(list[i]);
-    free(list);
-}
+// (no local string-list helpers required here)
 
 static void draw_simple_list_modal(const char *title, const char **items, int count, int *io_selected) {
     int prev_vis = curs_set(0);
@@ -59,7 +53,6 @@ void prompt_add_column(Table *table) {
     curs_set(1);
 
     char name[MAX_INPUT];
-    char type_str[MAX_INPUT];
     int h = 4;
     int w = COLS - 4;
     int y = (LINES - h) / 2;
@@ -83,6 +76,11 @@ void prompt_add_column(Table *table) {
     mvwgetnstr(modal->win, 2, 5, name, MAX_INPUT - 1);
 
     // Step 2: column type via list menu
+    // Remove name prompt modal before drawing the type selector to avoid z-index issues
+    pm_remove(modal);
+    pm_remove(shadow);
+    pm_update();
+
     const char *type_items[] = { "int", "float", "str", "bool" };
     int selected = 0;
     draw_simple_list_modal("[2/2] Select column type", type_items, 4, &selected);
@@ -98,9 +96,7 @@ void prompt_add_column(Table *table) {
         db_autosave_table(table, err, sizeof(err));
     }
 
-    pm_remove(modal);
-    pm_remove(shadow);
-    pm_update();
+    // Nothing to remove here; the name prompt was already closed before type selection
 
     noecho();
     curs_set(0);

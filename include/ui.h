@@ -8,6 +8,9 @@
 extern int editing_mode;
 extern int cursor_row;
 extern int cursor_col;
+extern int search_mode; // 1 when search navigation is active
+extern int search_hit_count;   // total number of matches
+extern int search_hit_index;   // current match index (0-based)
 extern int col_page; // column paging start index
 extern int cols_visible; // number of visible columns on current page
 extern int total_pages;  // total column pages

@@ -29,6 +29,8 @@ int  db_list_databases(char ***names_out, int *count_out, char *err, size_t err_
 // Introspection
 int  db_list_tables(DbManager *db, char ***names_out, int *count_out, char *err, size_t err_sz); // caller frees
 int  db_delete_table(DbManager *db, const char *name, char *err, size_t err_sz);
+// Convenience: check if a table name exists in the connected DB
+int  db_table_exists(DbManager *db, const char *name);
 
 // Load table from SQLite into a new Table (caller frees via free_table)
 Table* db_load_table(DbManager *db, const char *name, char *err, size_t err_sz);
@@ -36,14 +38,6 @@ Table* db_load_table(DbManager *db, const char *name, char *err, size_t err_sz);
 // Persist current Table into SQLite (drops/recreates table to match schema)
 int  db_save_table(DbManager *db, const Table *t, char *err, size_t err_sz);
 
-// Search API: calls callback once per match. If table_name==NULL, searches all tables.
-typedef void (*db_search_cb)(const char *table,
-                             int row_index,
-                             const char *column_name,
-                             const char *column_type,
-                             const char *value,
-                             void *user);
-int  db_search(DbManager *db, const char *query, const char *table_name,
-               db_search_cb on_match, void *user, char *err, size_t err_sz);
+// Search mode is handled in the UI; no DB search API here.
 
 #endif // DB_MANAGER_H
