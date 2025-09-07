@@ -4,6 +4,28 @@ All notable changes in this batch are documented here.
 
 ## [2025-09-07]
 
+### 18:00 EST
+
+#### Added
+- Low‑RAM seek paging mode with streaming windows (seekdb) and Settings toggle.
+- Row‑number gutter with centered numbers; toggle to show/hide in Settings.
+
+#### Improved
+- Smooth scrolling via non‑blocking input, key coalescing, and single‑frame redraws.
+- Flicker reduction using erase + wnoutrefresh + doupdate and leaveok; width scan limited to visible rows.
+- Edit‑mode focus starts at the top‑left of the current page.
+- Cursor bounds enforced: prevent cursor from moving past viewport edges in search and edit modes.
+
+#### Fixed
+- Search prompt no longer immediately closes under nodelay.
+- Settings menu text no longer overlaps borders; text is clipped within the window.
+- Table breakage from gutter width not accounted for in visible column layout.
+- Windows terminal flicker with large CSVs and wide windows.
+
+#### Internal
+- seekdb spill files moved under build/ with safe unlink/rmdir cleanup.
+- Added `seekdb_get_view_columns` and a lightweight `seekdb_bench` tool.
+
 ### 21:00 EST
 
 #### Changed

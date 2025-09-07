@@ -7,6 +7,7 @@
 #include "panel_manager.h"
 #include "errors.h"
 #include "db_manager.h"
+#include "ui.h"
 
 // Active DB connection managed via db_manager singleton helpers
 
@@ -49,6 +50,7 @@ static void draw_list_modal(const char *title, const char **items, int count, in
 
 static int prompt_text_input(const char *title, const char *prompt, char *out, size_t out_sz) {
     echo(); curs_set(1);
+    nodelay(stdscr, FALSE);
     int w = COLS - 4; int x = 2; int y = LINES / 2 - 2;
     for (int i = 0; i < 5; ++i) { move(y + i, 0); clrtoeol(); }
     mvaddch(y, x, ACS_ULCORNER); for (int i = 1; i < w - 1; ++i) mvaddch(y, x + i, ACS_HLINE); mvaddch(y, x + w - 1, ACS_URCORNER);
@@ -60,6 +62,7 @@ static int prompt_text_input(const char *title, const char *prompt, char *out, s
     move(y + 2, x + 3 + (int)strlen(prompt));
     getnstr(out, (int)out_sz - 1);
     noecho(); curs_set(0);
+    nodelay(stdscr, TRUE);
     return (int)strlen(out);
 }
 
@@ -226,28 +229,39 @@ void show_db_manager(Table *table) {
             const char **items = (const char**)tables; int pick = 0;
             draw_list_modal("Select table to load", items, tcount, &pick);
             if (pick >= 0) {
-                Table *loaded = db_load_table(cur, tables[pick], err, sizeof(err));
-                if (!loaded) { show_error_message(err[0] ? err : "Load failed"); }
-                else if (table) {
-                    if (table->name) free(table->name);
-                    for (int i = 0; i < table->column_count; i++) { if (table->columns[i].name) free(table->columns[i].name); }
-                    free(table->columns);
-                    for (int i = 0; i < table->row_count; i++) {
-                        if (table->rows[i].values) {
-                            for (int j = 0; j < table->column_count; j++) { if (table->rows[i].values[j]) free(table->rows[i].values[j]); }
-                            free(table->rows[i].values);
-                        }
+                if (low_ram_mode) {
+                    // Low-RAM seek-only view over selected table
+                    const char *db_path = db_current_path(cur);
+                    int page = 200; // initial default; UI will recompute per screen
+                    if (seek_mode_open_for_table(db_path, tables[pick], table, page, err, sizeof(err)) != 0) {
+                        show_error_message(err[0] ? err : "Seek view failed");
+                    } else {
+                        show_error_message("Loaded table in Low-RAM view.");
                     }
-                    free(table->rows);
-                    table->name = loaded->name;
-                    table->columns = loaded->columns;
-                    table->column_count = loaded->column_count;
-                    table->rows = loaded->rows;
-                    table->row_count = loaded->row_count;
-                    table->capacity_columns = loaded->capacity_columns;
-                    table->capacity_rows = loaded->capacity_rows;
-                    free(loaded);
-                    db_autosave_table(table, err, sizeof(err));
+                } else {
+                    Table *loaded = db_load_table(cur, tables[pick], err, sizeof(err));
+                    if (!loaded) { show_error_message(err[0] ? err : "Load failed"); }
+                    else if (table) {
+                        if (table->name) free(table->name);
+                        for (int i = 0; i < table->column_count; i++) { if (table->columns[i].name) free(table->columns[i].name); }
+                        free(table->columns);
+                        for (int i = 0; i < table->row_count; i++) {
+                            if (table->rows[i].values) {
+                                for (int j = 0; j < table->column_count; j++) { if (table->rows[i].values[j]) free(table->rows[i].values[j]); }
+                                free(table->rows[i].values);
+                            }
+                        }
+                        free(table->rows);
+                        table->name = loaded->name;
+                        table->columns = loaded->columns;
+                        table->column_count = loaded->column_count;
+                        table->rows = loaded->rows;
+                        table->row_count = loaded->row_count;
+                        table->capacity_columns = loaded->capacity_columns;
+                        table->capacity_rows = loaded->capacity_rows;
+                        free(loaded);
+                        db_autosave_table(table, err, sizeof(err));
+                    }
                 }
             }
             free_string_list(tables, tcount);

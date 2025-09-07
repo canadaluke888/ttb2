@@ -11,18 +11,22 @@ void draw_table_grid(Table *t) {
         return;
 
     int x = 2, y = 2;
-    int *col_widths = malloc(t->column_count * sizeof(int));
+    // Estimate rows visible to constrain width scan to current page (prevents O(N) scans)
+    int grid_available_lines_est = LINES - 4;
+    int rows_vis_est = (grid_available_lines_est - 3) / 2;
+    if (rows_vis_est < 1) rows_vis_est = 1;
+    int rstart_est = row_page * rows_vis_est; if (rstart_est < 0) rstart_est = 0; if (rstart_est > t->row_count) rstart_est = t->row_count;
+    int rend_est = rstart_est + rows_vis_est; if (rend_est > t->row_count) rend_est = t->row_count;
 
+    int *col_widths = malloc(t->column_count * sizeof(int));
     for (int j = 0; j < t->column_count; j++) {
         char header_buf[128];
-        snprintf(header_buf, sizeof(header_buf), "%s (%s)",
-                 t->columns[j].name, type_to_string(t->columns[j].type));
-        int max = strlen(header_buf) + 2;
-
-        for (int i = 0; i < t->row_count; i++) {
+        snprintf(header_buf, sizeof(header_buf), "%s (%s)", t->columns[j].name, type_to_string(t->columns[j].type));
+        int max = (int)strlen(header_buf) + 2;
+        // Only scan visible rows for width to avoid full-table cost
+        for (int i = rstart_est; i < rend_est; i++) {
             char buf[64];
-            if (!t->rows[i].values[j])
-                continue;
+            if (!t->rows[i].values[j]) continue;
             if (t->columns[j].type == TYPE_INT)
                 snprintf(buf, sizeof(buf), "%d", *(int *)t->rows[i].values[j]);
             else if (t->columns[j].type == TYPE_FLOAT)
@@ -31,16 +35,29 @@ void draw_table_grid(Table *t) {
                 snprintf(buf, sizeof(buf), "%s", (*(int *)t->rows[i].values[j]) ? "true" : "false");
             else
                 snprintf(buf, sizeof(buf), "%s", (char *)t->rows[i].values[j]);
-
-            int len = strlen(buf) + 2;
-            if (len > max)
-                max = len;
+            int len = (int)strlen(buf) + 2;
+            if (len > max) max = len;
         }
         col_widths[j] = max;
     }
 
     // Determine visible columns for current page to fit in COLS
     int available = COLS - x - 2; // some padding
+    // Row-number gutter (compute early so column paging accounts for it)
+    int use_gutter = row_gutter_enabled ? 1 : 0;
+    long long base = 1;
+    if (seek_mode_active()) base = seek_mode_row_base();
+    long long max_row_num = base + (rows_vis_est > 0 ? rows_vis_est - 1 : 0);
+    if (!seek_mode_active()) max_row_num = (long long)(rstart_est + (rows_vis_est > 0 ? rows_vis_est : 1));
+    if (max_row_num < 1) max_row_num = 1;
+    int gutter_digits = 1; long long tmpn = max_row_num;
+    while (tmpn >= 10) { gutter_digits++; tmpn /= 10; }
+    int gutter_w = use_gutter ? (gutter_digits + 2) : 0; // +2 for centering space
+    if (use_gutter) {
+        available -= (gutter_w + 1); // gutter + separator
+        if (available < 10) available = 10;
+    }
+
     // Precompute page starts based on widths
     int max_pages = t->column_count > 0 ? t->column_count : 1;
     int *page_starts = malloc(max_pages * sizeof(int));
@@ -109,17 +126,31 @@ void draw_table_grid(Table *t) {
     total_pages = pages > 0 ? pages : 1;
     col_start = start;
 
+    // Gutter vars are already computed above (use_gutter, gutter_w, base)
+
     attron(COLOR_PAIR(6));
     mvprintw(y++, x, "┏");
+    if (use_gutter) {
+        for (int i2 = 0; i2 < gutter_w; ++i2) addstr("━");
+        addstr((start < end) ? "┳" : "┓");
+    }
     for (int j = start; j < end; j++) {
-        for (int i = 0; i < col_widths[j]; i++)
-            addstr("━");
+        for (int i3 = 0; i3 < col_widths[j]; i3++) addstr("━");
         addstr((j < end - 1) ? "┳" : "┓");
     }
     attroff(COLOR_PAIR(6));
 
     move(y++, x);
     attron(COLOR_PAIR(6)); addstr("┃"); attroff(COLOR_PAIR(6));
+    if (use_gutter) {
+        // Gutter header cell: '#', centered
+        int pad = gutter_w - 1; // one char '#'
+        int lp = pad/2, rp = pad - lp;
+        for (int i2 = 0; i2 < lp; ++i2) addch(' ');
+        attron(COLOR_PAIR(3) | A_BOLD); addch('#'); attroff(COLOR_PAIR(3) | A_BOLD);
+        for (int i2 = 0; i2 < rp; ++i2) addch(' ');
+        attron(COLOR_PAIR(6)); addstr("┃"); attroff(COLOR_PAIR(6));
+    }
     for (int j = start; j < end; j++) {
         const char *name = t->columns[j].name;
         const char *type = type_to_string(t->columns[j].type);
@@ -147,9 +178,12 @@ void draw_table_grid(Table *t) {
 
     attron(COLOR_PAIR(6));
     mvprintw(y++, x, "┡");
+    if (use_gutter) {
+        for (int i2 = 0; i2 < gutter_w; ++i2) addstr("━");
+        addstr((start < end) ? "╇" : "┩");
+    }
     for (int j = start; j < end; j++) {
-        for (int i = 0; i < col_widths[j]; i++)
-            addstr("━");
+        for (int i = 0; i < col_widths[j]; i++) addstr("━");
         addstr((j < end - 1) ? "╇" : "┩");
     }
     attroff(COLOR_PAIR(6));
@@ -173,6 +207,19 @@ void draw_table_grid(Table *t) {
     for (int i = rstart; i < rend; i++) {
         move(y++, x);
         attron(COLOR_PAIR(6)); addstr("│"); attroff(COLOR_PAIR(6));
+        if (use_gutter) {
+            // Gutter row number centered
+            long long rn = seek_mode_active() ? (base + (i - rstart)) : (long long)(i + 1);
+            char buf[32]; snprintf(buf, sizeof(buf), "%lld", rn);
+            int numlen = (int)strlen(buf);
+            if (numlen > gutter_w) numlen = gutter_w; // clamp
+            int pad = gutter_w - numlen;
+            int lp = pad/2, rp = pad - lp;
+            for (int p = 0; p < lp; ++p) addch(' ');
+            attron(COLOR_PAIR(4)); addnstr(buf, numlen); attroff(COLOR_PAIR(4));
+            for (int p = 0; p < rp; ++p) addch(' ');
+            attron(COLOR_PAIR(6)); addstr("│"); attroff(COLOR_PAIR(6));
+        }
         for (int j = start; j < end; j++) {
             char buf[64] = "";
             if (t->columns[j].type == TYPE_INT && t->rows[i].values[j])
@@ -206,9 +253,12 @@ void draw_table_grid(Table *t) {
             move(y++, x);
             attron(COLOR_PAIR(6));
             addstr("├");
+            if (use_gutter) {
+                for (int i2 = 0; i2 < gutter_w; ++i2) addstr("─");
+                addstr((start < end) ? "┼" : "┤");
+            }
             for (int j = start; j < end; j++) {
-                for (int k = 0; k < col_widths[j]; k++)
-                    addstr("─");
+                for (int k = 0; k < col_widths[j]; k++) addstr("─");
                 addstr((j < end - 1) ? "┼" : "┤");
             }
             attroff(COLOR_PAIR(6));
@@ -217,9 +267,12 @@ void draw_table_grid(Table *t) {
 
     attron(COLOR_PAIR(6));
     mvprintw(y++, x, "└");
+    if (use_gutter) {
+        for (int i2 = 0; i2 < gutter_w; ++i2) addstr("─");
+        addstr((start < end) ? "┴" : "┘");
+    }
     for (int j = start; j < end; j++) {
-        for (int i = 0; i < col_widths[j]; i++)
-            addstr("─");
+        for (int i = 0; i < col_widths[j]; i++) addstr("─");
         addstr((j < end - 1) ? "┴" : "┘");
     }
     attroff(COLOR_PAIR(6));
@@ -229,7 +282,7 @@ void draw_table_grid(Table *t) {
 }
 
 void draw_ui(Table *table) {
-    clear();
+    erase();
 
     int title_x = (COLS - (int)strlen(table->name)) / 2;
     attron(COLOR_PAIR(1) | A_BOLD);

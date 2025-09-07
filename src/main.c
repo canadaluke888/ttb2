@@ -16,6 +16,7 @@ int main(void) {
     keypad(stdscr, TRUE);
     init_colors();  // From ui_init.c
     curs_set(0);
+    leaveok(stdscr, TRUE); // avoid moving the hardware cursor unnecessarily
 
     // Load settings and apply
     AppSettings s; settings_init_defaults(&s); settings_load("settings.json", &s); db_set_autosave_enabled(s.autosave_enabled);

@@ -23,6 +23,8 @@ int col_start = 0;
 int row_page = 0;
 int rows_visible = 0;
 int total_row_pages = 1;
+int low_ram_mode = 0; // exported in ui.h
+int row_gutter_enabled = 1; // exported in ui.h
 
 // Local search state (only current in-memory table)
 typedef struct { int row; int col; } SearchHit;
@@ -77,6 +79,7 @@ static void gather_search_hits(Table *t, const char *query) {
 
 static int prompt_search_query(const char *title, const char *prompt, char *out, size_t out_sz) {
     echo(); curs_set(1);
+    nodelay(stdscr, FALSE); // block for text input
     int w = COLS - 4; int x = 2; int y = LINES / 2 - 2;
     if (w < 30) w = COLS - 2;
     if (w < 10) w = 10;
@@ -90,6 +93,7 @@ static int prompt_search_query(const char *title, const char *prompt, char *out,
     move(y + 2, x + 3 + (int)strlen(prompt));
     getnstr(out, (int)out_sz - 1);
     noecho(); curs_set(0);
+    nodelay(stdscr, TRUE); // restore non-blocking
     return (int)strlen(out);
 }
 
@@ -111,19 +115,21 @@ static void exit_search(void) {
 
 void start_ui_loop(Table *table) {
     keypad(stdscr, TRUE);  // Enable arrow keys
+    nodelay(stdscr, TRUE); // Non-blocking input to coalesce repeats
     int ch;
 
     while (1) {
         draw_ui(table);
-        pm_update();
-        ch = getch();
+        wnoutrefresh(stdscr); // stage stdscr changes
+        pm_update(); // update panels and flush
+        int fetched = 0; // limit DB window fetches to once per frame
+        int final_vdir = 0; // -1 up, +1 down
+        int vcount = 0;     // count of vertical keypresses this frame
+        int quit = 0;
+        while ((ch = getch()) != ERR) {
+            if (ch == KEY_RESIZE) { pm_on_resize(); continue; }
 
-        if (ch == KEY_RESIZE) {
-            pm_on_resize();
-            continue;
-        }
-
-        if (search_mode) {
+            if (search_mode) {
             // In search mode, arrow keys navigate matches, ESC exits
             if (ch == KEY_LEFT || ch == KEY_UP) {
                 if (search_hit_count > 0) {
@@ -142,7 +148,7 @@ void start_ui_loop(Table *table) {
             }
         } else if (!editing_mode) {
             if (ch == 'q' || ch == 'Q')
-                break;
+                { quit = 1; break; }
             else if (ch == 'c' || ch == 'C')
                 prompt_add_column(table);
             else if (ch == 'r' || ch == 'R') {
@@ -156,8 +162,11 @@ void start_ui_loop(Table *table) {
             }
             else if (ch == 'e' || ch == 'E') {
                 editing_mode = 1;
-                cursor_row = -1;  // Set focus to header
-                cursor_col = 0;
+                // Focus top-left of current page (not table top)
+                int start_row = row_page * (rows_visible > 0 ? rows_visible : 1);
+                if (start_row < 0) start_row = 0;
+                cursor_row = (start_row < table->row_count) ? start_row : (table->row_count > 0 ? table->row_count - 1 : -1);
+                cursor_col = col_start;
             }
             else if (ch == 'm' || ch == 'M') {
                 show_table_menu(table);
@@ -166,9 +175,41 @@ void start_ui_loop(Table *table) {
             } else if (ch == KEY_RIGHT) {
                 if (col_page < total_pages - 1) col_page++; // page index
             } else if (ch == KEY_UP) {
-                if (row_page > 0) row_page--;
+                final_vdir = -1;
+                vcount++;
+                if (low_ram_mode && seek_mode_active()) {
+                    if (cursor_row <= 0) {
+                        char err[128]={0};
+                        int page = (rows_visible>0?rows_visible:200);
+                        if (!fetched && seek_mode_fetch_prev(table, page, err, sizeof err) > 0) {
+                            fetched = 1;
+                            // keep cursor near top
+                            cursor_row = 0;
+                        }
+                    } else {
+                        if (row_page > 0) row_page--; // keep legacy behavior when not at top
+                    }
+                } else {
+                    if (row_page > 0) row_page--;
+                }
             } else if (ch == KEY_DOWN) {
-                if (row_page < total_row_pages - 1) row_page++;
+                final_vdir = +1;
+                vcount++;
+                if (low_ram_mode && seek_mode_active()) {
+                    if (cursor_row >= table->row_count - 1) {
+                        char err[128]={0};
+                        int page = (rows_visible>0?rows_visible:200);
+                        if (!fetched && seek_mode_fetch_next(table, page, err, sizeof err) > 0) {
+                            fetched = 1;
+                            // keep cursor near bottom
+                            cursor_row = table->row_count - 1;
+                        }
+                    } else {
+                        if (row_page < total_row_pages - 1) row_page++;
+                    }
+                } else {
+                    if (row_page < total_row_pages - 1) row_page++;
+                }
             }
         } else {
             // If in interactive delete modes, override edit controls for navigation + confirm
@@ -203,7 +244,7 @@ void start_ui_loop(Table *table) {
                     default:
                         break;
                 }
-                continue; // handled
+                continue; // handled next input
             }
             if (del_col_mode) {
                 if (table->column_count <= 0) { del_col_mode = 0; }
@@ -234,7 +275,7 @@ void start_ui_loop(Table *table) {
                     default:
                         break;
                 }
-                continue; // handled
+                continue; // handled next input
             }
             switch (ch) {
                 case KEY_LEFT:
@@ -248,20 +289,50 @@ void start_ui_loop(Table *table) {
                     }
                     break;
                 case KEY_UP:
-                    // Header is always allowed; restrict data rows to visible page
-                    if (cursor_row == -1) {
-                        // stay on header
-                    } else if (cursor_row > row_page * rows_visible) {
-                        cursor_row--;
-                    } else if (cursor_row > -1) {
-                        cursor_row--; // move to header
+                    final_vdir = -1;
+                    vcount++;
+                    if (low_ram_mode && seek_mode_active()) {
+                        if (cursor_row <= 0) {
+                            char err[128]={0}; int page=(rows_visible>0?rows_visible:200);
+                            if (!fetched && seek_mode_fetch_prev(table, page, err, sizeof err) > 0) {
+                                fetched = 1;
+                                cursor_row = 0; // stay at top
+                            } else {
+                                if (cursor_row > -1) cursor_row--; // header
+                            }
+                        } else {
+                            cursor_row--;
+                        }
+                    } else {
+                        // Header is always allowed; restrict data rows to visible page
+                        if (cursor_row == -1) {
+                            // stay on header
+                        } else if (cursor_row > row_page * rows_visible) {
+                            cursor_row--;
+                        } else if (cursor_row > -1) {
+                            cursor_row--; // move to header
+                        }
                     }
                     break;
                 case KEY_DOWN:
-                    if (cursor_row < table->row_count - 1) {
-                        int vis_end = row_page * rows_visible + rows_visible - 1;
-                        if (rows_visible <= 0 || cursor_row < vis_end) {
+                    final_vdir = +1;
+                    vcount++;
+                    if (low_ram_mode && seek_mode_active()) {
+                        if (cursor_row >= table->row_count - 1) {
+                            char err[128]={0}; int page=(rows_visible>0?rows_visible:200);
+                            if (!fetched && seek_mode_fetch_next(table, page, err, sizeof err) > 0) {
+                                fetched = 1;
+                                cursor_row = table->row_count - 1; // stay at bottom
+                            }
+                        } else {
                             cursor_row++;
+                        }
+                    } else {
+                        if (cursor_row < table->row_count - 1) {
+                            int vis_end = row_page * rows_visible + rows_visible - 1;
+                            if (rows_visible <= 0 || cursor_row < vis_end) {
+                                cursor_row++;
+                            }
                         }
                     }
                     break;
@@ -297,5 +368,19 @@ void start_ui_loop(Table *table) {
                     break;
             }
         }
+        }
+        // Apply final directional cursor snap to page edge (edit mode only)
+        if (editing_mode && final_vdir != 0 && rows_visible > 0 && vcount >= 3) {
+            int rstart = row_page * rows_visible;
+            int rend = rstart + rows_visible - 1;
+            if (rend >= table->row_count) rend = table->row_count - 1;
+            if (final_vdir > 0) {
+                if (rend >= 0) cursor_row = rend;
+            } else if (final_vdir < 0) {
+                if (rstart < table->row_count) cursor_row = (rstart >= 0 ? rstart : 0);
+            }
+        }
+        if (quit) break;
+        napms(16); // ~60 FPS; coalesces many key repeats into one redraw
     }
 }
