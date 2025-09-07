@@ -19,6 +19,9 @@ extern int col_start;    // current visible column start index (computed)
 extern int row_page;      // row paging start page index
 extern int rows_visible;  // number of visible rows on current page
 extern int total_row_pages; // total row pages
+// Destructive selection modes inside edit mode
+extern int del_row_mode;  // when 1, highlight full row and navigate with ↑/↓, Enter confirms delete
+extern int del_col_mode;  // when 1, highlight full column and navigate with ←/→, Enter confirms delete
 
 // Initialization functions
 void init_colors(void);
@@ -31,6 +34,10 @@ void draw_table_grid(Table *table);
 // Editing functions
 void edit_header_cell(Table *table, int col);
 void edit_body_cell(Table *table, int row, int col);
+// Edit-mode destructive actions
+void prompt_clear_cell(Table *table, int row, int col);
+void confirm_delete_row_at(Table *table, int row);
+void confirm_delete_column_at(Table *table, int col);
 
 // Prompt functions
 void prompt_add_column(Table *table);

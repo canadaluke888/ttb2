@@ -123,9 +123,9 @@ void draw_table_grid(Table *t) {
     for (int j = start; j < end; j++) {
         const char *name = t->columns[j].name;
         const char *type = type_to_string(t->columns[j].type);
-
-        if ((editing_mode || search_mode) && cursor_row == -1 && cursor_col == j)
-            attron(A_REVERSE);
+        extern int del_col_mode;
+        if ((editing_mode || search_mode) && cursor_row == -1 && cursor_col == j) attron(A_REVERSE);
+        if (editing_mode && del_col_mode && cursor_col == j) attron(A_REVERSE);
 
         attron(COLOR_PAIR(t->columns[j].color_pair_id) | A_BOLD);
         printw(" %s", name);
@@ -135,8 +135,8 @@ void draw_table_grid(Table *t) {
         printw(" (%s)", type);
         attroff(COLOR_PAIR(3));
 
-        if ((editing_mode || search_mode) && cursor_row == -1 && cursor_col == j)
-            attroff(A_REVERSE);
+        if ((editing_mode || search_mode) && cursor_row == -1 && cursor_col == j) attroff(A_REVERSE);
+        if (editing_mode && del_col_mode && cursor_col == j) attroff(A_REVERSE);
 
         int used = strlen(name) + strlen(type) + 4;
         for (int s = used; s < col_widths[j]; s++)
@@ -184,8 +184,12 @@ void draw_table_grid(Table *t) {
             else if (t->rows[i].values[j])
                 snprintf(buf, sizeof(buf), "%s", (char *)t->rows[i].values[j]);
 
-            if ((editing_mode || search_mode) && cursor_row == i && cursor_col == j)
-                attron(A_REVERSE);
+            extern int del_row_mode, del_col_mode;
+            int highlight_cell = 0;
+            if ((editing_mode || search_mode) && cursor_row == i && cursor_col == j) highlight_cell = 1;
+            if (editing_mode && del_row_mode && i == cursor_row) highlight_cell = 1;
+            if (editing_mode && del_col_mode && j == cursor_col) highlight_cell = 1;
+            if (highlight_cell) attron(A_REVERSE);
 
             attron(COLOR_PAIR(t->columns[j].color_pair_id));
             printw(" %s", buf);
@@ -194,8 +198,7 @@ void draw_table_grid(Table *t) {
                 addch(' ');
             attroff(COLOR_PAIR(t->columns[j].color_pair_id));
 
-            if ((editing_mode || search_mode) && cursor_row == i && cursor_col == j)
-                attroff(A_REVERSE);
+            if (highlight_cell) attroff(A_REVERSE);
 
             attron(COLOR_PAIR(6)); addstr("│"); attroff(COLOR_PAIR(6));
         }
@@ -313,7 +316,14 @@ void draw_ui(Table *table) {
             attroff(COLOR_PAIR(4));
         }
     } else {
-        printw("[←][→][↑][↓] Navigate    [Enter] Edit Cell    [Esc] Exit Edit Mode");
+        extern int del_row_mode, del_col_mode;
+        if (del_row_mode) {
+            printw("Delete Row: [↑][↓] Select  [Enter] Confirm  [Esc] Cancel");
+        } else if (del_col_mode) {
+            printw("Delete Column: [←][→] Select  [Enter] Confirm  [Esc] Cancel");
+        } else {
+            printw("[←][→][↑][↓] Navigate    [Enter] Edit Cell    [x] Del Row    [^X] Del Col    [Backspace] Clear    [Esc] Exit Edit Mode");
+        }
         attroff(COLOR_PAIR(5));
         // Also show paging context in edit mode if applicable
         if (total_pages > 1 || total_row_pages > 1) {

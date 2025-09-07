@@ -402,3 +402,118 @@ void edit_body_cell(Table *t, int row, int col) {
     noecho();
     curs_set(0);
 }
+
+// Small list menu confirm (returns selected index or -1 on cancel)
+static int list_confirm(const char *title, const char **items, int count) {
+    int h = (count + 3); if (h < 7) h = 7;
+    int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
+    PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+    PmNode *modal  = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+    keypad(modal->win, TRUE);
+    int sel = 0, ch;
+    while (1) {
+        werase(modal->win); box(modal->win, 0, 0);
+        if (title) { wattron(modal->win, COLOR_PAIR(3) | A_BOLD); mvwprintw(modal->win, 1, 2, "%s", title); wattroff(modal->win, COLOR_PAIR(3) | A_BOLD); }
+        for (int i = 0; i < count; ++i) {
+            if (i == sel) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+            mvwprintw(modal->win, 2 + i, 2, "%s", items[i]);
+            if (i == sel) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+        }
+        pm_wnoutrefresh(shadow); pm_wnoutrefresh(modal); pm_update();
+        ch = wgetch(modal->win);
+        if (ch == KEY_UP) sel = (sel > 0) ? sel - 1 : count - 1;
+        else if (ch == KEY_DOWN) sel = (sel + 1) % count;
+        else if (ch == '\n') break;
+        else if (ch == 27) { sel = -1; break; }
+    }
+    pm_remove(modal); pm_remove(shadow); pm_update();
+    return sel;
+}
+
+// Internal helpers to mutate the table safely
+static void delete_row_internal(Table *t, int r) {
+    if (!t || r < 0 || r >= t->row_count) return;
+    if (t->rows[r].values) {
+        for (int c = 0; c < t->column_count; ++c) {
+            if (t->rows[r].values[c]) free(t->rows[r].values[c]);
+        }
+        free(t->rows[r].values);
+    }
+    if (r < t->row_count - 1) {
+        memmove(&t->rows[r], &t->rows[r+1], sizeof(Row) * (t->row_count - r - 1));
+    }
+    t->row_count--;
+}
+
+static void delete_column_internal(Table *t, int c) {
+    if (!t || c < 0 || c >= t->column_count) return;
+    if (t->column_count <= 1) return; // guard; caller should handle
+    if (t->columns[c].name) free(t->columns[c].name);
+    if (c < t->column_count - 1) {
+        memmove(&t->columns[c], &t->columns[c+1], sizeof(Column) * (t->column_count - c - 1));
+    }
+    t->column_count--;
+    // Shrink column array
+    if (t->capacity_columns > t->column_count) {
+        t->columns = realloc(t->columns, sizeof(Column) * t->column_count);
+        t->capacity_columns = t->column_count;
+    }
+    // Adjust each row
+    for (int r = 0; r < t->row_count; ++r) {
+        if (!t->rows[r].values) continue;
+        if (t->rows[r].values[c]) free(t->rows[r].values[c]);
+        if (c < t->column_count) {
+            memmove(&t->rows[r].values[c], &t->rows[r].values[c+1], sizeof(void*) * (t->column_count - c));
+        }
+        // shrink row values
+        t->rows[r].values = realloc(t->rows[r].values, sizeof(void*) * t->column_count);
+    }
+}
+
+void confirm_delete_row_at(Table *t, int row) {
+    if (!t || t->row_count <= 0 || row < 0 || row >= t->row_count) { show_error_message("No row to delete."); return; }
+    const char *opts[] = { "Yes", "No" };
+    char title[64]; snprintf(title, sizeof(title), "Delete Row %d?", row + 1);
+    int pick = list_confirm(title, opts, 2);
+    if (pick != 0) return;
+    delete_row_internal(t, row);
+    char err[256] = {0}; db_autosave_table(t, err, sizeof(err));
+}
+
+void confirm_delete_column_at(Table *t, int col) {
+    if (!t || t->column_count <= 0 || col < 0 || col >= t->column_count) { show_error_message("No column to delete."); return; }
+    if (t->column_count == 1) { show_error_message("Cannot delete the last column."); return; }
+    const char *opts[] = { "Yes", "No" };
+    char title[96]; snprintf(title, sizeof(title), "Delete Column '%s'?", t->columns[col].name);
+    int pick = list_confirm(title, opts, 2);
+    if (pick != 0) return;
+    delete_column_internal(t, col);
+    char err[256] = {0}; db_autosave_table(t, err, sizeof(err));
+}
+
+void prompt_clear_cell(Table *t, int row, int col) {
+    if (!t || row < 0 || row >= t->row_count || col < 0 || col >= t->column_count) { show_error_message("No cell to clear."); return; }
+    int h = 5; int w = COLS - 8; int y = (LINES - h) / 2; int x = 4;
+    PmNode *sh = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+    PmNode *mo = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+    box(mo->win, 0, 0);
+    wattron(mo->win, COLOR_PAIR(3) | A_BOLD);
+    mvwprintw(mo->win, 1, 2, "Clear cell R%dC%d? (Y/N)", row + 1, col + 1);
+    wattroff(mo->win, COLOR_PAIR(3) | A_BOLD);
+    pm_wnoutrefresh(sh); pm_wnoutrefresh(mo); pm_update();
+    int key = wgetch(mo->win);
+    pm_remove(mo); pm_remove(sh); pm_update();
+    if (!(key == 'y' || key == 'Y' || key == '\n')) return;
+
+    if (t->rows[row].values[col]) { free(t->rows[row].values[col]); t->rows[row].values[col] = NULL; }
+    // Assign type-appropriate empty
+    void *new_ptr = NULL;
+    switch (t->columns[col].type) {
+        case TYPE_INT: { int *i = malloc(sizeof(int)); *i = 0; new_ptr = i; break; }
+        case TYPE_FLOAT: { float *f = malloc(sizeof(float)); *f = 0.0f; new_ptr = f; break; }
+        case TYPE_BOOL: { int *b = malloc(sizeof(int)); *b = 0; new_ptr = b; break; }
+        case TYPE_STR: default: new_ptr = strdup(""); break;
+    }
+    t->rows[row].values[col] = new_ptr;
+    char err[256] = {0}; db_autosave_table(t, err, sizeof(err));
+}

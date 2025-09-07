@@ -4,9 +4,22 @@ All notable changes in this batch are documented here.
 
 ## [2025-09-07]
 
+### 21:00 EST
+
+#### Changed
+- Edit Mode interactions refined:
+  - Row/Column deletion is now interactive with inline highlighting and scrolling.
+  - Confirmation prompts for deletions use a list menu modal (Yes/No).
+  - Footer hints updated: show "[x] Del Row" and "[^X] Del Col" in edit mode.
+
 ### Changed
 - DB Manager: removed the "Search" menu option and all related DB-side search code; the existing UI search mode remains unchanged.
 - Connect/Create flows now include sync prompts when a table with the same name exists in the connected DB, avoiding silent overwrites.
+- Edit Mode: destructive actions are interactive with inline highlight + scrolling:
+  - [x] Delete Row: highlight full row; use ↑/↓ to select; Enter confirms (list modal); Esc cancels.
+  - [^X] Delete Column: highlight full column; use ←/→ to select; Enter confirms (list modal); Esc cancels. Prevent deleting last column.
+  - [Backspace] Clear Cell: confirm then clear to type-appropriate empty value.
+  - Footer hints updated to show [x] and [^X] bindings in edit mode.
 
 ### Fixed
 - Column Add flow layering: type selection list now appears above the name prompt (prompt modal is closed before showing the list).

@@ -9,6 +9,8 @@
 
 // Define global UI state variables
 int editing_mode = 0;
+int del_row_mode = 0;
+int del_col_mode = 0;
 int cursor_row = -1;
 int cursor_col = 0;
 int search_mode = 0;
@@ -169,6 +171,71 @@ void start_ui_loop(Table *table) {
                 if (row_page < total_row_pages - 1) row_page++;
             }
         } else {
+            // If in interactive delete modes, override edit controls for navigation + confirm
+            if (del_row_mode) {
+                if (table->row_count <= 0) { del_row_mode = 0; }
+                switch (ch) {
+                    case KEY_UP:
+                        if (cursor_row > 0) cursor_row--;
+                        break;
+                    case KEY_DOWN:
+                        if (cursor_row < table->row_count - 1) cursor_row++;
+                        break;
+                    case '\n':
+                        confirm_delete_row_at(table, cursor_row);
+                        if (cursor_row >= table->row_count) cursor_row = table->row_count - 1;
+                        if (cursor_row < 0) { cursor_row = -1; editing_mode = (table->row_count > 0); }
+                        del_row_mode = 0;
+                        break;
+                    case 27: // ESC cancels mode
+                        del_row_mode = 0;
+                        break;
+                    // Allow moving columns within visible range to inspect, but not necessary
+                    case KEY_LEFT:
+                        if (cursor_col > col_start) cursor_col--;
+                        break;
+                    case KEY_RIGHT:
+                        if (cursor_col < table->column_count - 1 &&
+                            (cols_visible <= 0 || cursor_col < col_start + cols_visible - 1)) {
+                            cursor_col++;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+                continue; // handled
+            }
+            if (del_col_mode) {
+                if (table->column_count <= 0) { del_col_mode = 0; }
+                switch (ch) {
+                    case KEY_LEFT:
+                        if (cursor_col > 0) cursor_col--;
+                        break;
+                    case KEY_RIGHT:
+                        if (cursor_col < table->column_count - 1) cursor_col++;
+                        break;
+                    case '\n':
+                        confirm_delete_column_at(table, cursor_col);
+                        if (cursor_col >= table->column_count) cursor_col = table->column_count - 1;
+                        if (cursor_col < 0) cursor_col = 0;
+                        del_col_mode = 0;
+                        break;
+                    case 27:
+                        del_col_mode = 0; break;
+                    case KEY_UP:
+                    case KEY_DOWN:
+                        // Allow moving rows to inspect context
+                        if (ch == KEY_UP) {
+                            if (cursor_row > -1) cursor_row--; // can go to header
+                        } else if (ch == KEY_DOWN) {
+                            if (cursor_row < table->row_count - 1) cursor_row++;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+                continue; // handled
+            }
             switch (ch) {
                 case KEY_LEFT:
                     // Do not page during edit; restrict to visible range
@@ -206,6 +273,27 @@ void start_ui_loop(Table *table) {
                         edit_header_cell(table, cursor_col);
                     else
                         edit_body_cell(table, cursor_row, cursor_col);
+                    break;
+                case 'x':
+                    // Enter interactive row delete selection mode
+                    if (table->row_count <= 0) { show_error_message("No rows to delete."); break; }
+                    if (cursor_row < 0) cursor_row = 0;
+                    del_row_mode = 1; del_col_mode = 0;
+                    break;
+                case 'X':
+                    // Enter interactive column delete selection mode
+                    if (table->column_count <= 0) { show_error_message("No columns to delete."); break; }
+                    if (table->column_count == 1) { show_error_message("Cannot delete the last column."); break; }
+                    if (cursor_col < 0) cursor_col = 0;
+                    del_col_mode = 1; del_row_mode = 0;
+                    break;
+                case KEY_BACKSPACE:
+                case 127: // some terms send DEL for backspace
+                    if (cursor_row < 0) {
+                        show_error_message("Move to a cell to clear.");
+                    } else {
+                        prompt_clear_cell(table, cursor_row, cursor_col);
+                    }
                     break;
             }
         }
