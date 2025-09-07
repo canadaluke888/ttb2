@@ -31,6 +31,9 @@ All notable changes in this batch are documented here.
 ### Files (key updates)
 - Updated: `src/ui/ui_prompt.c`, `src/ui/ui_db.c`, `src/ui/ui_file.c`, `src/db_manager.c`, `include/db_manager.h`, `src/ui/ui_draw.c`, `src/ui/ui_loop.c`
 
+### Notes
+- There is noticeable instability with large amounts of data; refinements to performance and stability are planned.
+
 ## [2025-08-31]
 
 ### Added
