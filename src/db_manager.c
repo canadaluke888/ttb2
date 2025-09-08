@@ -329,11 +329,18 @@ int db_save_table(DbManager *db, const Table *t, char *err, size_t err_sz) {
 
     if (rc == 0 && t->row_count > 0 && t->column_count > 0) {
         // Prepare insert statement with parameters
-        size_t off = 0; off += snprintf(sql + off, sizeof(sql) - off, "INSERT INTO %s VALUES (", qname);
+        size_t off = 0;
+        int n = snprintf(sql + off, sizeof(sql) - off, "INSERT INTO %s VALUES (", qname);
+        if (n < 0 || (size_t)n >= sizeof(sql) - off) goto sql_overflow;
+        off += n;
         for (int j = 0; j < t->column_count; ++j) {
-            off += snprintf(sql + off, sizeof(sql) - off, "%s", (j ? ",?" : "?"));
+            n = snprintf(sql + off, sizeof(sql) - off, "%s", (j ? ",?" : "?"));
+            if (n < 0 || (size_t)n >= sizeof(sql) - off) goto sql_overflow;
+            off += n;
         }
-        off += snprintf(sql + off, sizeof(sql) - off, ");");
+        n = snprintf(sql + off, sizeof(sql) - off, ");");
+        if (n < 0 || (size_t)n >= sizeof(sql) - off) goto sql_overflow;
+        off += n;
         sqlite3_stmt *st = NULL;
         if (sqlite3_prepare_v2(db->conn, sql, -1, &st, NULL) != SQLITE_OK) rc = -1;
         if (rc == 0) {
@@ -356,6 +363,9 @@ int db_save_table(DbManager *db, const Table *t, char *err, size_t err_sz) {
             }
             sqlite3_finalize(st);
         }
+sql_overflow:
+    rc = -1;
+    set_err(err, err_sz, "SQL buffer overflow");
     }
 
     if (rc == 0) {
