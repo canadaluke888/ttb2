@@ -4,6 +4,12 @@ All notable changes in this batch are documented here.
 
 ## [2025-09-07]
 
+### 23:00 EST
+
+#### Fixed
+
+- Add Row prompt now uses blocking input so it doesn’t instantly error.
+
 ### 18:00 EST
 
 #### Added

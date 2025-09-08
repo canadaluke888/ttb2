@@ -105,6 +105,8 @@ void prompt_add_column(Table *table) {
 void prompt_add_row(Table *table) {
     echo();
     curs_set(1);
+    // Ensure blocking input during prompt; ui loop uses non-blocking
+    nodelay(stdscr, FALSE);
 
     char **input_strings = malloc(table->column_count * sizeof(char *));
     int input_box_width = COLS - 4;
@@ -163,6 +165,8 @@ void prompt_add_row(Table *table) {
 
     noecho();
     curs_set(0);
+    // Restore non-blocking input for main loop
+    nodelay(stdscr, TRUE);
 }
 
 void prompt_rename_table(Table *table) {
