@@ -173,6 +173,8 @@ void prompt_rename_table(Table *table) {
     echo();
     curs_set(1);
 
+    nodelay(stdscr, FALSE);
+
     char name[128];
     int input_box_width = COLS - 4;
     int input_box_x = 2;
@@ -218,6 +220,8 @@ void prompt_rename_table(Table *table) {
 
     noecho();
     curs_set(0);
+
+    nodelay(stdscr, TRUE);
 }
 
 void show_table_menu(Table *table) {

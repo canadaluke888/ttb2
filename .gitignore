@@ -29,3 +29,6 @@ databases/
 
 # Test files
 test_files/
+
+# Generated settings.json file from app
+settings.json

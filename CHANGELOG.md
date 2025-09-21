@@ -2,6 +2,13 @@
 
 All notable changes in this batch are documented here.
 
+## [2025-09-9]
+
+### Fixed
+
+- Rename prompt automatically closing with nodelay active
+
+
 ## [2025-09-07]
 
 ### 23:00 EST
