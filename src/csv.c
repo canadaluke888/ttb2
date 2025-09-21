@@ -23,27 +23,101 @@ static int ends_with(const char *s, const char *suf) {
 }
 
 static char **split_csv_line(const char *line, int *out_count) {
-    // Simple comma split (no quoted-field support yet)
+    // RFC-4180-ish CSV parsing: supports quoted fields, doubled quotes, and commas inside quotes.
+    // Note: Does not support multi-line quoted fields (limited by fgets line buffering).
     int cap = 8, n = 0;
     char **arr = (char**)malloc(sizeof(char*) * cap);
     const char *p = line;
-    while (*p) {
-        const char *start = p;
-        while (*p && *p != '\n' && *p != '\r' && *p != ',') p++;
-        size_t len = (size_t)(p - start);
-        char *cell = (char*)malloc(len + 1);
-        memcpy(cell, start, len);
-        cell[len] = '\0';
-        char *t = trim(cell);
-        // normalize in place (t may be advanced)
-        if (t != cell) memmove(cell, t, strlen(t) + 1);
+
+    while (*p && *p != '\n' && *p != '\r') {
+        char *cell = NULL;
+
+        // Skip leading spaces only for unquoted fields; preserve spaces inside quotes
+        const char *field_start = p;
+        if (*p == ' '){
+            // Peek ahead: if next non-space is a quote, don't trim now
+            const char *q = p;
+            while (*q == ' ') q++;
+            if (*q != '"') p = q; // ok to trim leading spaces for unquoted fields
+        }
+
+        if (*p == '"') {
+            // Quoted field
+            p++; // skip opening quote
+            size_t buf_cap = 64, buf_len = 0;
+            char *buf = (char*)malloc(buf_cap);
+            int closed = 0;
+            while (*p) {
+                if (*p == '"') {
+                    if (*(p+1) == '"') {
+                        // Escaped quote
+                        if (buf_len + 1 >= buf_cap) { buf_cap *= 2; buf = (char*)realloc(buf, buf_cap); }
+                        buf[buf_len++] = '"';
+                        p += 2;
+                    } else {
+                        // Closing quote
+                        p++;
+                        closed = 1;
+                        break;
+                    }
+                } else {
+                    if (buf_len + 1 >= buf_cap) { buf_cap *= 2; buf = (char*)realloc(buf, buf_cap); }
+                    buf[buf_len++] = *p++;
+                }
+            }
+            // Null-terminate buffer
+            if (buf_len + 1 >= buf_cap) { buf_cap += 1; buf = (char*)realloc(buf, buf_cap); }
+            buf[buf_len] = '\0';
+            cell = buf;
+
+            // After closing quote, consume spaces up to delimiter or EOL
+            if (closed) {
+                while (*p == ' ') p++;
+            }
+            // Expect comma or end-of-line; if comma, consume it
+            if (*p == ',') {
+                p++;
+            } else {
+                // If CR then optionally LF, then break
+                if (*p == '\r') { p++; }
+                if (*p == '\n' || *p == '\0') {
+                    // done with line
+                } else if (*p != '\0') {
+                    // There are stray characters after a quoted field before delimiter; skip until delimiter/EOL
+                    while (*p && *p != ',' && *p != '\n' && *p != '\r') p++;
+                    if (*p == ',') p++;
+                }
+            }
+        } else {
+            // Unquoted field
+            const char *start = p;
+            while (*p && *p != '\n' && *p != '\r' && *p != ',') p++;
+            size_t len = (size_t)(p - start);
+            cell = (char*)malloc(len + 1);
+            memcpy(cell, start, len);
+            cell[len] = '\0';
+            char *t = trim(cell);
+            if (t != cell) memmove(cell, t, strlen(t) + 1);
+            if (*p == ',') p++;
+        }
+
         if (n == cap) { cap *= 2; arr = (char**)realloc(arr, sizeof(char*) * cap); }
-        arr[n++] = cell;
-        if (*p == ',') p++;
-        while (*p == ' ') p++;
+        arr[n++] = cell ? cell : strdup("");
+
+        // Skip any immediate CRLF after a field; outer while checks EOL too
         if (*p == '\r') p++;
         if (*p == '\n') break;
     }
+
+    // Handle case where line ends with a trailing comma, meaning an empty field at the end
+    if (p > line) {
+        const char *last = p - 1;
+        if (*last == ',') {
+            if (n == cap) { cap *= 2; arr = (char**)realloc(arr, sizeof(char*) * cap); }
+            arr[n++] = strdup("");
+        }
+    }
+
     *out_count = n;
     return arr;
 }
@@ -232,4 +306,3 @@ int csv_save(const Table *table, const char *path, char *err, size_t err_sz) {
     fclose(f);
     return 0;
 }
-

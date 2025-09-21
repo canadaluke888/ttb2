@@ -2,6 +2,12 @@
 
 All notable changes in this batch are documented here.
 
+## [2025-09-20]
+
+### Added 
+
+- Support for CSV files with quoted values 
+
 ## [2025-09-9]
 
 ### Fixed
