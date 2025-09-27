@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include "tablecraft.h"
 #include "ui.h"
-#include "python_bridge.h"
 #include "csv.h"
+#include "xl.h"
 #include "db_manager.h"
 #include "errors.h"
 #include "panel_manager.h"
@@ -332,16 +332,13 @@ void show_table_menu(Table *table) {
 }
 
 void show_save_format_menu(Table *table) {
-    // Note: PDF/XLSX require Python; CSV is native.
-
     /* Selection uses keys only: hide cursor */
     noecho();
     curs_set(0);
 
     /* Modal selection styled like header edit */
-    const char *labels[] = {"CSV", "PDF", "XLSX", "Cancel"};
-    const char *values[] = {NULL, "pdf", "xlsx", NULL};
-    int options_count = 4;
+    const char *labels[] = {"CSV", "XLSX", "Cancel"};
+    int options_count = 3;
     int h = options_count + 3;
     if (h < 7) h = 7;
     int w = COLS - 4;
@@ -378,12 +375,10 @@ void show_save_format_menu(Table *table) {
         else if (ch == 27) { selected = options_count - 1; break; } /* Cancel */
     }
 
-    const char *format = values[selected];
-
     pm_remove(modal);
     pm_remove(shadow);
     pm_update();
-    if (!format) { /* Cancel */
+    if (selected == options_count - 1) { /* Cancel */
         noecho();
         curs_set(0);
         return;
@@ -420,7 +415,6 @@ void show_save_format_menu(Table *table) {
     move(by + 2, bx + 2);
     getnstr(filename, sizeof(filename) - 1);
 
-    // If CSV selected, save natively and return. Otherwise, use Python exporter.
     if (selected == 0) {
         char outpath[256];
         snprintf(outpath, sizeof(outpath), "%s.csv", filename);
@@ -428,41 +422,17 @@ void show_save_format_menu(Table *table) {
         if (csv_save(table, outpath, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to save CSV");
         }
-    } else {
-        if (!is_python_available()) {
-            show_error_message("Python 3 not found; export disabled.");
-            return;
+    } else if (selected == 1) {
+        char outpath[256];
+        if (strstr(filename, ".xlsx")) {
+            snprintf(outpath, sizeof(outpath), "%s", filename);
+        } else {
+            snprintf(outpath, sizeof(outpath), "%s.xlsx", filename);
         }
-        // Write temp CSV file to feed Python exporter
-        FILE *f = fopen("tmp_export.csv", "w");
-        if (!f) {
-            show_error_message("Failed to write temp CSV.");
-            return;
+        char err[256] = {0};
+        if (xl_save(table, outpath, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to save XLSX");
         }
-        for (int j = 0; j < table->column_count; j++) {
-            fprintf(f, "%s (%s)%s", table->columns[j].name, type_to_string(table->columns[j].type),
-                    (j < table->column_count - 1) ? "," : "\n");
-        }
-        for (int i = 0; i < table->row_count; i++) {
-            for (int j = 0; j < table->column_count; j++) {
-                void *v = table->rows[i].values[j];
-                if (table->columns[j].type == TYPE_INT)
-                    fprintf(f, "%d", *(int *)v);
-                else if (table->columns[j].type == TYPE_FLOAT)
-                    fprintf(f, "%.2f", *(float *)v);
-                else if (table->columns[j].type == TYPE_BOOL)
-                    fprintf(f, "%s", (*(int *)v) ? "true" : "false");
-                else
-                    fprintf(f, "%s", (char *)v);
-                if (j < table->column_count - 1)
-                    fprintf(f, ",");
-            }
-            fprintf(f, "\n");
-        }
-        fclose(f);
-        char final_filename[256];
-        snprintf(final_filename, sizeof(final_filename), "%s.%s", filename, format);
-        call_python_export(format, final_filename);
     }
 
     clear();

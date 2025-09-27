@@ -1,15 +1,14 @@
 CC = gcc
-PYTHON_CONFIG = python3.12-config
-CFLAGS = -Wall -Iinclude -Isrc/ui $(shell $(PYTHON_CONFIG) --includes)
-LDFLAGS = -lncursesw -lpanelw -lsqlite3 -ljson-c $(shell $(PYTHON_CONFIG) --ldflags) -lpython3.12
+CFLAGS = -Wall -Iinclude -Isrc/ui
+LDFLAGS = -lncursesw -lpanelw -lsqlite3 -ljson-c -lz
 
-SRC_DIR = src
+SRC_DIRS = src src/db src/parser src/ui
 OBJ_DIR = build/obj
 BIN_DIR = build
 OUT = $(BIN_DIR)/ttb2
 
-SRC = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/ui/*.c)
-OBJ = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRC))
+SRC = $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.c))
+OBJ = $(patsubst %.c,$(OBJ_DIR)/%.o,$(SRC))
 
 all: $(OUT)
 
@@ -17,7 +16,7 @@ $(OUT): $(OBJ)
 	mkdir -p $(BIN_DIR)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+$(OBJ_DIR)/%.o: %.c
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 

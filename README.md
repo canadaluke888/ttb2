@@ -17,8 +17,8 @@ Dependencies (Debian/Ubuntu packages):
   `sudo apt install libsqlite3-dev`
 - JSON-C (`libjson-c-dev`) 
   `sudo apt install libjson-c-dev`
-- Python 3 headers (`python3-dev`) — required for export feature 
-  `sudo apt install python3-dev`
+- zlib (`zlib1g-dev`)
+  `sudo apt install zlib1g-dev`
 
 Build the native binary:
 ```
@@ -50,7 +50,7 @@ Run locally:
 - Smart sync prompts when connecting/creating DB or loading CSV with a conflicting table name
 - Autosave to active DB (toggle via Settings)
 - Settings modal (saved to `settings.json`; includes type inference, Low‑RAM seek paging, row gutter)
-- Exports: native CSV save; PDF/XLSX via embedded Python helper (optional)
+- Exports: native CSV and XLSX save options (no external runtime required)
 
 ## Screenshots
 
@@ -93,7 +93,7 @@ Notes:
 - On Windows terminals, flicker is minimized by double‑buffered updates and scanning only visible rows for column widths.
 
 ## Exports
-The app writes a temporary CSV (`tmp_export.csv`) and calls `python/export.py` to generate PDF/XLSX (ensure required Python libs are installed).
+Use the Save menu to write the current table as CSV or XLSX. Both formats are produced natively.
 
 ## CI
 GitHub Actions installs build deps and runs a simple `make`; build logs are visible in the job output.

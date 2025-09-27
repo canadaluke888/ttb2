@@ -9,6 +9,7 @@
 #include "errors.h"
 #include "settings.h"
 #include "csv.h"
+#include "xl.h"
 #include "db_manager.h"
 #include "ui.h"
 
@@ -110,8 +111,10 @@ void show_open_file(Table *table) {
         }
 
         // File selected
-        if (!strstr(path, ".csv")) {
-            show_error_message("Only CSV files are supported.");
+        int is_csv = strstr(path, ".csv") != NULL;
+        int is_xlsx = strstr(path, ".xlsx") != NULL;
+        if (!is_csv && !is_xlsx) {
+            show_error_message("Only CSV or XLSX files are supported.");
             pm_remove(modal); pm_remove(shadow); pm_update();
             free_entries(ents, count);
             continue;
@@ -120,8 +123,13 @@ void show_open_file(Table *table) {
         // Load settings to get type inference preference
         AppSettings s; settings_init_defaults(&s); settings_load("settings.json", &s);
         char err[256] = {0};
-        Table *loaded = csv_load(path, s.type_infer_enabled, err, sizeof(err));
-        if (!loaded) { show_error_message(err[0] ? err : "Failed to load CSV"); }
+        Table *loaded = NULL;
+        if (is_csv) {
+            loaded = csv_load(path, s.type_infer_enabled, err, sizeof(err));
+        } else {
+            loaded = xl_load(path, s.type_infer_enabled, err, sizeof(err));
+        }
+        if (!loaded) { show_error_message(err[0] ? err : "Failed to load file"); }
         else if (table) {
             // Replace current table contents with loaded
             if (table->name) free(table->name);

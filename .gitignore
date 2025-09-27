@@ -2,18 +2,13 @@
 # OBJ files
 *.o
 
-# Temporary CSV file for exporting to other formats 
-tmp_export.csv
-
 # Build artifacts
 build/
 
 # Export file types
 *.pdf
 *.xlsx
-
-# Python artifacts
-__pycache__/
+*.csv
 
 # CODEX config
 AGENTS.md

@@ -2,6 +2,19 @@
 
 All notable changes in this batch are documented here.
 
+## [2025-09-27]
+
+### Added
+- Native XLSX reader and writer (`src/parser/xl.c`, `include/xl.h`) with UI integration for open/save.
+
+### Changed
+- Build layout now compiles sources from `src/db` and `src/parser`; Makefile links only against ncurses/sqlite/json-c/zlib.
+- Save menu offers CSV/XLSX without external runtimes; docs updated to reflect native export support.
+- CSV loader moved under the new parser directory (`src/parser/csv.c`).
+
+### Removed
+- Python export pipeline and bridge (`python/`, `src/python_bridge.c`, `include/python_bridge.h`) plus all references.
+
 ## [2025-09-20]
 
 ### Added 

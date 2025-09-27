@@ -33,7 +33,6 @@ static char **split_csv_line(const char *line, int *out_count) {
         char *cell = NULL;
 
         // Skip leading spaces only for unquoted fields; preserve spaces inside quotes
-        const char *field_start = p;
         if (*p == ' '){
             // Peek ahead: if next non-space is a quote, don't trim now
             const char *q = p;
