@@ -6,7 +6,7 @@ All notable changes in this batch are documented here.
 
 ### 17:00 EST
 
-### Fixed
+#### Fixed
 
 - Added nodelay() fix to prevent XLSX file name input prompt from closing early.
 
