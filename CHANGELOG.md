@@ -4,6 +4,12 @@ All notable changes in this batch are documented here.
 
 ## [2025-09-27]
 
+### 17:00 EST
+
+### Fixed
+
+- Added nodelay() fix to prevent XLSX file name input prompt from closing early.
+
 ### Added
 - Native XLSX reader and writer (`src/parser/xl.c`, `include/xl.h`) with UI integration for open/save.
 

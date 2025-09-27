@@ -388,6 +388,8 @@ void show_save_format_menu(Table *table) {
     echo();
     curs_set(1);
 
+    nodelay(stdscr, FALSE);
+
     // Prompt for filename (consistent wide modal style)
     char filename[128];
     int box_w = COLS - 4;
@@ -439,4 +441,6 @@ void show_save_format_menu(Table *table) {
     refresh();
     noecho();
     curs_set(0);
+
+    nodelay(stdscr, TRUE);
 }
