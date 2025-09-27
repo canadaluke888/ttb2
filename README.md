@@ -2,7 +2,7 @@
 
 ![logo](assets/ttb2_img.png)
 
-TTB2 is the new and improved 2.0 version of the terminal table builder. It features a clean ncurses UI that displays table data live, list-based menus, an integrated SQLite database manager, autosave, paging for wide and tall tables, an inline search mode, interactive row/column deletion, and a simple JSON-backed settings system. CSV import/export is built-in; PDF/XLSX export remains available via the Python helper.
+TTB2 is the new and improved 2.0 version of the terminal table builder. It features a clean ncurses UI that displays table data live, list-based menus, an integrated SQLite database manager, autosave, paging for wide and tall tables, an inline search mode, interactive row/column deletion, and a simple JSON-backed settings system. CSV and XLSX import/export support is built in.
 
 All of the features you're used to, just improved.
 
