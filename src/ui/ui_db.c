@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "panel_manager.h"
 #include "errors.h"
@@ -10,6 +11,11 @@
 #include "ui.h"
 
 // Active DB connection managed via db_manager singleton helpers
+
+static bool table_has_schema(const Table *table)
+{
+    return table && table->column_count > 0;
+}
 
 static void draw_list_modal(const char *title, const char **items, int count, int *io_selected) {
     int h = (count + 3);
@@ -49,21 +55,12 @@ static void draw_list_modal(const char *title, const char **items, int count, in
 }
 
 static int prompt_text_input(const char *title, const char *prompt, char *out, size_t out_sz) {
-    echo(); curs_set(1);
-    nodelay(stdscr, FALSE);
-    int w = COLS - 4; int x = 2; int y = LINES / 2 - 2;
-    for (int i = 0; i < 5; ++i) { move(y + i, 0); clrtoeol(); }
-    mvaddch(y, x, ACS_ULCORNER); for (int i = 1; i < w - 1; ++i) mvaddch(y, x + i, ACS_HLINE); mvaddch(y, x + w - 1, ACS_URCORNER);
-    mvaddch(y + 1, x, ACS_VLINE);
-    if (title) { attron(COLOR_PAIR(3) | A_BOLD); mvprintw(y + 1, x + 1, " %s", title); attroff(COLOR_PAIR(3) | A_BOLD); }
-    mvaddch(y + 1, x + w - 1, ACS_VLINE);
-    mvaddch(y + 2, x, ACS_VLINE); attron(COLOR_PAIR(4)); mvprintw(y + 2, x + 1, " %s", prompt); attroff(COLOR_PAIR(4)); mvaddch(y + 2, x + w - 1, ACS_VLINE);
-    mvaddch(y + 3, x, ACS_LLCORNER); for (int i = 1; i < w - 1; ++i) mvaddch(y + 3, x + i, ACS_HLINE); mvaddch(y + 3, x + w - 1, ACS_LRCORNER);
-    move(y + 2, x + 3 + (int)strlen(prompt));
-    getnstr(out, (int)out_sz - 1);
-    noecho(); curs_set(0);
-    nodelay(stdscr, TRUE);
-    return (int)strlen(out);
+    return show_text_input_modal(title,
+                                 "[Enter] Confirm   [Esc] Cancel",
+                                 prompt,
+                                 out,
+                                 out_sz,
+                                 false);
 }
 
 static void free_string_list(char **list, int count) {
@@ -124,11 +121,15 @@ void show_db_manager(Table *table) {
                             int pick = 0;
                             draw_list_modal("Name conflict: choose action", opts, 3, &pick);
                             if (pick == 0) {
-                                char serr[256] = {0};
-                                if (db_save_table(conn, table, serr, sizeof(serr)) != 0) {
-                                    show_error_message(serr[0] ? serr : "Save failed");
+                                if (table_has_schema(table)) {
+                                    char serr[256] = {0};
+                                    if (db_save_table(conn, table, serr, sizeof(serr)) != 0) {
+                                        show_error_message(serr[0] ? serr : "Save failed");
+                                    } else {
+                                        show_error_message("Database updated from memory table.");
+                                    }
                                 } else {
-                                    show_error_message("Database updated from memory table.");
+                                    show_error_message("Current table has no columns to save.");
                                 }
                             } else if (pick == 1) {
                                 char lerr[256] = {0};
@@ -159,8 +160,8 @@ void show_db_manager(Table *table) {
                             } else {
                                 // Skip
                             }
-                        } else {
-                            // No conflict: save current in-memory table into DB
+                        } else if (table_has_schema(table)) {
+                            // No conflict and table has structure: save current in-memory table into DB
                             char serr[256] = {0};
                             db_save_table(conn, table, serr, sizeof(serr));
                         }
@@ -176,7 +177,7 @@ void show_db_manager(Table *table) {
             else {
                 char msg[256]; snprintf(msg, sizeof(msg), "Database created: %s", name); show_error_message(msg);
                 // Optional sync: if a table is in memory, offer to connect and save it
-                if (table) {
+                if (table_has_schema(table)) {
                     const char *opts[] = { "Yes", "No" };
                     int pick = 0;
                     draw_list_modal("Connect and save current table?", opts, 2, &pick);

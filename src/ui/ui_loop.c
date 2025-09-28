@@ -116,23 +116,12 @@ static void gather_search_hits(Table *t, const char *query) {
 }
 
 static int prompt_search_query(const char *title, const char *prompt, char *out, size_t out_sz) {
-    echo(); curs_set(1);
-    nodelay(stdscr, FALSE); // block for text input
-    int w = COLS - 4; int x = 2; int y = LINES / 2 - 2;
-    if (w < 30) w = COLS - 2;
-    if (w < 10) w = 10;
-    for (int i = 0; i < 5; ++i) { move(y + i, 0); clrtoeol(); }
-    mvaddch(y, x, ACS_ULCORNER); for (int i = 1; i < w - 1; ++i) mvaddch(y, x + i, ACS_HLINE); mvaddch(y, x + w - 1, ACS_URCORNER);
-    mvaddch(y + 1, x, ACS_VLINE);
-    if (title) { attron(COLOR_PAIR(3) | A_BOLD); mvprintw(y + 1, x + 1, " %s", title); attroff(COLOR_PAIR(3) | A_BOLD); }
-    mvaddch(y + 1, x + w - 1, ACS_VLINE);
-    mvaddch(y + 2, x, ACS_VLINE); attron(COLOR_PAIR(4)); mvprintw(y + 2, x + 1, " %s", prompt); attroff(COLOR_PAIR(4)); mvaddch(y + 2, x + w - 1, ACS_VLINE);
-    mvaddch(y + 3, x, ACS_LLCORNER); for (int i = 1; i < w - 1; ++i) mvaddch(y + 3, x + i, ACS_HLINE); mvaddch(y + 3, x + w - 1, ACS_LRCORNER);
-    move(y + 2, x + 3 + (int)strlen(prompt));
-    getnstr(out, (int)out_sz - 1);
-    noecho(); curs_set(0);
-    nodelay(stdscr, TRUE); // restore non-blocking
-    return (int)strlen(out);
+    return show_text_input_modal(title,
+                                 "[Enter] Search   [Esc] Cancel",
+                                 prompt,
+                                 out,
+                                 out_sz,
+                                 false);
 }
 
 static void enter_search(Table *table) {

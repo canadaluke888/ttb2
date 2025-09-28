@@ -1,6 +1,35 @@
 #include "settings.h"
 #include <json-c/json.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
+
+#define SETTINGS_DIR "settings"
+#define SETTINGS_FILE SETTINGS_DIR "/settings.json"
+
+const char *settings_default_path(void)
+{
+    return SETTINGS_FILE;
+}
+
+int settings_ensure_directory(void)
+{
+    struct stat st;
+    if (stat(SETTINGS_DIR, &st) == 0) {
+        if (S_ISDIR(st.st_mode)) {
+            return 0;
+        }
+        return -1;
+    }
+    if (mkdir(SETTINGS_DIR, 0755) == 0) {
+        return 0;
+    }
+    if (errno == EEXIST) {
+        return 0;
+    }
+    return -1;
+}
 
 void settings_init_defaults(AppSettings *s) {
     if (!s) return;
@@ -13,7 +42,7 @@ void settings_init_defaults(AppSettings *s) {
 int settings_load(const char *path, AppSettings *out) {
     if (!out) return -1;
     settings_init_defaults(out);
-    if (!path) return -1;
+    if (!path || !path[0]) path = settings_default_path();
 
     struct json_object *root = json_object_from_file(path);
     if (!root) return -1;
@@ -38,7 +67,11 @@ int settings_load(const char *path, AppSettings *out) {
 }
 
 int settings_save(const char *path, const AppSettings *s) {
-    if (!path || !s) return -1;
+    if (!s) return -1;
+    if (!path || !path[0]) path = settings_default_path();
+    if (settings_ensure_directory() != 0) {
+        return -1;
+    }
     struct json_object *root = json_object_new_object();
     json_object_object_add(root, "autosave_enabled", json_object_new_boolean(s->autosave_enabled));
     json_object_object_add(root, "type_infer_enabled", json_object_new_boolean(s->type_infer_enabled));

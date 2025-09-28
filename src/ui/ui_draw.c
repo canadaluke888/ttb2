@@ -8,7 +8,16 @@
 
 void draw_table_grid(Table *t) {
     if (t->column_count == 0)
+    {
+        total_pages = 1;
+        cols_visible = 0;
+        col_page = 0;
+        col_start = 0;
+        total_row_pages = 1;
+        rows_visible = 0;
+        row_page = 0;
         return;
+    }
 
     int x = 2, y = 2;
     // Estimate rows visible to constrain width scan to current page (prevents O(N) scans)

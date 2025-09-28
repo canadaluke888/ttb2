@@ -17,9 +17,16 @@ All notable changes in this batch are documented here.
 - Build layout now compiles sources from `src/db` and `src/parser`; Makefile links only against ncurses/sqlite/json-c/zlib.
 - Save menu offers CSV/XLSX without external runtimes; docs updated to reflect native export support.
 - CSV loader moved under the new parser directory (`src/parser/csv.c`).
+- Settings now persist under `settings/settings.json`; startup/exit sync applies autosave, low-RAM, and row-gutter toggles consistently.
 
 ### Removed
 - Python export pipeline and bridge (`python/`, `src/python_bridge.c`, `include/python_bridge.h`) plus all references.
+
+### 20:00 EST
+
+#### Changed
+- Unified list and text input modals with underlined titles, bottom-aligned hints, and consistent cursor alignment.
+- Table menu, type selector, and Open File explorer now use the refreshed styling without overflowing their frames.
 
 ## [2025-09-20]
 

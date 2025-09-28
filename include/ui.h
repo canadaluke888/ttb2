@@ -54,6 +54,12 @@ void prompt_rename_table(Table *table);
 void show_db_manager(Table *table);
 void show_settings_menu(void);
 void show_open_file(Table *table);
+int show_text_input_modal(const char *title,
+                          const char *hint,
+                          const char *prompt,
+                          char *out,
+                          size_t out_sz,
+                          bool allow_empty);
 
 // Seek-mode helpers (for low-RAM browsing)
 int seek_mode_active(void);

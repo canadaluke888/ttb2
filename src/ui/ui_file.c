@@ -59,7 +59,7 @@ void show_open_file(Table *table) {
     while (1) {
         int count = 0; Entry *ents = list_dir(cwd, &count);
         if (!ents) { show_error_message("Failed to read directory."); return; }
-        int h = (count + 5); if (h < 10) h = 10; if (h > LINES - 2) h = LINES - 2;
+        int h = (count + 6); if (h < 11) h = 11; if (h > LINES - 2) h = LINES - 2;
         int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
         PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
         PmNode *modal  = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
@@ -72,11 +72,16 @@ void show_open_file(Table *table) {
             wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
             mvwprintw(modal->win, 1, 2, "Open File - %s", cwd);
             wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
-            int visible = h - 3; if (visible < 1) visible = 1;
+            mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
+            mvwaddch(modal->win, 2, 0, ACS_LTEE);
+            mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
+            int visible = h - 4; if (visible < 1) visible = 1;
             for (int i = 0; i < visible && top + i < count; ++i) {
                 int idx = top + i;
+                int row = 3 + i;
+                if (row >= h - 1) break;
                 if (idx == sel) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
-                mvwprintw(modal->win, 2 + i, 2, "%s%s", ents[idx].name, ents[idx].is_dir ? "/" : "");
+                mvwprintw(modal->win, row, 2, "%s%s", ents[idx].name, ents[idx].is_dir ? "/" : "");
                 if (idx == sel) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
             }
             pm_wnoutrefresh(shadow); pm_wnoutrefresh(modal); pm_update();
@@ -121,7 +126,7 @@ void show_open_file(Table *table) {
         }
 
         // Load settings to get type inference preference
-        AppSettings s; settings_init_defaults(&s); settings_load("settings.json", &s);
+        AppSettings s; settings_init_defaults(&s); settings_load(settings_default_path(), &s);
         char err[256] = {0};
         Table *loaded = NULL;
         if (is_csv) {
@@ -163,7 +168,7 @@ void show_open_file(Table *table) {
                 // We'll just use show_error_message for now if user chooses overwrite
                 // but present a simple choice list via panels as with other modals
                 // Build a tiny modal inline
-                int h = 7; int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
+                int h = 8; int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
                 PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
                 PmNode *modal  = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
                 keypad(modal->win, TRUE);
@@ -172,9 +177,14 @@ void show_open_file(Table *table) {
                     wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
                     mvwprintw(modal->win, 1, 2, "Table '%s' exists in DB. Sync?", table->name);
                     wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+                    mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
+                    mvwaddch(modal->win, 2, 0, ACS_LTEE);
+                    mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
                     for (int i = 0; i < 2; ++i) {
+                        int row = 3 + i;
+                        if (row >= h - 1) break;
                         if (i == pick) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
-                        mvwprintw(modal->win, 2 + i, 2, "%s", opts[i]);
+                        mvwprintw(modal->win, row, 2, "%s", opts[i]);
                         if (i == pick) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
                     }
                     pm_wnoutrefresh(shadow); pm_wnoutrefresh(modal); pm_update();

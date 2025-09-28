@@ -59,44 +59,27 @@ void edit_header_cell(Table *t, int col) {
 
     if (selected == 0) {
         // Rename column
-        echo();
-        curs_set(1);
-        char name[MAX_INPUT];
-        int box_w = COLS - 4;
-        int bx = 2;
-        int by = LINES / 2 - 2;
-        for (int i = 0; i < 5; i++) { move(by + i, 0); clrtoeol(); }
-        mvaddch(by, bx, ACS_ULCORNER);
-        for (int i = 1; i < box_w - 1; i++) mvaddch(by, bx + i, ACS_HLINE);
-        mvaddch(by, bx + box_w - 1, ACS_URCORNER);
-        mvaddch(by + 1, bx, ACS_VLINE);
-        attron(COLOR_PAIR(3) | A_BOLD);
-        mvprintw(by + 1, bx + 1, " Rename column '%s':", t->columns[col].name);
-        attroff(COLOR_PAIR(3) | A_BOLD);
-        mvaddch(by + 1, bx + box_w - 1, ACS_VLINE);
-        mvaddch(by + 2, bx, ACS_VLINE);
-        attron(COLOR_PAIR(4)); mvprintw(by + 2, bx + 1, " > "); attroff(COLOR_PAIR(4));
-        mvaddch(by + 2, bx + box_w - 1, ACS_VLINE);
-        mvaddch(by + 3, bx, ACS_LLCORNER);
-        for (int i = 1; i < box_w - 1; i++) mvaddch(by + 3, bx + i, ACS_HLINE);
-        mvaddch(by + 3, bx + box_w - 1, ACS_LRCORNER);
-        move(by + 2, bx + 4);
-        getnstr(name, MAX_INPUT - 1);
-        if (strlen(name) > 0) {
+        char label[160];
+        snprintf(label, sizeof(label), "Rename column '%s':", t->columns[col].name);
+        char name_buf[MAX_INPUT];
+        int rc = show_text_input_modal("Rename Column",
+                                       "[Enter] Save   [Esc] Cancel",
+                                       label,
+                                       name_buf,
+                                       sizeof(name_buf),
+                                       false);
+        if (rc >= 0 && strlen(name_buf) > 0) {
             free(t->columns[col].name);
-            t->columns[col].name = strdup(name);
+            t->columns[col].name = strdup(name_buf);
             char err[256] = {0};
             db_autosave_table(t, err, sizeof(err));
         }
-        noecho();
-        curs_set(0);
     } else {
         // Change column type via list modal (no typing)
         noecho();
         curs_set(0);
         const char *type_items[] = { "int", "float", "str", "bool" };
         int selected_type = 0;
-        // Use the same simple list modal pattern as other menus
         int h2 = 7; int w2 = COLS - 4; int y2 = (LINES - h2) / 2; int x2 = 2;
         PmNode *sh2 = pm_add(y2 + 1, x2 + 2, h2, w2, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
         PmNode *mo2 = pm_add(y2, x2, h2, w2, PM_LAYER_MODAL, PM_LAYER_MODAL);
@@ -108,9 +91,13 @@ void edit_header_cell(Table *t, int col) {
             wattron(mo2->win, COLOR_PAIR(3) | A_BOLD);
             mvwprintw(mo2->win, 1, 2, "New type for '%s'", t->columns[col].name);
             wattroff(mo2->win, COLOR_PAIR(3) | A_BOLD);
+            // Title underline
+            mvwhline(mo2->win, 2, 1, ACS_HLINE, w2 - 2);
+            mvwaddch(mo2->win, 2, 0, ACS_LTEE);
+            mvwaddch(mo2->win, 2, w2 - 1, ACS_RTEE);
             for (int i = 0; i < 4; ++i) {
                 if (i == selected_type) wattron(mo2->win, COLOR_PAIR(4) | A_BOLD);
-                mvwprintw(mo2->win, 2 + i, 2, "%s", type_items[i]);
+                mvwprintw(mo2->win, 3 + i, 2, "%s", type_items[i]);
                 if (i == selected_type) wattroff(mo2->win, COLOR_PAIR(4) | A_BOLD);
             }
             pm_wnoutrefresh(sh2); pm_wnoutrefresh(mo2); pm_update();
@@ -310,56 +297,29 @@ void edit_header_cell(Table *t, int col) {
 }
 
 void edit_body_cell(Table *t, int row, int col) {
-    echo();
-    curs_set(1);
+    if (!t) return;
 
-    char value[MAX_INPUT];
-    int input_box_width = COLS - 4;
-    int input_box_x = 2;
-    int input_box_y = LINES / 2 - 2;
     const char *col_name = t->columns[col].name;
     const char *type_str = type_to_string(t->columns[col].type);
+    char prompt_label[160];
+    snprintf(prompt_label, sizeof(prompt_label), "Edit value for '%s (%s)':", col_name, type_str);
+
+    char value[MAX_INPUT] = {0};
 
     while (1) {
-        for (int line = 0; line < 6; line++) {
-            move(input_box_y + line, 0);
-            clrtoeol();
+        int rc = show_text_input_modal("Edit Cell",
+                                       "[Enter] Save   [Esc] Cancel",
+                                       prompt_label,
+                                       value,
+                                       sizeof(value),
+                                       false);
+        if (rc < 0) {
+            return;
         }
-
-        // Top border
-        mvaddch(input_box_y, input_box_x, ACS_ULCORNER);
-        for (int i = 1; i < input_box_width - 1; i++)
-            mvaddch(input_box_y, input_box_x + i, ACS_HLINE);
-        mvaddch(input_box_y, input_box_x + input_box_width - 1, ACS_URCORNER);
-
-        // Prompt line
-        mvaddch(input_box_y + 1, input_box_x, ACS_VLINE);
-        attron(COLOR_PAIR(3) | A_BOLD);
-        mvprintw(input_box_y + 1, input_box_x + 1, " Edit value for \"%s (%s)\"", col_name, type_str);
-        attroff(COLOR_PAIR(3) | A_BOLD);
-        mvaddch(input_box_y + 1, input_box_x + input_box_width - 1, ACS_VLINE);
-
-        // Input line
-        mvaddch(input_box_y + 2, input_box_x, ACS_VLINE);
-        attron(COLOR_PAIR(4));
-        mvprintw(input_box_y + 2, input_box_x + 1, " > ");
-        attroff(COLOR_PAIR(4));
-        mvaddch(input_box_y + 2, input_box_x + input_box_width - 1, ACS_VLINE);
-
-        // Bottom border
-        mvaddch(input_box_y + 3, input_box_x, ACS_LLCORNER);
-        for (int i = 1; i < input_box_width - 1; i++)
-            mvaddch(input_box_y + 3, input_box_x + i, ACS_HLINE);
-        mvaddch(input_box_y + 3, input_box_x + input_box_width - 1, ACS_LRCORNER);
-
-        move(input_box_y + 2, input_box_x + 4);
-        // Temporarily disable nodelay so input waits for user typing
-        nodelay(stdscr, FALSE);
-        getnstr(value, MAX_INPUT - 1);
-        nodelay(stdscr, TRUE);
 
         if (!validate_input(value, t->columns[col].type)) {
             show_error_message("Invalid input.");
+            value[0] = '\0';
             continue;
         }
 
@@ -367,18 +327,21 @@ void edit_body_cell(Table *t, int row, int col) {
         switch (t->columns[col].type) {
             case TYPE_INT: {
                 int *i = malloc(sizeof(int));
+                if (!i) return;
                 *i = atoi(value);
                 ptr = i;
                 break;
             }
             case TYPE_FLOAT: {
                 float *f = malloc(sizeof(float));
+                if (!f) return;
                 *f = atof(value);
                 ptr = f;
                 break;
             }
             case TYPE_BOOL: {
                 int *b = malloc(sizeof(int));
+                if (!b) return;
                 *b = (strcasecmp(value, "true") == 0 || strcmp(value, "1") == 0);
                 ptr = b;
                 break;
@@ -399,11 +362,8 @@ void edit_body_cell(Table *t, int row, int col) {
             char err[256] = {0};
             db_autosave_table(t, err, sizeof(err));
         }
-        break; // Valid input complete
+        break;
     }
-
-    noecho();
-    curs_set(0);
 }
 
 // Small list menu confirm (returns selected index or -1 on cancel)

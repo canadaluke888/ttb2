@@ -16,5 +16,7 @@ void settings_init_defaults(AppSettings *s);
 // Load/save settings from JSON file at path. Returns 0 on success.
 int settings_load(const char *path, AppSettings *out);
 int settings_save(const char *path, const AppSettings *s);
+int settings_ensure_directory(void);
+const char *settings_default_path(void);
 
 #endif

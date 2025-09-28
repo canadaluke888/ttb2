@@ -9,12 +9,12 @@
 
 static AppSettings g_settings;
 static int g_loaded = 0;
-static const char *SETTINGS_PATH = "settings.json";
 
 static void ensure_loaded(void) {
     if (g_loaded) return;
     settings_init_defaults(&g_settings);
-    settings_load(SETTINGS_PATH, &g_settings);
+    settings_ensure_directory();
+    settings_load(settings_default_path(), &g_settings);
     db_set_autosave_enabled(g_settings.autosave_enabled);
     low_ram_mode = g_settings.low_ram_enabled ? 1 : 0;
     row_gutter_enabled = g_settings.show_row_gutter ? 1 : 0;
@@ -62,7 +62,7 @@ void show_settings_menu(void) {
             else if (sel == 1) { g_settings.type_infer_enabled = !g_settings.type_infer_enabled; }
             else if (sel == 2) { g_settings.low_ram_enabled = !g_settings.low_ram_enabled; low_ram_mode = g_settings.low_ram_enabled ? 1 : 0; }
             else if (sel == 3) { g_settings.show_row_gutter = !g_settings.show_row_gutter; row_gutter_enabled = g_settings.show_row_gutter ? 1 : 0; }
-            else if (sel == 4) { settings_save(SETTINGS_PATH, &g_settings); break; }
+            else if (sel == 4) { settings_save(settings_default_path(), &g_settings); break; }
             else if (sel == 5) { break; }
         } else if (ch == 27) { break; }
     }

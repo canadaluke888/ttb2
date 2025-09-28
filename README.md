@@ -49,7 +49,7 @@ Run locally:
 - DB Manager: Connect/Create/Delete DB, Load Table, Delete Table, Close
 - Smart sync prompts when connecting/creating DB or loading CSV with a conflicting table name
 - Autosave to active DB (toggle via Settings)
-- Settings modal (saved to `settings.json`; includes type inference, Low‑RAM seek paging, row gutter)
+- Settings modal (saved to `settings/settings.json`; includes type inference, Low‑RAM seek paging, row gutter)
 - Exports: native CSV and XLSX save options (no external runtime required)
 
 ## Screenshots
