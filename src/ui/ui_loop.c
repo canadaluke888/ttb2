@@ -7,6 +7,7 @@
 #include "ui.h"
 #include "errors.h"  // Added to provide declaration for show_error_message
 #include "panel_manager.h"
+#include "workspace.h"
 
 // Define global UI state variables
 int editing_mode = 0;
@@ -193,6 +194,15 @@ void start_ui_loop(Table *table) {
                     seek_mode_fetch_first(table, page, err, sizeof err);
                 }
             }
+            else if (ch == 19) { // Ctrl+S
+                char serr[256] = {0};
+                if (workspace_manual_save(table, serr, sizeof(serr)) != 0) {
+                    if (serr[0]) show_error_message(serr);
+                    else show_error_message("Save failed.");
+                } else {
+                    show_error_message("Workspace saved.");
+                }
+            }
             else if (ch == 'c' || ch == 'C')
                 prompt_add_column(table);
             else if (ch == 'r' || ch == 'R') {
@@ -257,6 +267,16 @@ void start_ui_loop(Table *table) {
             }
         } else {
             // If in interactive delete modes, override edit controls for navigation + confirm
+            if (ch == 19) {
+                char serr[256] = {0};
+                if (workspace_manual_save(table, serr, sizeof(serr)) != 0) {
+                    if (serr[0]) show_error_message(serr);
+                    else show_error_message("Save failed.");
+                } else {
+                    show_error_message("Workspace saved.");
+                }
+                continue;
+            }
             if (del_row_mode) {
                 if (table->row_count <= 0) { del_row_mode = 0; }
                 switch (ch) {

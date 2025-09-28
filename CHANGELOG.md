@@ -4,6 +4,13 @@ All notable changes in this batch are documented here.
 
 ## [2025-09-27]
 
+### 21:00 EST
+
+#### Changed
+- Added workspace persistence via `.ttbx` projects with automatic save (`workspace/session.ttbx`) and manual `Ctrl+S` saves, plus `.ttbl` single-table exports.
+- Export menu now offers `.ttbl`/`.ttbx`/CSV/XLSX, and Open File accepts the new formats while syncing the workspace path.
+- Standardized modal styling (underlined titles, bottom hints) across table menu, export picker, and file dialogs.
+
 ### 17:00 EST
 
 #### Fixed

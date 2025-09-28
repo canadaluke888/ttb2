@@ -1,5 +1,6 @@
 #include <ncurses.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <stdbool.h>
@@ -7,6 +8,7 @@
 #include "ui.h"
 #include "csv.h"
 #include "xl.h"
+#include "ttb_io.h"
 #include "db_manager.h"
 #include "errors.h"
 #include "panel_manager.h"
@@ -209,6 +211,15 @@ static int prompt_filename_modal(const char *title, const char *prompt, char *ou
                                  false);
 }
 
+static int has_extension(const char *name, const char *ext)
+{
+    if (!name || !ext) return 0;
+    size_t len_name = strlen(name);
+    size_t len_ext = strlen(ext);
+    if (len_ext > len_name) return 0;
+    return strcasecmp(name + len_name - len_ext, ext) == 0;
+}
+
 void prompt_add_column(Table *table) {
     char name[MAX_INPUT];
     int name_len = show_text_input_modal("Add Column",
@@ -347,8 +358,8 @@ void show_table_menu(Table *table) {
     PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
     keypad(modal->win, TRUE);
 
-    const char *labels[] = {"Rename", "Save", "Open File", "New Table", "DB Manager", "Settings", "Cancel"};
-    int selected = 0; /* 0=Rename,1=Save,2=Open,3=New,4=DB,5=Settings,6=Cancel */
+    const char *labels[] = {"Rename", "Export", "Open File", "New Table", "DB Manager", "Settings", "Cancel"};
+    int selected = 0; /* 0=Rename,1=Export,2=Open,3=New,4=DB,5=Settings,6=Cancel */
     int ch;
 
     while (1) {
@@ -394,7 +405,7 @@ void show_table_menu(Table *table) {
 
     switch (selected) {
         case 0: prompt_rename_table(table); break;
-        case 1: show_save_format_menu(table); break;
+        case 1: show_export_menu(table); break;
         case 2: show_open_file(table); break;
         case 3: {
             // New Table: ensure current table saved, then clear to start fresh
@@ -442,16 +453,16 @@ void show_table_menu(Table *table) {
     }
 }
 
-void show_save_format_menu(Table *table) {
+void show_export_menu(Table *table) {
     /* Selection uses keys only: hide cursor */
     noecho();
     curs_set(0);
 
     /* Modal selection styled like header edit */
-    const char *labels[] = {"CSV", "XLSX", "Cancel"};
-    int options_count = 3;
-    int h = options_count + 3;
-    if (h < 7) h = 7;
+    const char *labels[] = {"Table (.ttbl)", "Project (.ttbx)", "CSV", "XLSX", "Cancel"};
+    int options_count = 5;
+    int h = options_count + 4;
+    if (h < 8) h = 8;
     int w = COLS - 4;
     int y = (LINES - h) / 2;
     int x = 2;
@@ -466,12 +477,17 @@ void show_save_format_menu(Table *table) {
         werase(modal->win);
         box(modal->win, 0, 0);
         wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
-        mvwprintw(modal->win, 1, 2, "Select format to save:");
+        mvwprintw(modal->win, 1, 2, "Select export format:");
         wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+        mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
+        mvwaddch(modal->win, 2, 0, ACS_LTEE);
+        mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
 
         for (int i = 0; i < options_count; i++) {
+            int row = 3 + i;
+            if (row >= h - 1) break;
             if (i == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
-            mvwprintw(modal->win, 2 + i, 2, "%s", labels[i]);
+            mvwprintw(modal->win, row, 2, "%s", labels[i]);
             if (i == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
         }
 
@@ -496,30 +512,55 @@ void show_save_format_menu(Table *table) {
     }
 
     char filename[128];
-    int name_len = prompt_filename_modal("Save Table", "Filename:", filename, sizeof(filename));
+    int name_len = prompt_filename_modal("Export Table", "Filename:", filename, sizeof(filename));
     if (name_len < 0) {
         noecho();
         curs_set(0);
         return;
     }
 
+    char outpath[512];
+    char err[256] = {0};
+
     if (selected == 0) {
-        char outpath[256];
-        snprintf(outpath, sizeof(outpath), "%s.csv", filename);
-        char err[256] = {0};
-        if (csv_save(table, outpath, err, sizeof(err)) != 0) {
-            show_error_message(err[0] ? err : "Failed to save CSV");
+        snprintf(outpath, sizeof(outpath), "%s", filename);
+        if (!has_extension(outpath, ".ttbl")) {
+            strncat(outpath, ".ttbl", sizeof(outpath) - strlen(outpath) - 1);
+        }
+        if (ttbl_save(table, outpath, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to export .ttbl");
+        } else {
+            show_error_message("Exported table file.");
         }
     } else if (selected == 1) {
-        char outpath[256];
-        if (strstr(filename, ".xlsx")) {
-            snprintf(outpath, sizeof(outpath), "%s", filename);
-        } else {
-            snprintf(outpath, sizeof(outpath), "%s.xlsx", filename);
+        snprintf(outpath, sizeof(outpath), "%s", filename);
+        if (!has_extension(outpath, ".ttbx")) {
+            strncat(outpath, ".ttbx", sizeof(outpath) - strlen(outpath) - 1);
         }
-        char err[256] = {0};
+        if (ttbx_save(table, outpath, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to export .ttbx");
+        } else {
+            show_error_message("Exported project file.");
+        }
+    } else if (selected == 2) {
+        snprintf(outpath, sizeof(outpath), "%s", filename);
+        if (!has_extension(outpath, ".csv")) {
+            strncat(outpath, ".csv", sizeof(outpath) - strlen(outpath) - 1);
+        }
+        if (csv_save(table, outpath, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to save CSV");
+        } else {
+            show_error_message("Exported CSV.");
+        }
+    } else if (selected == 3) {
+        snprintf(outpath, sizeof(outpath), "%s", filename);
+        if (!has_extension(outpath, ".xlsx")) {
+            strncat(outpath, ".xlsx", sizeof(outpath) - strlen(outpath) - 1);
+        }
         if (xl_save(table, outpath, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to save XLSX");
+        } else {
+            show_error_message("Exported XLSX.");
         }
     }
 

@@ -1,6 +1,7 @@
 #include "db_manager.h"
 #include "errors.h"
 #include "tablecraft.h"
+#include "workspace.h"
 
 #include <sqlite3.h>
 #include <stdlib.h>
@@ -16,14 +17,13 @@ struct DbManager {
     char     path[512];
 };
 
-// Active connection + autosave flag
+// Active connection (legacy DB support)
 static DbManager *ACTIVE_DB = NULL;
-static int AUTOSAVE_ON = 1;
 
 void db_set_active(DbManager *db) { ACTIVE_DB = db; }
 DbManager *db_get_active(void) { return ACTIVE_DB; }
-int db_autosave_enabled(void) { return AUTOSAVE_ON; }
-void db_set_autosave_enabled(int enabled) { AUTOSAVE_ON = enabled ? 1 : 0; }
+int db_autosave_enabled(void) { return workspace_autosave_enabled(); }
+void db_set_autosave_enabled(int enabled) { workspace_set_autosave_enabled(enabled); }
 
 static void set_err(char *err, size_t err_sz, const char *msg) {
     if (!err || err_sz == 0) return;
@@ -382,9 +382,8 @@ sql_overflow:
 }
 
 int db_autosave_table(const Table *t, char *err, size_t err_sz) {
-    if (!AUTOSAVE_ON) return 0;
-    if (!ACTIVE_DB) return 0;
-    return db_save_table(ACTIVE_DB, t, err, err_sz);
+    (void)ACTIVE_DB; // autosave now handled via workspace files
+    return workspace_autosave(t, err, err_sz);
 }
 
 /* end */

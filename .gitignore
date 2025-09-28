@@ -9,6 +9,8 @@ build/
 *.pdf
 *.xlsx
 *.csv
+*.ttbl
+*.ttbx
 
 # CODEX config
 AGENTS.md
@@ -19,6 +21,9 @@ ttb2_updates.md
 # Generated databases directory from app
 databases/
 
+# Generated workspace directory
+workspace/
+
 # VS Code settings
 .vscode/settings.json
 
@@ -26,4 +31,4 @@ databases/
 test_files/
 
 # Generated settings.json file from app
-settings.json
+settings/settings.json

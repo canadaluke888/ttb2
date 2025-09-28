@@ -400,7 +400,7 @@ void draw_ui(Table *table) {
         attroff(COLOR_PAIR(4));
         // During search mode, we still want the table to scroll to the match; hints are simplified
     } else if (!editing_mode) {
-        printw("[C] Add Column  [R] Add Row  [F] Search  [E] Edit Mode  [M] Menu  [Q] Quit  [Ctrl+H] Top-Left");
+        printw("[C] Add Column  [R] Add Row  [F] Search  [E] Edit Mode  [M] Menu  [Ctrl+S] Save  [Q] Quit  [Ctrl+H] Top-Left");
         attroff(COLOR_PAIR(5));
         // Paging hints in a distinct color
         if (total_pages > 1 || total_row_pages > 1) {

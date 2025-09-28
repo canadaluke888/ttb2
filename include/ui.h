@@ -49,7 +49,7 @@ void confirm_delete_column_at(Table *table, int col);
 void prompt_add_column(Table *table);
 void prompt_add_row(Table *table);
 void show_table_menu(Table *table);
-void show_save_format_menu(Table *table);
+void show_export_menu(Table *table);
 void prompt_rename_table(Table *table);
 void show_db_manager(Table *table);
 void show_settings_menu(void);

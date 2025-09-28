@@ -11,6 +11,8 @@
 #include "csv.h"
 #include "xl.h"
 #include "db_manager.h"
+#include "ttb_io.h"
+#include "workspace.h"
 #include "ui.h"
 
 typedef struct {
@@ -53,6 +55,15 @@ static void free_entries(Entry *arr, int n) {
     free(arr);
 }
 
+static int has_extension(const char *name, const char *ext)
+{
+    if (!name || !ext) return 0;
+    size_t ln = strlen(name);
+    size_t le = strlen(ext);
+    if (le > ln) return 0;
+    return strcasecmp(name + ln - le, ext) == 0;
+}
+
 void show_open_file(Table *table) {
     char cwd[1024]; getcwd(cwd, sizeof(cwd));
     int sel = 0;
@@ -64,7 +75,7 @@ void show_open_file(Table *table) {
         PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
         PmNode *modal  = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
         keypad(modal->win, TRUE);
-        int top = 0; if (sel >= h - 4) top = sel - (h - 5);
+        int top = 0;
 
         int ch;
         while (1) {
@@ -76,6 +87,7 @@ void show_open_file(Table *table) {
             mvwaddch(modal->win, 2, 0, ACS_LTEE);
             mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
             int visible = h - 4; if (visible < 1) visible = 1;
+            if (sel >= visible) top = sel - (visible - 1);
             for (int i = 0; i < visible && top + i < count; ++i) {
                 int idx = top + i;
                 int row = 3 + i;
@@ -116,10 +128,12 @@ void show_open_file(Table *table) {
         }
 
         // File selected
-        int is_csv = strstr(path, ".csv") != NULL;
-        int is_xlsx = strstr(path, ".xlsx") != NULL;
-        if (!is_csv && !is_xlsx) {
-            show_error_message("Only CSV or XLSX files are supported.");
+        int is_csv = has_extension(path, ".csv");
+        int is_xlsx = has_extension(path, ".xlsx");
+        int is_ttbl = has_extension(path, ".ttbl");
+        int is_ttbx = has_extension(path, ".ttbx");
+        if (!is_csv && !is_xlsx && !is_ttbl && !is_ttbx) {
+            show_error_message("Unsupported file type.");
             pm_remove(modal); pm_remove(shadow); pm_update();
             free_entries(ents, count);
             continue;
@@ -131,8 +145,12 @@ void show_open_file(Table *table) {
         Table *loaded = NULL;
         if (is_csv) {
             loaded = csv_load(path, s.type_infer_enabled, err, sizeof(err));
-        } else {
+        } else if (is_xlsx) {
             loaded = xl_load(path, s.type_infer_enabled, err, sizeof(err));
+        } else if (is_ttbl) {
+            loaded = ttbl_load(path, err, sizeof(err));
+        } else if (is_ttbx) {
+            loaded = ttbx_load(path, err, sizeof(err));
         }
         if (!loaded) { show_error_message(err[0] ? err : "Failed to load file"); }
         else if (table) {
@@ -155,6 +173,15 @@ void show_open_file(Table *table) {
             table->capacity_columns = loaded->capacity_columns;
             table->capacity_rows = loaded->capacity_rows;
             free(loaded);
+
+            workspace_set_active_table(table);
+
+            if (is_ttbx) {
+                workspace_set_project_path(path);
+                workspace_set_active_table(table);
+                workspace_autosave(table, NULL, 0);
+                show_error_message("Workspace project loaded.");
+            }
 
             // If a DB is connected and a table of same name exists, prompt to sync
             DbManager *cur = db_get_active();
