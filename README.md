@@ -48,7 +48,7 @@ Run locally:
 - Edit mode tools: [x] Delete Row, [Shift+X] Delete Column (guarded), [Backspace] Clear Cell
 - DB Manager: Connect/Create/Delete DB, Load Table, Delete Table, Close
 - Smart sync prompts when connecting/creating DB or loading CSV with a conflicting table name
-- Workspace auto-save to `.ttbx` projects (toggle via Settings, manual save with `Ctrl+S`)
+- Workspace auto-save to `.ttbx` projects (toggle via Settings, manual save with `S`)
 - Settings modal (saved to `settings/settings.json`; includes type inference, Low‑RAM seek paging, row gutter)
 - Exports: native CSV and XLSX save options (no external runtime required)
 
@@ -75,7 +75,7 @@ Run locally:
 - `r` Add row
 - `e` Edit mode (arrows to navigate, Enter to edit, Esc to exit)
 - `f` Search mode (arrows to jump matches, Esc to exit)
-- `Ctrl+S` Save workspace project
+- `S` Save workspace project
 - `Ctrl+H` Jump to top‑left (Home)
 - `m` Table menu (Rename, Save, Load, New Table, DB Manager, Settings)
 - In Edit mode:
@@ -94,7 +94,7 @@ Notes:
 - On Windows terminals, flicker is minimized by double‑buffered updates and scanning only visible rows for column widths.
 
 ## Workspace & Exports
-- A project workspace lives in `workspace/session.ttbx` by default. The file is created automatically and updated whenever autosave triggers or you press `Ctrl+S`.
+- A project workspace lives in `workspace/session.ttbx` by default. The file is created automatically and updated whenever autosave triggers or you press `S`.
 - Use the Export menu to write the current data as:
   - `.ttbl` – a single-table snapshot
   - `.ttbx` – a project/workbook bundle

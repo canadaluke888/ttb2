@@ -194,12 +194,13 @@ void start_ui_loop(Table *table) {
                     seek_mode_fetch_first(table, page, err, sizeof err);
                 }
             }
-            else if (ch == 19) { // Ctrl+S
+            else if (ch == 's' || ch == 'S') {
                 char serr[256] = {0};
                 if (workspace_manual_save(table, serr, sizeof(serr)) != 0) {
                     if (serr[0]) show_error_message(serr);
                     else show_error_message("Save failed.");
-                } else {
+                }
+                else {
                     show_error_message("Workspace saved.");
                 }
             }
@@ -267,12 +268,13 @@ void start_ui_loop(Table *table) {
             }
         } else {
             // If in interactive delete modes, override edit controls for navigation + confirm
-            if (ch == 19) {
+            if (ch == 's' || ch == 'S') {
                 char serr[256] = {0};
                 if (workspace_manual_save(table, serr, sizeof(serr)) != 0) {
                     if (serr[0]) show_error_message(serr);
                     else show_error_message("Save failed.");
-                } else {
+                }
+                else {
                     show_error_message("Workspace saved.");
                 }
                 continue;

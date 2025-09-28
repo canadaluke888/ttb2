@@ -2,6 +2,14 @@
 
 All notable changes in this batch are documented here.
 
+## [2025-09-28]
+
+### 15:00 EST
+
+### Changed
+
+- Changed manual save Hotkey from `Ctrl+S` to `S` to prevent key recogniztion issues on other platforms in terminal environments.
+
 ## [2025-09-27]
 
 ### 21:00 EST
