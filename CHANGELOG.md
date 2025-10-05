@@ -2,6 +2,16 @@
 
 All notable changes in this batch are documented here.
 
+## [2025-10-05]
+
+### 15:24 EDT
+
+### Added
+
+- Progress bar modal to report progress on loading large files.
+
+- Underlined styling for window titles
+
 ## [2025-09-28]
 
 ### 15:00 EST

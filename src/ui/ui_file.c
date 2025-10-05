@@ -14,6 +14,7 @@
 #include "ttb_io.h"
 #include "workspace.h"
 #include "ui.h"
+#include "ui_loading.h"
 
 typedef struct {
     char *name;
@@ -143,14 +144,23 @@ void show_open_file(Table *table) {
         AppSettings s; settings_init_defaults(&s); settings_load(settings_default_path(), &s);
         char err[256] = {0};
         Table *loaded = NULL;
+        UiLoadingModal *loading_modal = NULL;
+        ProgressReporter reporter = {0};
         if (is_csv) {
-            loaded = csv_load(path, s.type_infer_enabled, err, sizeof(err));
+            loading_modal = ui_loading_modal_start("Import CSV", "Reading file...", &reporter);
+            const ProgressReporter *cb = (loading_modal && reporter.update) ? &reporter : NULL;
+            loaded = csv_load_with_progress(path, s.type_infer_enabled, err, sizeof(err), cb);
         } else if (is_xlsx) {
-            loaded = xl_load(path, s.type_infer_enabled, err, sizeof(err));
+            loading_modal = ui_loading_modal_start("Import XLSX", "Parsing workbook...", &reporter);
+            const ProgressReporter *cb = (loading_modal && reporter.update) ? &reporter : NULL;
+            loaded = xl_load_with_progress(path, s.type_infer_enabled, err, sizeof(err), cb);
         } else if (is_ttbl) {
             loaded = ttbl_load(path, err, sizeof(err));
         } else if (is_ttbx) {
             loaded = ttbx_load(path, err, sizeof(err));
+        }
+        if (loading_modal) {
+            ui_loading_modal_finish(loading_modal);
         }
         if (!loaded) { show_error_message(err[0] ? err : "Failed to load file"); }
         else if (table) {

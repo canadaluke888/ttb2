@@ -195,13 +195,48 @@ static char *basename_no_ext(const char *path) {
     return name;
 }
 
-Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz) {
+static void report_progress(const ProgressReporter *progress,
+                            double amount,
+                            const char *message)
+{
+    if (!progress || !progress->update) {
+        return;
+    }
+
+    if (amount < 0.0) {
+        amount = 0.0;
+    } else if (amount > 1.0) {
+        amount = 1.0;
+    }
+
+    progress->update(progress->ctx, amount, message);
+}
+
+Table *csv_load_with_progress(const char *path,
+                              bool infer_types,
+                              char *err,
+                              size_t err_sz,
+                              const ProgressReporter *progress) {
     if (err && err_sz) err[0] = '\0';
     FILE *f = fopen(path, "r");
     if (!f) {
-        if (err) snprintf(err, err_sz, "Failed to open: %s", path);
+        if (err) snprintf(err, err_sz, "Failed to open %s", path);
         return NULL;
     }
+
+    long total_bytes = 0;
+    int progress_enabled = (progress && progress->update);
+    if (progress_enabled) {
+        if (fseek(f, 0, SEEK_END) == 0) {
+            total_bytes = ftell(f);
+            if (total_bytes < 0) total_bytes = 0;
+            fseek(f, 0, SEEK_SET);
+        } else {
+            progress_enabled = 0;
+        }
+    }
+
+    report_progress(progress, 0.02, "Reading header...");
 
     char line[4096];
     if (!fgets(line, sizeof(line), f)) {
@@ -222,6 +257,7 @@ Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz) {
     // Read data rows as strings first
     int rows_cap = 32, rows = 0;
     char ***data = (char***)malloc(sizeof(char**) * rows_cap);
+    int row_report_counter = 0;
     while (fgets(line, sizeof(line), f)) {
         int c = 0; char **cells = split_csv_line(line, &c);
         // normalize to header_count columns
@@ -232,8 +268,20 @@ Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz) {
         }
         if (rows == rows_cap) { rows_cap *= 2; data = (char***)realloc(data, sizeof(char**) * rows_cap); }
         data[rows++] = cells;
+        if (progress_enabled) {
+            row_report_counter++;
+            if (row_report_counter >= 128) {
+                long pos = ftell(f);
+                if (pos < 0) pos = 0;
+                double frac = (total_bytes > 0) ? ((double)pos / (double)total_bytes) : 0.0;
+                report_progress(progress, 0.6 * frac, "Reading rows...");
+                row_report_counter = 0;
+            }
+        }
     }
     fclose(f);
+
+    report_progress(progress, 0.65, "Preparing columns...");
 
     // Prepare headers
     char **col_names = (char**)malloc(sizeof(char*) * header_count);
@@ -244,6 +292,7 @@ Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz) {
 
     // Infer types optionally (only when unknown)
     if (infer_types) {
+        report_progress(progress, 0.7, "Inferring column types...");
         for (int c = 0; c < header_count; ++c) {
             if (col_types[c] == TYPE_UNKNOWN) {
                 // build column cells array
@@ -251,6 +300,10 @@ Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz) {
                 for (int r = 0; r < rows; ++r) cells[r] = data[r][c];
                 col_types[c] = infer_type_for_column(cells, rows);
                 free(cells);
+                if (progress_enabled && rows > 0) {
+                    double frac = (double)(c + 1) / (double)header_count;
+                    report_progress(progress, 0.7 + 0.15 * frac, "Inferring column types...");
+                }
             }
         }
     } else {
@@ -258,6 +311,7 @@ Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz) {
     }
 
     // Build table
+    report_progress(progress, 0.88, "Building table...");
     char *tname = basename_no_ext(path);
     Table *t = create_table(tname);
     free(tname);
@@ -265,7 +319,13 @@ Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz) {
     for (int r = 0; r < rows; ++r) {
         const char **row_inputs = (const char **)data[r];
         add_row(t, row_inputs);
+        if (progress_enabled && rows > 0 && (r % 128 == 0)) {
+            double frac = (double)(r + 1) / (double)rows;
+            report_progress(progress, 0.88 + 0.12 * frac, "Building table...");
+        }
     }
+
+    report_progress(progress, 1.0, "Done");
 
     // Cleanup temporaries
     for (int i = 0; i < header_count; ++i) { free(header_cells[i]); free(col_names[i]); }
@@ -276,6 +336,11 @@ Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz) {
     }
     free(data);
     return t;
+}
+
+Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz)
+{
+    return csv_load_with_progress(path, infer_types, err, err_sz, NULL);
 }
 
 int csv_save(const Table *table, const char *path, char *err, size_t err_sz) {

@@ -119,6 +119,10 @@ static const char *rels_root_xml(void);
 static const char *workbook_rels_xml(void);
 static const char *styles_xml(void);
 
+static void report_progress(const ProgressReporter *progress,
+                            double amount,
+                            const char *message);
+
 static bool ends_with(const char *s, const char *suf);
 static char *basename_no_ext(const char *path);
 static char *trim_inplace(char *s);
@@ -136,7 +140,11 @@ static int write_xlsx(const char *path,
                       size_t rows,
                       size_t cols);
 
-Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz)
+Table *xl_load_with_progress(const char *path,
+                             bool infer_types,
+                             char *err,
+                             size_t err_sz,
+                             const ProgressReporter *progress)
 {
     if (err && err_sz) {
         err[0] = '\0';
@@ -145,6 +153,8 @@ Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz)
         if (err) snprintf(err, err_sz, "Invalid XLSX path");
         return NULL;
     }
+
+    report_progress(progress, 0.05, "Extracting worksheet...");
 
     unsigned char *sheet_data = NULL;
     size_t sheet_size = 0;
@@ -160,11 +170,13 @@ Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz)
     string_list shared_strings;
     string_list_init(&shared_strings);
     if (shared_data) {
+        report_progress(progress, 0.1, "Parsing shared strings...");
         parse_shared_strings((const char *)shared_data, &shared_strings);
     }
 
     parsed_sheet sheet;
     parsed_sheet_init(&sheet);
+    report_progress(progress, 0.3, "Parsing worksheet XML...");
     if (parse_sheet_collect((const char *)sheet_data, &shared_strings, &sheet) != 0) {
         if (err) snprintf(err, err_sz, "Failed to parse worksheet");
         string_list_free(&shared_strings);
@@ -199,6 +211,8 @@ Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz)
         return NULL;
     }
 
+    report_progress(progress, 0.45, "Preparing columns...");
+
     for (size_t c = 0; c < header_count; ++c) {
         const char *cell = cell_value_at(&sheet.rows[0].cells, c);
         if (!cell) {
@@ -217,6 +231,7 @@ Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz)
     }
 
     if (infer_types && data_rows > 0) {
+        report_progress(progress, 0.55, "Inferring column types...");
         for (size_t c = 0; c < header_count; ++c) {
             if (col_types[c] != TYPE_UNKNOWN) {
                 continue;
@@ -238,6 +253,10 @@ Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz)
             }
             col_types[c] = infer_type_for_column(column_cells, (int)data_rows);
             free(column_cells);
+            if (progress && progress->update) {
+                double frac = (header_count > 0) ? ((double)(c + 1) / (double)header_count) : 1.0;
+                report_progress(progress, 0.55 + 0.15 * frac, "Inferring column types...");
+            }
         }
     }
 
@@ -267,6 +286,8 @@ Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz)
         return NULL;
     }
 
+    report_progress(progress, 0.72, "Building table...");
+
     for (size_t c = 0; c < header_count; ++c) {
         add_column(table, col_names[c], col_types[c]);
         free(col_names[c]);
@@ -291,6 +312,10 @@ Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz)
                 row_inputs[c] = cell ? cell : "";
             }
             add_row(table, row_inputs);
+            if (progress && progress->update && (r % 128 == 0)) {
+                double frac = (data_rows > 0) ? ((double)(r + 1) / (double)data_rows) : 1.0;
+                report_progress(progress, 0.72 + 0.28 * frac, "Building table...");
+            }
         }
         free(row_inputs);
     }
@@ -299,7 +324,30 @@ Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz)
     parsed_sheet_free(&sheet);
     free(sheet_data);
     free(shared_data);
+    report_progress(progress, 1.0, "Done");
     return table;
+}
+
+Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz)
+{
+    return xl_load_with_progress(path, infer_types, err, err_sz, NULL);
+}
+
+static void report_progress(const ProgressReporter *progress,
+                            double amount,
+                            const char *message)
+{
+    if (!progress || !progress->update) {
+        return;
+    }
+
+    if (amount < 0.0) {
+        amount = 0.0;
+    } else if (amount > 1.0) {
+        amount = 1.0;
+    }
+
+    progress->update(progress->ctx, amount, message);
 }
 
 int xl_save(const Table *table, const char *path, char *err, size_t err_sz)

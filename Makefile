@@ -20,6 +20,9 @@ $(OBJ_DIR)/%.o: %.c
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+run:
+	./build/ttb2
+
 clean:
 	rm -rf $(BIN_DIR)
 	rm -rf $(OBJ_DIR)

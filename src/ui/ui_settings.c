@@ -24,10 +24,23 @@ static void ensure_loaded(void) {
 void show_settings_menu(void) {
     ensure_loaded();
     noecho(); curs_set(0);
-    const char *labels[] = {"Autosave workspace: ", "Type inference: ", "Low-RAM seek paging: ", "Row gutter: ", "Save & Close", "Cancel"};
-    int count = 6;
+    const char *labels[] = {
+        "Autosave workspace: ",
+        "Type inference: ",
+        "Low-RAM seek paging: ",
+        "Row gutter: ",
+        "Save & Close",
+        "Cancel"
+    };
+    int count = (int)(sizeof(labels) / sizeof(labels[0]));
     int sel = 0; int ch;
-    int h = 7; int w = COLS - 6; if (w < 30) w = COLS - 2; if (w < 20) w = 20;
+
+    int h = count + 5; /* title row + underline + options + padding */
+    if (h < 12) h = 12;
+    if (h > LINES - 2) h = LINES - 2;
+    int w = COLS - 6;
+    if (w < 30) w = COLS - 2;
+    if (w < 24) w = 24;
     int y = (LINES - h) / 2; int x = (COLS - w) / 2;
     PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
     PmNode *modal  = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
@@ -37,6 +50,9 @@ void show_settings_menu(void) {
         wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
         mvwprintw(modal->win, 1, 2, "Settings");
         wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+        mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
+        mvwaddch(modal->win, 2, 0, ACS_LTEE);
+        mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
         int inner_w = w - 4; // 2-char margins inside border
         for (int i = 0; i < count; ++i) {
             if (i == sel) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
@@ -47,10 +63,9 @@ void show_settings_menu(void) {
             else if (i == 3) snprintf(linebuf, sizeof(linebuf), "%s%s", labels[i], g_settings.show_row_gutter ? "On" : "Off");
             else snprintf(linebuf, sizeof(linebuf), "%s", labels[i]);
             // clear line region and print clipped
-            mvwprintw(modal->win, 2 + i, 1, "");
-            wmove(modal->win, 2 + i, 2);
-            wclrtoeol(modal->win);
-            mvwprintw(modal->win, 2 + i, 2, "%.*s", inner_w, linebuf);
+            int row = 3 + i;
+            mvwchgat(modal->win, row, 1, w - 2, A_NORMAL, 0, NULL);
+            mvwprintw(modal->win, row, 2, "%.*s", inner_w, linebuf);
             if (i == sel) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
         }
         pm_wnoutrefresh(shadow); pm_wnoutrefresh(modal); pm_update();

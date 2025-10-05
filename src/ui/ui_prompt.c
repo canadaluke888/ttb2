@@ -29,12 +29,34 @@ static int prompt_filename_modal(const char *title, const char *prompt, char *ou
 static void draw_simple_list_modal(const char *title, const char **items, int count, int *io_selected) {
     int prev_vis = curs_set(0);
     noecho();
-    int h = (count + 4); if (h < 8) h = 8;
-    int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
+
+    int min_h = 8;
+    int h = count + 4;
+    if (h < min_h) h = min_h;
+    int max_h = LINES - 2;
+    if (h > max_h) h = max_h;
+
+    int w = COLS - 4;
+    if (w < 20) w = COLS - 2;
+    if (w < 20) w = 20;
+    int y = (LINES - h) / 2;
+    int x = (COLS - w) / 2;
+
     PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
     PmNode *modal  = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
     keypad(modal->win, TRUE);
+
     int selected = (io_selected && *io_selected >= 0 && *io_selected < count) ? *io_selected : 0;
+    if (count <= 0) {
+        selected = -1;
+    }
+    int visible = h - 4;
+    if (visible < 1) visible = 1;
+    int top = 0;
+    if (selected >= visible) {
+        top = selected - visible + 1;
+    }
+
     int ch;
     while (1) {
         werase(modal->win);
@@ -46,17 +68,38 @@ static void draw_simple_list_modal(const char *title, const char **items, int co
         mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
         mvwaddch(modal->win, 2, 0, ACS_LTEE);
         mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
-        for (int i = 0; i < count; ++i) {
+        int drawn = 0;
+        for (; drawn < visible && (top + drawn) < count; ++drawn) {
+            int idx = top + drawn;
+            int row = 3 + drawn;
+            if (idx == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+            mvwprintw(modal->win, row, 2, "%s", items[idx]);
+            if (idx == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+        }
+        /* Clear any remaining rows for tidy redraw */
+        for (int i = drawn; i < visible; ++i) {
             int row = 3 + i;
             if (row >= h - 1) break;
-            if (i == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
-            mvwprintw(modal->win, row, 2, "%s", items[i]);
-            if (i == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+            mvwhline(modal->win, row, 1, ' ', w - 2);
         }
         pm_wnoutrefresh(shadow); pm_wnoutrefresh(modal); pm_update();
         ch = wgetch(modal->win);
-        if (ch == KEY_UP) selected = (selected > 0) ? selected - 1 : count - 1;
-        else if (ch == KEY_DOWN) selected = (selected + 1) % count;
+        if (ch == KEY_UP) {
+            if (count > 0) {
+                selected = (selected > 0) ? selected - 1 : count - 1;
+                if (selected < top) {
+                    top = selected;
+                }
+            }
+        }
+        else if (ch == KEY_DOWN) {
+            if (count > 0) {
+                selected = (selected + 1) % count;
+                if (selected >= top + visible) {
+                    top = selected - visible + 1;
+                }
+            }
+        }
         else if (ch == '\n') break;
         else if (ch == 27) { selected = -1; break; }
     }
