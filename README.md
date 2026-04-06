@@ -42,17 +42,14 @@ Clean:
 make clean
 ```
 
-Run locally:
-```
-./build/ttb2
-```
+## Usage
 
-Run with a supported file or book at startup:
 ```bash
-./build/ttb2 path/to/data.csv
-./build/ttb2 path/to/data.xlsx
-./build/ttb2 path/to/table.ttbl
-./build/ttb2 path/to/book.ttbx
+ttb2
+ttb2 path/to/data.csv
+ttb2 path/to/data.xlsx
+ttb2 path/to/table.ttbl
+ttb2 path/to/book.ttbx
 ```
 
 Supported startup inputs:
