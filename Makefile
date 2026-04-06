@@ -1,6 +1,9 @@
 CC = gcc
 CFLAGS = -Wall -Iinclude -Isrc/ui
 LDFLAGS = -lncursesw -lpanelw -lsqlite3 -ljson-c -lz
+PREFIX ?= /usr/local
+BINDIR ?= $(PREFIX)/bin
+DESTDIR ?=
 
 SRC_DIRS = src src/db src/parser src/ui
 OBJ_DIR = build/obj
@@ -23,11 +26,18 @@ $(OBJ_DIR)/%.o: %.c
 run:
 	./build/ttb2
 
+install: $(OUT)
+	mkdir -p $(DESTDIR)$(BINDIR)
+	install -m 755 $(OUT) $(DESTDIR)$(BINDIR)/ttb2
+
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/ttb2
+
 clean:
 	rm -rf $(BIN_DIR)
 	rm -rf $(OBJ_DIR)
 
-.PHONY: seekdb_bench
+.PHONY: run install uninstall clean seekdb_bench
 seekdb_bench: tools/seekdb_bench.c src/seekdb.c include/seekdb.h
 	mkdir -p $(BIN_DIR)
 	$(CC) -O2 -Wall -Iinclude -o $(BIN_DIR)/seekdb_bench tools/seekdb_bench.c src/seekdb.c -lsqlite3

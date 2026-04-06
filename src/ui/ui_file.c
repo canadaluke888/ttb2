@@ -111,6 +111,213 @@ static int prepare_for_single_table_open(Table *table)
     return 0;
 }
 
+int ui_open_path(Table *table, const char *path, int preserve_current_table, int show_book_success)
+{
+    struct stat st;
+    int is_csv;
+    int is_xlsx;
+    int is_ttbl;
+    int is_ttbx;
+    AppSettings s;
+    char err[256] = {0};
+    Table *loaded = NULL;
+    UiLoadingModal *loading_modal = NULL;
+    ProgressReporter reporter = {0};
+
+    if (!table || !path || !*path) {
+        show_error_message("No file path provided.");
+        return -1;
+    }
+
+    if (stat(path, &st) != 0) {
+        show_error_message("Failed to read selected path.");
+        return -1;
+    }
+
+    is_csv = S_ISREG(st.st_mode) && has_extension(path, ".csv");
+    is_xlsx = S_ISREG(st.st_mode) && has_extension(path, ".xlsx");
+    is_ttbl = S_ISREG(st.st_mode) && has_extension(path, ".ttbl");
+    is_ttbx = ttbx_is_book_dir(path) || has_extension(path, ".ttbx");
+
+    if (!is_csv && !is_xlsx && !is_ttbl && !is_ttbx) {
+        show_error_message("Unsupported file type.");
+        return -1;
+    }
+
+    if (!is_ttbx && preserve_current_table && prepare_for_single_table_open(table) != 0) {
+        return -1;
+    }
+
+    settings_init_defaults(&s);
+    settings_load(settings_default_path(), &s);
+
+    if (is_csv) {
+        loading_modal = ui_loading_modal_start("Import CSV", "Reading file...", &reporter);
+        const ProgressReporter *cb = (loading_modal && reporter.update) ? &reporter : NULL;
+        loaded = csv_load_with_progress(path, s.type_infer_enabled, err, sizeof(err), cb);
+    } else if (is_xlsx) {
+        loading_modal = ui_loading_modal_start("Import XLSX", "Parsing workbook...", &reporter);
+        const ProgressReporter *cb = (loading_modal && reporter.update) ? &reporter : NULL;
+        loaded = xl_load_with_progress(path, s.type_infer_enabled, err, sizeof(err), cb);
+    } else if (is_ttbl) {
+        loaded = ttbl_load(path, err, sizeof(err));
+    } else if (!ttbx_is_book_dir(path)) {
+        snprintf(err, sizeof(err), "Legacy .ttbx files are not supported. Open a .ttbx directory book.");
+    } else if (workspace_open_book(table, path, err, sizeof(err)) == 0) {
+        workspace_set_active_table(table);
+        if (show_book_success) {
+            show_error_message("Book loaded.");
+        }
+    }
+
+    if (loading_modal) {
+        ui_loading_modal_finish(loading_modal);
+    }
+
+    if (is_ttbx) {
+        if (err[0]) {
+            show_error_message(err);
+            return -1;
+        }
+        return 0;
+    }
+
+    if (!loaded) {
+        show_error_message(err[0] ? err : "Failed to load file");
+        return -1;
+    }
+
+    replace_loaded_table(table, loaded);
+    if (workspace_manual_save(table, err, sizeof(err)) != 0) {
+        show_error_message(err[0] ? err : "Failed to save opened file.");
+        return -1;
+    }
+    return 0;
+}
+
+int ui_pick_directory(char *out, size_t out_sz, const char *title)
+{
+    char cwd[1024];
+    int sel = 0;
+
+    if (!out || out_sz == 0 || !getcwd(cwd, sizeof(cwd))) {
+        return -1;
+    }
+
+    while (1) {
+        int count = 0;
+        Entry *ents = list_dir(cwd, &count);
+        if (!ents) {
+            show_error_message("Failed to read directory.");
+            return -1;
+        }
+
+        int h = count + 7;
+        if (h < 11) h = 11;
+        if (h > LINES - 2) h = LINES - 2;
+        int w = COLS - 4;
+        int y = (LINES - h) / 2;
+        int x = 2;
+        PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+        PmNode *modal  = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+        keypad(modal->win, TRUE);
+        int top = 0;
+
+        while (1) {
+            int visible;
+            int ch;
+
+            werase(modal->win);
+            box(modal->win, 0, 0);
+            wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
+            mvwprintw(modal->win, 1, 2, "%s - %s", title ? title : "Select Directory", cwd);
+            wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+            mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
+            mvwaddch(modal->win, 2, 0, ACS_LTEE);
+            mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
+            wattron(modal->win, COLOR_PAIR(4));
+            mvwprintw(modal->win, h - 2, 2, "[Enter] Open/Choose   [S] Select this directory   [Esc] Cancel");
+            wattroff(modal->win, COLOR_PAIR(4));
+            visible = h - 5;
+            if (visible < 1) visible = 1;
+            if (sel >= visible) top = sel - (visible - 1);
+            for (int i = 0; i < visible && top + i < count; ++i) {
+                int idx = top + i;
+                int row = 3 + i;
+                if (row >= h - 2) break;
+                if (idx == sel) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+                mvwprintw(modal->win, row, 2, "%s%s", ents[idx].name, ents[idx].is_dir ? "/" : "");
+                if (idx == sel) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+            }
+            pm_wnoutrefresh(shadow);
+            pm_wnoutrefresh(modal);
+            pm_update();
+
+            ch = wgetch(modal->win);
+            if (ch == KEY_UP) {
+                sel = (sel > 0) ? sel - 1 : count - 1;
+                if (sel < top) top = sel;
+            } else if (ch == KEY_DOWN) {
+                sel = (sel + 1) % count;
+                if (sel >= top + visible) top = sel - visible + 1;
+            } else if (ch == 's' || ch == 'S') {
+                strncpy(out, cwd, out_sz - 1);
+                out[out_sz - 1] = '\0';
+                pm_remove(modal);
+                pm_remove(shadow);
+                pm_update();
+                free_entries(ents, count);
+                return 0;
+            } else if (ch == '\n') {
+                break;
+            } else if (ch == 27) {
+                pm_remove(modal);
+                pm_remove(shadow);
+                pm_update();
+                free_entries(ents, count);
+                return -1;
+            }
+        }
+
+        if (strcmp(ents[sel].name, "..") == 0) {
+            char *slash = strrchr(cwd, '/');
+            if (slash && slash != cwd) {
+                *slash = '\0';
+            } else {
+                strcpy(cwd, "/");
+            }
+            sel = 0;
+        } else {
+            char path[1536];
+            struct stat st;
+
+            snprintf(path, sizeof(path), "%s/%s", cwd, ents[sel].name);
+            if (stat(path, &st) != 0) {
+                show_error_message("Stat failed.");
+                pm_remove(modal);
+                pm_remove(shadow);
+                pm_update();
+                free_entries(ents, count);
+                return -1;
+            }
+            if (S_ISDIR(st.st_mode) && !ttbx_is_book_dir(path)) {
+                strncpy(cwd, path, sizeof(cwd) - 1);
+                cwd[sizeof(cwd) - 1] = '\0';
+                sel = 0;
+            } else if (S_ISDIR(st.st_mode)) {
+                show_error_message("Select a destination directory, not a book.");
+            } else {
+                show_error_message("Select a directory.");
+            }
+        }
+
+        pm_remove(modal);
+        pm_remove(shadow);
+        pm_update();
+        free_entries(ents, count);
+    }
+}
+
 void show_open_file(Table *table) {
     char cwd[1024]; getcwd(cwd, sizeof(cwd));
     int sel = 0;
@@ -180,61 +387,7 @@ void show_open_file(Table *table) {
         pm_remove(shadow);
         pm_update();
 
-        // File or book selected
-        int is_csv = has_extension(path, ".csv");
-        int is_xlsx = has_extension(path, ".xlsx");
-        int is_ttbl = has_extension(path, ".ttbl");
-        int is_ttbx = ttbx_is_book_dir(path) || has_extension(path, ".ttbx");
-        if (!is_csv && !is_xlsx && !is_ttbl && !is_ttbx) {
-            show_error_message("Unsupported file type.");
-            free_entries(ents, count);
-            continue;
-        }
-
-        if (!is_ttbx && prepare_for_single_table_open(table) != 0) {
-            free_entries(ents, count);
-            return;
-        }
-
-        // Load settings to get type inference preference
-        AppSettings s; settings_init_defaults(&s); settings_load(settings_default_path(), &s);
-        char err[256] = {0};
-        Table *loaded = NULL;
-        UiLoadingModal *loading_modal = NULL;
-        ProgressReporter reporter = {0};
-        if (is_csv) {
-            loading_modal = ui_loading_modal_start("Import CSV", "Reading file...", &reporter);
-            const ProgressReporter *cb = (loading_modal && reporter.update) ? &reporter : NULL;
-            loaded = csv_load_with_progress(path, s.type_infer_enabled, err, sizeof(err), cb);
-        } else if (is_xlsx) {
-            loading_modal = ui_loading_modal_start("Import XLSX", "Parsing workbook...", &reporter);
-            const ProgressReporter *cb = (loading_modal && reporter.update) ? &reporter : NULL;
-            loaded = xl_load_with_progress(path, s.type_infer_enabled, err, sizeof(err), cb);
-        } else if (is_ttbl) {
-            loaded = ttbl_load(path, err, sizeof(err));
-        } else if (is_ttbx) {
-            if (!ttbx_is_book_dir(path)) {
-                snprintf(err, sizeof(err), "Legacy .ttbx files are not supported. Open a .ttbx directory book.");
-            } else if (workspace_open_book(table, path, err, sizeof(err)) != 0) {
-                loaded = NULL;
-            } else {
-                loaded = NULL;
-            }
-        }
-        if (loading_modal) {
-            ui_loading_modal_finish(loading_modal);
-        }
-        if (is_ttbx) {
-            if (err[0]) {
-                show_error_message(err);
-            } else {
-                show_error_message("Book loaded.");
-            }
-        } else if (!loaded) { show_error_message(err[0] ? err : "Failed to load file"); }
-        else if (table) {
-            replace_loaded_table(table, loaded);
-            workspace_manual_save(table, NULL, 0);
-        }
+        ui_open_path(table, path, 1, 1);
         free_entries(ents, count);
         return;
     }

@@ -53,6 +53,8 @@ void show_export_menu(Table *table);
 void prompt_rename_table(Table *table);
 void show_settings_menu(void);
 void show_open_file(Table *table);
+int ui_open_path(Table *table, const char *path, int preserve_current_table, int show_book_success);
+int ui_pick_directory(char *out, size_t out_sz, const char *title);
 int show_text_input_modal(const char *title,
                           const char *hint,
                           const char *prompt,

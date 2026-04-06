@@ -1,5 +1,6 @@
 #include <locale.h>
 #include <ncurses.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "tablecraft.h"
 #include "ui.h"
@@ -9,7 +10,12 @@
 #include "workspace.h"
 #include "errors.h"
 
-int main(void) {
+int main(int argc, char **argv) {
+    if (argc > 2) {
+        fprintf(stderr, "Usage: %s [file-or-book]\n", argv[0]);
+        return 1;
+    }
+
     setlocale(LC_ALL, "");
     initscr();
     pm_init();
@@ -38,6 +44,10 @@ int main(void) {
         if (werr[0]) {
             show_error_message(werr);
         }
+    }
+
+    if (argc == 2 && table) {
+        ui_open_path(table, argv[1], 0, 0);
     }
 
     start_ui_loop(table);  // From ui_loop.c

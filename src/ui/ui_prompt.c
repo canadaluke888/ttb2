@@ -24,7 +24,28 @@ int show_text_input_modal(const char *title,
                           size_t out_sz,
                           bool allow_empty);
 static int prompt_filename_modal(const char *title, const char *prompt, char *out, size_t out_sz);
+static int has_extension(const char *name, const char *ext);
 // (no local string-list helpers required here)
+
+static int build_export_path(char *outpath, size_t outpath_sz, const char *dir, const char *filename, const char *ext)
+{
+    if (!outpath || outpath_sz == 0 || !dir || !*dir || !filename || !*filename || !ext) {
+        return -1;
+    }
+
+    if (snprintf(outpath, outpath_sz, "%s/%s", dir, filename) >= (int)outpath_sz) {
+        return -1;
+    }
+    if (!has_extension(outpath, ext)) {
+        size_t used = strlen(outpath);
+        size_t ext_len = strlen(ext);
+        if (used + ext_len + 1 > outpath_sz) {
+            return -1;
+        }
+        memcpy(outpath + used, ext, ext_len + 1);
+    }
+    return 0;
+}
 
 static void free_string_list(char **list, int count) {
     if (!list) return;
@@ -589,7 +610,17 @@ void show_export_menu(Table *table) {
         return;
     }
 
+    char directory[512];
     char filename[128];
+    char outpath[512];
+    char err[256] = {0};
+
+    if (ui_pick_directory(directory, sizeof(directory), "Select Export Directory") != 0) {
+        noecho();
+        curs_set(0);
+        return;
+    }
+
     int name_len = prompt_filename_modal("Export Table", "Filename:", filename, sizeof(filename));
     if (name_len < 0) {
         noecho();
@@ -597,45 +628,34 @@ void show_export_menu(Table *table) {
         return;
     }
 
-    char outpath[512];
-    char err[256] = {0};
-
     if (selected == 0) {
-        snprintf(outpath, sizeof(outpath), "%s", filename);
-        if (!has_extension(outpath, ".ttbl")) {
-            strncat(outpath, ".ttbl", sizeof(outpath) - strlen(outpath) - 1);
-        }
-        if (ttbl_save(table, outpath, err, sizeof(err)) != 0) {
+        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".ttbl") != 0) {
+            show_error_message("Export path is too long.");
+        } else if (ttbl_save(table, outpath, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to export .ttbl");
         } else {
             show_error_message("Exported table file.");
         }
     } else if (selected == 1) {
-        snprintf(outpath, sizeof(outpath), "%s", filename);
-        if (!has_extension(outpath, ".ttbx")) {
-            strncat(outpath, ".ttbx", sizeof(outpath) - strlen(outpath) - 1);
-        }
-        if (workspace_export_book(outpath, err, sizeof(err)) != 0) {
+        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".ttbx") != 0) {
+            show_error_message("Export path is too long.");
+        } else if (workspace_export_book(outpath, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to export .ttbx");
         } else {
             show_error_message("Exported book.");
         }
     } else if (selected == 2) {
-        snprintf(outpath, sizeof(outpath), "%s", filename);
-        if (!has_extension(outpath, ".csv")) {
-            strncat(outpath, ".csv", sizeof(outpath) - strlen(outpath) - 1);
-        }
-        if (csv_save(table, outpath, err, sizeof(err)) != 0) {
+        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".csv") != 0) {
+            show_error_message("Export path is too long.");
+        } else if (csv_save(table, outpath, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to save CSV");
         } else {
             show_error_message("Exported CSV.");
         }
     } else if (selected == 3) {
-        snprintf(outpath, sizeof(outpath), "%s", filename);
-        if (!has_extension(outpath, ".xlsx")) {
-            strncat(outpath, ".xlsx", sizeof(outpath) - strlen(outpath) - 1);
-        }
-        if (xl_save(table, outpath, err, sizeof(err)) != 0) {
+        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".xlsx") != 0) {
+            show_error_message("Export path is too long.");
+        } else if (xl_save(table, outpath, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to save XLSX");
         } else {
             show_error_message("Exported XLSX.");
@@ -652,11 +672,9 @@ void show_export_menu(Table *table) {
             nodelay(stdscr, TRUE);
             return;
         }
-        snprintf(outpath, sizeof(outpath), "%s", filename);
-        if (!has_extension(outpath, ".db")) {
-            strncat(outpath, ".db", sizeof(outpath) - strlen(outpath) - 1);
-        }
-        if ((scope_pick == 0 && db_export_table_path(table, outpath, err, sizeof(err)) != 0) ||
+        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".db") != 0) {
+            show_error_message("Export path is too long.");
+        } else if ((scope_pick == 0 && db_export_table_path(table, outpath, err, sizeof(err)) != 0) ||
             (scope_pick == 1 && workspace_export_book_db(outpath, err, sizeof(err)) != 0)) {
             show_error_message(err[0] ? err : "Failed to export SQLite DB");
         } else {

@@ -6,7 +6,7 @@ TTB2 is the new and improved 2.0 version of the terminal table builder. It featu
 
 All of the features you're used to, just improved.
 
-## Build
+## Install
 
 Dependencies (Debian/Ubuntu packages):
 - GCC/Clang (`build-essential`) 
@@ -26,6 +26,17 @@ make
 ```
 This produces `./build/ttb2`.
 
+Install to your `PATH`:
+```
+sudo make install
+```
+
+Override the install prefix if needed:
+```
+make install PREFIX=/usr
+make install DESTDIR=/tmp/package-root
+```
+
 Clean:
 ```
 make clean
@@ -35,6 +46,20 @@ Run locally:
 ```
 ./build/ttb2
 ```
+
+Run with a supported file or book at startup:
+```bash
+./build/ttb2 path/to/data.csv
+./build/ttb2 path/to/data.xlsx
+./build/ttb2 path/to/table.ttbl
+./build/ttb2 path/to/book.ttbx
+```
+
+Supported startup inputs:
+- `.csv`
+- `.xlsx`
+- `.ttbl`
+- `.ttbx` directory books
 
 ## Highlights
 - Interactive table editing (add columns/rows; rename columns; change types; edit cells)
@@ -56,19 +81,12 @@ Run locally:
 
 ### Main UI
 
-![main_table](assets/main_table.png)
+![main_table](assets/main_ui.png)
 
 ### Table Menu
 
-![table_menu](assets/table_menu.png)
+![table_menu](assets/menu.png)
 
-### Database Manager
-
-![db_manager](assets/db_manager.png)
-
-### Searching Data
-
-![search_results](assets/search_results.png)
 
 ## Keybindings
 - `c` Add column
@@ -99,6 +117,11 @@ Notes:
   - `.ttbl` – a single-table snapshot
   - `.ttbx` – a project/workbook bundle
   - `.csv` or `.xlsx`
+- Export now lets you browse to a destination directory in-app before entering the output filename.
+
+## Runtime Files
+- Settings are stored in `settings/settings.json`.
+- The active workspace session book is stored in `workspace/session.ttbx` while the app is running.
 
 ## CI
 GitHub Actions installs build deps and runs a simple `make`; build logs are visible in the job output.
