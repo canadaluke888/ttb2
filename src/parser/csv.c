@@ -348,9 +348,10 @@ int csv_save(const Table *table, const char *path, char *err, size_t err_sz) {
     if (!table || !path) { if (err) snprintf(err, err_sz, "Invalid args"); return -1; }
     FILE *f = fopen(path, "w");
     if (!f) { if (err) snprintf(err, err_sz, "Failed to open for write: %s", path); return -1; }
-    // Header with types to preserve info
+    // Export plain header names; type info stays internal to native book/table formats.
     for (int j = 0; j < table->column_count; ++j) {
-        fprintf(f, "%s (%s)%s", table->columns[j].name, type_to_string(table->columns[j].type),
+        fprintf(f, "%s%s",
+                table->columns[j].name ? table->columns[j].name : "",
                 (j < table->column_count - 1) ? "," : "\n");
     }
     // Rows

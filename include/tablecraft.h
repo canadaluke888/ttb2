@@ -33,6 +33,8 @@ typedef struct {
 
 Table *create_table(const char *name);
 void free_table(Table *table);
+void clear_table(Table *table, const char *name);
+int replace_table_contents(Table *dest, Table *src);
 
 int add_column(Table *table, const char *name, DataType type);
 int add_row(Table *table, const char **input_strings);

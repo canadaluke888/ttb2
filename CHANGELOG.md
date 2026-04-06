@@ -2,6 +2,26 @@
 
 All notable changes in this batch are documented here.
 
+## [2026-04-05]
+
+### 14:30 EDT
+
+### Changed
+
+- Reworked workspace persistence around a session book at `workspace/session.ttbx` instead of treating the workspace as a single saved table.
+- Opening a `.ttbx` book now copies that book into the workspace session book; editing and table switching happen against the workspace copy, and exporting a book copies the current workspace book out.
+- Added in-book table switching for the active workspace book and changed “New Table” to append a new table to that book instead of clearing the whole workspace.
+- Added book naming support with an `Untitled Book` default plus a rename action in the table menu.
+- Native book exports now keep table names in the manifest and underlying `.ttbl` files, and use numeric suffixes only when duplicate table names would collide.
+- CSV and XLSX exports now write plain column headers without appending type names.
+- Export menu label updated from project wording to book wording for `.ttbx` exports.
+
+### Fixed
+
+- Fixed table switching so loading another table no longer overwrites the previous table slot in the workspace book.
+- Fixed exported books where manifest entry ids and filenames could remain stuck on old `Untitled_*` names after tables were renamed.
+- Fixed the file-open flow so the previous picker panel is removed before opening a selected book or file.
+
 ## [2025-10-05]
 
 ### 15:24 EDT

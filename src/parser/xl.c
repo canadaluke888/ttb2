@@ -376,8 +376,7 @@ int xl_save(const Table *table, const char *path, char *err, size_t err_sz)
 
     size_t idx = 0;
     for (size_t c = 0; c < cols; ++c) {
-        const char *type_name = type_to_string(table->columns[c].type);
-        size_t needed = strlen(table->columns[c].name) + strlen(type_name) + 4;
+        size_t needed = strlen(table->columns[c].name ? table->columns[c].name : "") + 1;
         grid[idx] = (char *)malloc(needed);
         if (!grid[idx]) {
             if (err) snprintf(err, err_sz, "Out of memory");
@@ -385,7 +384,7 @@ int xl_save(const Table *table, const char *path, char *err, size_t err_sz)
             free(grid);
             return -1;
         }
-        snprintf(grid[idx], needed, "%s (%s)", table->columns[c].name, type_name);
+        snprintf(grid[idx], needed, "%s", table->columns[c].name ? table->columns[c].name : "");
         idx++;
     }
 

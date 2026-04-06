@@ -10,6 +10,7 @@
 #include "xl.h"
 #include "ttb_io.h"
 #include "db_manager.h"
+#include "workspace.h"
 #include "errors.h"
 #include "panel_manager.h"
 #include "db_manager.h"
@@ -25,6 +26,12 @@ int show_text_input_modal(const char *title,
                           bool allow_empty);
 static int prompt_filename_modal(const char *title, const char *prompt, char *out, size_t out_sz);
 // (no local string-list helpers required here)
+
+static void free_string_list(char **list, int count) {
+    if (!list) return;
+    for (int i = 0; i < count; ++i) free(list[i]);
+    free(list);
+}
 
 static void draw_simple_list_modal(const char *title, const char **items, int count, int *io_selected) {
     int prev_vis = curs_set(0);
@@ -382,6 +389,26 @@ void prompt_rename_table(Table *table) {
         table->name = strdup(name);
         char err[256] = {0};
         db_autosave_table(table, err, sizeof(err));
+        if (workspace_manual_save(table, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to save renamed table.");
+        }
+    }
+}
+
+static void prompt_rename_book(void) {
+    char prompt_label[192];
+    char name[128];
+    char err[256] = {0};
+    snprintf(prompt_label, sizeof(prompt_label), "New name for %s:", workspace_book_name());
+    int rc = show_text_input_modal("Rename Book",
+                               "[Enter] Save   [Esc] Cancel",
+                               prompt_label,
+                               name,
+                               sizeof(name),
+                               false);
+    if (rc < 0) return;
+    if (workspace_rename_book(name, err, sizeof(err)) != 0) {
+        show_error_message(err[0] ? err : "Failed to rename book.");
     }
 }
 
@@ -390,7 +417,7 @@ void show_table_menu(Table *table) {
     noecho();
     curs_set(0);
 
-    int options_count = 7;
+    int options_count = 9;
     int h = options_count + 4; /* title underline + options */
     if (h < 8) h = 8; /* minimum height for comfort */
     int w = COLS - 4;
@@ -401,15 +428,15 @@ void show_table_menu(Table *table) {
     PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
     keypad(modal->win, TRUE);
 
-    const char *labels[] = {"Rename", "Export", "Open File", "New Table", "DB Manager", "Settings", "Cancel"};
-    int selected = 0; /* 0=Rename,1=Export,2=Open,3=New,4=DB,5=Settings,6=Cancel */
+    const char *labels[] = {"Rename Table", "Rename Book", "Export", "Open File", "Switch Table", "New Table", "DB Manager", "Settings", "Cancel"};
+    int selected = 0;
     int ch;
 
     while (1) {
         werase(modal->win);
         box(modal->win, 0, 0);
         wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
-        mvwprintw(modal->win, 1, 2, "Table Menu:");
+        mvwprintw(modal->win, 1, 2, "Table Menu: %s", workspace_book_name());
         wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
         mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
         mvwaddch(modal->win, 2, 0, ACS_LTEE);
@@ -448,9 +475,34 @@ void show_table_menu(Table *table) {
 
     switch (selected) {
         case 0: prompt_rename_table(table); break;
-        case 1: show_export_menu(table); break;
-        case 2: show_open_file(table); break;
-        case 3: {
+        case 1: prompt_rename_book(); break;
+        case 2: show_export_menu(table); break;
+        case 3: show_open_file(table); break;
+        case 4: {
+            char **names = NULL, **ids = NULL;
+            int count = 0, pick = 0;
+            char err[256] = {0};
+            if (workspace_list_book_tables(&names, &ids, &count, err, sizeof(err)) != 0 || count <= 0) {
+                show_error_message(err[0] ? err : "No book tables found.");
+                free_string_list(names, count);
+                free_string_list(ids, count);
+                break;
+            }
+            draw_simple_list_modal("Select table to load", (const char **)names, count, &pick);
+            if (pick >= 0) {
+                if (workspace_switch_table(table, ids[pick], err, sizeof(err)) != 0) {
+                    show_error_message(err[0] ? err : "Failed to switch table.");
+                } else {
+                    cursor_row = (table->row_count > 0) ? 0 : -1;
+                    cursor_col = 0;
+                    col_page = 0;
+                }
+            }
+            free_string_list(names, count);
+            free_string_list(ids, count);
+            break;
+        }
+        case 5: {
             // New Table: ensure current table saved, then clear to start fresh
             DbManager *cur = db_get_active();
             if (cur && db_is_connected(cur) && table->column_count > 0) {
@@ -472,26 +524,18 @@ void show_table_menu(Table *table) {
                 pm_remove(mo); pm_remove(sh); pm_update();
                 if (c == 27) break; // cancel new table
             }
-            // free existing contents
-            int old_cols = table->column_count;
-            int old_rows = table->row_count;
-            for (int i = 0; i < old_cols; i++) { if (table->columns[i].name) free(table->columns[i].name); }
-            free(table->columns); table->columns = NULL; table->column_count = 0; table->capacity_columns = 0;
-            for (int i = 0; i < old_rows; i++) {
-                if (table->rows[i].values) {
-                    for (int j = 0; j < old_cols; j++) { if (table->rows[i].values[j]) free(table->rows[i].values[j]); }
-                    free(table->rows[i].values);
+            {
+                char err[256] = {0};
+                if (workspace_new_table(table, err, sizeof(err)) != 0) {
+                    show_error_message(err[0] ? err : "Failed to create table.");
+                    break;
                 }
             }
-            free(table->rows); table->rows = NULL; table->row_count = 0; table->capacity_rows = 0;
-            // rename to Untitled Table
-            if (table->name) free(table->name);
-            table->name = strdup("Untitled Table");
             cursor_row = -1; cursor_col = 0; col_page = 0;
             break;
         }
-        case 4: show_db_manager(table); break;
-        case 5: show_settings_menu(); break;
+        case 6: show_db_manager(table); break;
+        case 7: show_settings_menu(); break;
         default: break; /* Cancel */
     }
 }
@@ -502,7 +546,7 @@ void show_export_menu(Table *table) {
     curs_set(0);
 
     /* Modal selection styled like header edit */
-    const char *labels[] = {"Table (.ttbl)", "Project (.ttbx)", "CSV", "XLSX", "Cancel"};
+    const char *labels[] = {"Table (.ttbl)", "Book (.ttbx)", "CSV", "XLSX", "Cancel"};
     int options_count = 5;
     int h = options_count + 4;
     if (h < 8) h = 8;
@@ -580,10 +624,10 @@ void show_export_menu(Table *table) {
         if (!has_extension(outpath, ".ttbx")) {
             strncat(outpath, ".ttbx", sizeof(outpath) - strlen(outpath) - 1);
         }
-        if (ttbx_save(table, outpath, err, sizeof(err)) != 0) {
+        if (workspace_export_book(outpath, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to export .ttbx");
         } else {
-            show_error_message("Exported project file.");
+            show_error_message("Exported book.");
         }
     } else if (selected == 2) {
         snprintf(outpath, sizeof(outpath), "%s", filename);

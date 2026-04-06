@@ -39,6 +39,61 @@ void free_table(Table *t) {
     free(t);
 }
 
+void clear_table(Table *t, const char *name) {
+    if (!t) return;
+
+    int old_cols = t->column_count;
+    int old_rows = t->row_count;
+
+    if (t->name) free(t->name);
+    for (int i = 0; i < old_cols; i++) {
+        if (t->columns[i].name) free(t->columns[i].name);
+    }
+    free(t->columns);
+
+    for (int i = 0; i < old_rows; i++) {
+        if (t->rows[i].values) {
+            for (int j = 0; j < old_cols; j++) {
+                if (t->rows[i].values[j]) free(t->rows[i].values[j]);
+            }
+            free(t->rows[i].values);
+        }
+    }
+    free(t->rows);
+
+    t->name = strdup(name ? name : "Untitled Table");
+    t->columns = NULL;
+    t->rows = NULL;
+    t->column_count = 0;
+    t->row_count = 0;
+    t->capacity_columns = 0;
+    t->capacity_rows = 0;
+}
+
+int replace_table_contents(Table *dest, Table *src) {
+    if (!dest || !src) return -1;
+
+    clear_table(dest, src->name ? src->name : "Untitled Table");
+    free(dest->name);
+    dest->name = src->name;
+    dest->columns = src->columns;
+    dest->column_count = src->column_count;
+    dest->rows = src->rows;
+    dest->row_count = src->row_count;
+    dest->capacity_columns = src->capacity_columns;
+    dest->capacity_rows = src->capacity_rows;
+
+    src->name = NULL;
+    src->columns = NULL;
+    src->rows = NULL;
+    src->column_count = 0;
+    src->row_count = 0;
+    src->capacity_columns = 0;
+    src->capacity_rows = 0;
+    free(src);
+    return 0;
+}
+
 int add_column(Table *t, const char *name, DataType type) {
     if (t->column_count == t->capacity_columns) {
         t->capacity_columns += 4;

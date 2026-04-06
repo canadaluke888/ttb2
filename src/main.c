@@ -42,8 +42,8 @@ int main(void) {
 
     start_ui_loop(table);  // From ui_loop.c
 
-    workspace_manual_save(table, NULL, 0);
     free_table(table);
+    workspace_shutdown();
     pm_teardown();
     endwin();
     // Save settings on exit (persist runtime toggles)

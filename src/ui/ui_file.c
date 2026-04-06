@@ -65,6 +65,13 @@ static int has_extension(const char *name, const char *ext)
     return strcasecmp(name + ln - le, ext) == 0;
 }
 
+static void replace_loaded_table(Table *table, Table *loaded)
+{
+    if (!table || !loaded) return;
+    replace_table_contents(table, loaded);
+    workspace_set_active_table(table);
+}
+
 void show_open_file(Table *table) {
     char cwd[1024]; getcwd(cwd, sizeof(cwd));
     int sel = 0;
@@ -120,7 +127,7 @@ void show_open_file(Table *table) {
 
         snprintf(path, sizeof(path), "%s/%s", cwd, ents[sel].name);
         struct stat st; if (stat(path, &st) != 0) { show_error_message("Stat failed."); pm_remove(modal); pm_remove(shadow); pm_update(); free_entries(ents, count); return; }
-        if (S_ISDIR(st.st_mode)) {
+        if (S_ISDIR(st.st_mode) && !ttbx_is_book_dir(path)) {
             // enter directory
             strncpy(cwd, path, sizeof(cwd) - 1); cwd[sizeof(cwd) - 1] = '\0'; sel = 0;
             pm_remove(modal); pm_remove(shadow); pm_update();
@@ -128,11 +135,17 @@ void show_open_file(Table *table) {
             continue;
         }
 
-        // File selected
+        // Close the picker before loading the selected file/book so the old panel
+        // does not remain visible during the open operation.
+        pm_remove(modal);
+        pm_remove(shadow);
+        pm_update();
+
+        // File or book selected
         int is_csv = has_extension(path, ".csv");
         int is_xlsx = has_extension(path, ".xlsx");
         int is_ttbl = has_extension(path, ".ttbl");
-        int is_ttbx = has_extension(path, ".ttbx");
+        int is_ttbx = ttbx_is_book_dir(path) || has_extension(path, ".ttbx");
         if (!is_csv && !is_xlsx && !is_ttbl && !is_ttbx) {
             show_error_message("Unsupported file type.");
             pm_remove(modal); pm_remove(shadow); pm_update();
@@ -157,41 +170,27 @@ void show_open_file(Table *table) {
         } else if (is_ttbl) {
             loaded = ttbl_load(path, err, sizeof(err));
         } else if (is_ttbx) {
-            loaded = ttbx_load(path, err, sizeof(err));
+            if (!ttbx_is_book_dir(path)) {
+                snprintf(err, sizeof(err), "Legacy .ttbx files are not supported. Open a .ttbx directory book.");
+            } else if (workspace_open_book(table, path, err, sizeof(err)) != 0) {
+                loaded = NULL;
+            } else {
+                loaded = NULL;
+            }
         }
         if (loading_modal) {
             ui_loading_modal_finish(loading_modal);
         }
-        if (!loaded) { show_error_message(err[0] ? err : "Failed to load file"); }
+        if (is_ttbx) {
+            if (err[0]) {
+                show_error_message(err);
+            } else {
+                show_error_message("Book loaded.");
+            }
+        } else if (!loaded) { show_error_message(err[0] ? err : "Failed to load file"); }
         else if (table) {
-            // Replace current table contents with loaded
-            if (table->name) free(table->name);
-            for (int i = 0; i < table->column_count; i++) { if (table->columns[i].name) free(table->columns[i].name); }
-            free(table->columns);
-            for (int i = 0; i < table->row_count; i++) {
-                if (table->rows[i].values) {
-                    for (int j = 0; j < table->column_count; j++) { if (table->rows[i].values[j]) free(table->rows[i].values[j]); }
-                    free(table->rows[i].values);
-                }
-            }
-            free(table->rows);
-            table->name = loaded->name;
-            table->columns = loaded->columns;
-            table->column_count = loaded->column_count;
-            table->rows = loaded->rows;
-            table->row_count = loaded->row_count;
-            table->capacity_columns = loaded->capacity_columns;
-            table->capacity_rows = loaded->capacity_rows;
-            free(loaded);
-
-            workspace_set_active_table(table);
-
-            if (is_ttbx) {
-                workspace_set_project_path(path);
-                workspace_set_active_table(table);
-                workspace_autosave(table, NULL, 0);
-                show_error_message("Workspace project loaded.");
-            }
+            replace_loaded_table(table, loaded);
+            workspace_manual_save(table, NULL, 0);
 
             // If a DB is connected and a table of same name exists, prompt to sync
             DbManager *cur = db_get_active();
@@ -238,7 +237,6 @@ void show_open_file(Table *table) {
                 }
             }
         }
-        pm_remove(modal); pm_remove(shadow); pm_update();
         free_entries(ents, count);
         return;
     }

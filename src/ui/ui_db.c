@@ -8,6 +8,7 @@
 #include "panel_manager.h"
 #include "errors.h"
 #include "db_manager.h"
+#include "workspace.h"
 #include "ui.h"
 
 // Active DB connection managed via db_manager singleton helpers
@@ -180,24 +181,8 @@ void show_db_manager(Table *table) {
                                 if (!loaded) {
                                     show_error_message(lerr[0] ? lerr : "Load failed");
                                 } else {
-                                    if (table->name) free(table->name);
-                                    for (int i = 0; i < table->column_count; i++) { if (table->columns[i].name) free(table->columns[i].name); }
-                                    free(table->columns);
-                                    for (int i = 0; i < table->row_count; i++) {
-                                        if (table->rows[i].values) {
-                                            for (int j = 0; j < table->column_count; j++) { if (table->rows[i].values[j]) free(table->rows[i].values[j]); }
-                                            free(table->rows[i].values);
-                                        }
-                                    }
-                                    free(table->rows);
-                                    table->name = loaded->name;
-                                    table->columns = loaded->columns;
-                                    table->column_count = loaded->column_count;
-                                    table->rows = loaded->rows;
-                                    table->row_count = loaded->row_count;
-                                    table->capacity_columns = loaded->capacity_columns;
-                                    table->capacity_rows = loaded->capacity_rows;
-                                    free(loaded);
+                                    replace_table_contents(table, loaded);
+                                    workspace_manual_save(table, NULL, 0);
                                     show_error_message("Memory table replaced from database.");
                                 }
                             } else {
@@ -286,24 +271,8 @@ void show_db_manager(Table *table) {
                     Table *loaded = db_load_table(cur, tables[pick], err, sizeof(err));
                     if (!loaded) { show_error_message(err[0] ? err : "Load failed"); }
                     else if (table) {
-                        if (table->name) free(table->name);
-                        for (int i = 0; i < table->column_count; i++) { if (table->columns[i].name) free(table->columns[i].name); }
-                        free(table->columns);
-                        for (int i = 0; i < table->row_count; i++) {
-                            if (table->rows[i].values) {
-                                for (int j = 0; j < table->column_count; j++) { if (table->rows[i].values[j]) free(table->rows[i].values[j]); }
-                                free(table->rows[i].values);
-                            }
-                        }
-                        free(table->rows);
-                        table->name = loaded->name;
-                        table->columns = loaded->columns;
-                        table->column_count = loaded->column_count;
-                        table->rows = loaded->rows;
-                        table->row_count = loaded->row_count;
-                        table->capacity_columns = loaded->capacity_columns;
-                        table->capacity_rows = loaded->capacity_rows;
-                        free(loaded);
+                        replace_table_contents(table, loaded);
+                        workspace_manual_save(table, NULL, 0);
                         db_autosave_table(table, err, sizeof(err));
                     }
                 }
