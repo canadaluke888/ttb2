@@ -5,6 +5,8 @@
 # Build artifacts
 build/
 
+*.deb
+
 # Export file types
 *.pdf
 *.xlsx
