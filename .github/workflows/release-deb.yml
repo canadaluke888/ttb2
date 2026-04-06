@@ -1,9 +1,13 @@
 name: Release Debian Package
 
 on:
+  push:
+    tags:
+      - 'v*'
   release:
     types:
       - published
+  workflow_dispatch:
 
 jobs:
   build-deb:
@@ -24,7 +28,7 @@ jobs:
 
       - name: Build Debian package
         env:
-          TAG_NAME: ${{ github.event.release.tag_name }}
+          TAG_NAME: ${{ github.event.release.tag_name || github.ref_name }}
         run: |
           set -eux
 
