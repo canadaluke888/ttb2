@@ -1,6 +1,7 @@
 #include "db_manager.h"
 #include "errors.h"
 #include "tablecraft.h"
+#include "ttb_io.h"
 #include "workspace.h"
 
 #include <sqlite3.h>
@@ -346,6 +347,7 @@ int db_save_table(DbManager *db, const Table *t, char *err, size_t err_sz) {
         if (rc == 0) {
             for (int i = 0; i < t->row_count; ++i) {
                 sqlite3_reset(st);
+                sqlite3_clear_bindings(st);
                 for (int j = 0; j < t->column_count; ++j) {
                     void *v = (t->rows[i].values ? t->rows[i].values[j] : NULL);
                     DataType ty = t->columns[j].type;
@@ -363,9 +365,12 @@ int db_save_table(DbManager *db, const Table *t, char *err, size_t err_sz) {
             }
             sqlite3_finalize(st);
         }
+        goto after_insert;
 sql_overflow:
-    rc = -1;
-    set_err(err, err_sz, "SQL buffer overflow");
+        rc = -1;
+        set_err(err, err_sz, "SQL buffer overflow");
+after_insert:
+        ;
     }
 
     if (rc == 0) {
@@ -384,6 +389,77 @@ sql_overflow:
 int db_autosave_table(const Table *t, char *err, size_t err_sz) {
     (void)ACTIVE_DB; // autosave now handled via workspace files
     return workspace_autosave(t, err, err_sz);
+}
+
+int db_export_table_path(const Table *t, const char *path, char *err, size_t err_sz) {
+    sqlite3 *conn = NULL;
+    DbManager db = {0};
+
+    if (!t || !path || !*path) {
+        set_err(err, err_sz, "Invalid export path");
+        return -1;
+    }
+
+    unlink(path);
+    if (sqlite3_open(path, &conn) != SQLITE_OK) {
+        set_err(err, err_sz, conn ? sqlite3_errmsg(conn) : "Failed to create database");
+        if (conn) sqlite3_close(conn);
+        return -1;
+    }
+
+    db.conn = conn;
+    strncpy(db.path, path, sizeof(db.path) - 1);
+    db.path[sizeof(db.path) - 1] = '\0';
+
+    int rc = db_save_table(&db, t, err, err_sz);
+    sqlite3_close(conn);
+    return rc;
+}
+
+int db_export_book_path(const char *book_path, const char *path, char *err, size_t err_sz) {
+    sqlite3 *conn = NULL;
+    DbManager db = {0};
+    TtbxManifest manifest;
+
+    if (!book_path || !*book_path || !path || !*path) {
+        set_err(err, err_sz, "Invalid export path");
+        return -1;
+    }
+    if (ttbx_manifest_load(book_path, &manifest, err, err_sz) != 0) {
+        return -1;
+    }
+
+    unlink(path);
+    if (sqlite3_open(path, &conn) != SQLITE_OK) {
+        set_err(err, err_sz, conn ? sqlite3_errmsg(conn) : "Failed to create database");
+        if (conn) sqlite3_close(conn);
+        ttbx_manifest_free(&manifest);
+        return -1;
+    }
+
+    db.conn = conn;
+    strncpy(db.path, path, sizeof(db.path) - 1);
+    db.path[sizeof(db.path) - 1] = '\0';
+
+    for (int i = 0; i < manifest.table_count; ++i) {
+        Table *table = ttbx_load_table(book_path, manifest.tables[i].id, err, err_sz);
+        if (!table) {
+            sqlite3_close(conn);
+            ttbx_manifest_free(&manifest);
+            return -1;
+        }
+        if (db_save_table(&db, table, err, err_sz) != 0) {
+            free_table(table);
+            sqlite3_close(conn);
+            ttbx_manifest_free(&manifest);
+            return -1;
+        }
+        free_table(table);
+    }
+
+    sqlite3_close(conn);
+    ttbx_manifest_free(&manifest);
+    return 0;
 }
 
 /* end */

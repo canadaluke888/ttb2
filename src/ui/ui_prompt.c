@@ -13,7 +13,6 @@
 #include "workspace.h"
 #include "errors.h"
 #include "panel_manager.h"
-#include "db_manager.h"
 
 #define MAX_INPUT 128
 
@@ -417,7 +416,7 @@ void show_table_menu(Table *table) {
     noecho();
     curs_set(0);
 
-    int options_count = 9;
+    int options_count = 8;
     int h = options_count + 4; /* title underline + options */
     if (h < 8) h = 8; /* minimum height for comfort */
     int w = COLS - 4;
@@ -428,7 +427,7 @@ void show_table_menu(Table *table) {
     PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
     keypad(modal->win, TRUE);
 
-    const char *labels[] = {"Rename Table", "Rename Book", "Export", "Open File", "Switch Table", "New Table", "DB Manager", "Settings", "Cancel"};
+    const char *labels[] = {"Rename Table", "Rename Book", "Export", "Open File", "Switch Table", "New Table", "Settings", "Cancel"};
     int selected = 0;
     int ch;
 
@@ -503,14 +502,7 @@ void show_table_menu(Table *table) {
             break;
         }
         case 5: {
-            // New Table: ensure current table saved, then clear to start fresh
-            DbManager *cur = db_get_active();
-            if (cur && db_is_connected(cur) && table->column_count > 0) {
-                char err[256] = {0};
-                db_save_table(cur, table, err, sizeof(err));
-            }
-            // Confirm only if not connected or autosave is off
-            if (!cur || !db_is_connected(cur) || !db_autosave_enabled()) {
+            if (table->column_count > 0 && !workspace_autosave_enabled()) {
                 int h = 5; int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
                 PmNode *sh = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
                 PmNode *mo = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
@@ -534,8 +526,7 @@ void show_table_menu(Table *table) {
             cursor_row = -1; cursor_col = 0; col_page = 0;
             break;
         }
-        case 6: show_db_manager(table); break;
-        case 7: show_settings_menu(); break;
+        case 6: show_settings_menu(); break;
         default: break; /* Cancel */
     }
 }
@@ -546,8 +537,8 @@ void show_export_menu(Table *table) {
     curs_set(0);
 
     /* Modal selection styled like header edit */
-    const char *labels[] = {"Table (.ttbl)", "Book (.ttbx)", "CSV", "XLSX", "Cancel"};
-    int options_count = 5;
+    const char *labels[] = {"Table (.ttbl)", "Book (.ttbx)", "CSV", "XLSX", "SQLite DB (.db)", "Cancel"};
+    int options_count = 6;
     int h = options_count + 4;
     if (h < 8) h = 8;
     int w = COLS - 4;
@@ -648,6 +639,28 @@ void show_export_menu(Table *table) {
             show_error_message(err[0] ? err : "Failed to save XLSX");
         } else {
             show_error_message("Exported XLSX.");
+        }
+    } else if (selected == 4) {
+        const char *scope_labels[] = {"Single Table", "Whole Book"};
+        int scope_pick = 0;
+        draw_simple_list_modal("Export SQLite DB", scope_labels, 2, &scope_pick);
+        if (scope_pick < 0) {
+            clear();
+            refresh();
+            noecho();
+            curs_set(0);
+            nodelay(stdscr, TRUE);
+            return;
+        }
+        snprintf(outpath, sizeof(outpath), "%s", filename);
+        if (!has_extension(outpath, ".db")) {
+            strncat(outpath, ".db", sizeof(outpath) - strlen(outpath) - 1);
+        }
+        if ((scope_pick == 0 && db_export_table_path(table, outpath, err, sizeof(err)) != 0) ||
+            (scope_pick == 1 && workspace_export_book_db(outpath, err, sizeof(err)) != 0)) {
+            show_error_message(err[0] ? err : "Failed to export SQLite DB");
+        } else {
+            show_error_message(scope_pick == 0 ? "Exported SQLite DB for table." : "Exported SQLite DB for book.");
         }
     }
 

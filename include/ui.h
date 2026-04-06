@@ -51,7 +51,6 @@ void prompt_add_row(Table *table);
 void show_table_menu(Table *table);
 void show_export_menu(Table *table);
 void prompt_rename_table(Table *table);
-void show_db_manager(Table *table);
 void show_settings_menu(void);
 void show_open_file(Table *table);
 int show_text_input_modal(const char *title,

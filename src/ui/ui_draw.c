@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include "tablecraft.h"
 #include "ui.h"
-#include "db_manager.h"
 
 void draw_table_grid(Table *t) {
     if (t->column_count == 0)
@@ -344,45 +343,6 @@ void draw_ui(Table *table) {
         mvprintw(0, 2, "R %d/%d  C %d/%d", rcur, rtot, ccur, ctot);
         attroff(COLOR_PAIR(4) | A_BOLD);
     }
-
-    // Show current DB at top right
-    // Show DB status at top-right without overlapping title
-    DbManager *adb = db_get_active();
-    const char *full = (adb && db_is_connected(adb)) ? db_current_path(adb) : NULL;
-    char shown[128];
-    if (!full) {
-        snprintf(shown, sizeof(shown), "No Database Connected");
-    } else {
-        // basename
-        const char *base = strrchr(full, '/');
-        if (!base) base = full; else base++;
-        snprintf(shown, sizeof(shown), "DB: %s", base);
-    }
-    int len = (int)strlen(shown);
-    int posx = COLS - len - 2; if (posx < 0) posx = 0;
-    // If overlap with centered title, truncate with ellipsis
-    int title_end = title_x + (int)strlen(table->name);
-    if (posx <= title_end + 1) {
-        // compute max width for right area
-        int maxw = COLS - (title_end + 4);
-        if (maxw < 8) maxw = 8; // minimal width
-        if (maxw < len) {
-            // truncate from left with ellipsis
-            if (maxw >= 3) {
-                char buf[128];
-                int copy = maxw - 3;
-                if (copy < 0) copy = 0;
-                snprintf(buf, sizeof(buf), "...%.*s", copy, shown + (len - copy));
-                strncpy(shown, buf, sizeof(shown)-1);
-                shown[sizeof(shown)-1] = '\0';
-                len = (int)strlen(shown);
-            }
-        }
-        posx = COLS - len - 2; if (posx < 0) posx = 0;
-    }
-    attron(COLOR_PAIR(3) | A_BOLD);
-    mvprintw(0, posx, "%s", shown);
-    attroff(COLOR_PAIR(3) | A_BOLD);
 
     draw_table_grid(table);
 

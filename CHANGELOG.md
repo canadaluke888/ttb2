@@ -15,6 +15,8 @@ All notable changes in this batch are documented here.
 - Native book exports now keep table names in the manifest and underlying `.ttbl` files, and use numeric suffixes only when duplicate table names would collide.
 - CSV and XLSX exports now write plain column headers without appending type names.
 - Export menu label updated from project wording to book wording for `.ttbx` exports.
+- Simplified the database feature set by removing the interactive Database Manager from the main UI and treating SQLite as an export target instead of a managed workspace connection.
+- Export menu now supports direct `.db` exports for both the active table and the whole current book.
 
 ### Fixed
 
@@ -22,6 +24,7 @@ All notable changes in this batch are documented here.
 - Fixed exported books where manifest entry ids and filenames could remain stuck on old `Untitled_*` names after tables were renamed.
 - Fixed the file-open flow so the previous picker panel is removed before opening a selected book or file.
 - Fixed single-table Open File behavior so opening a CSV/XLSX/`.ttbl` now preserves the current table by creating a new workspace table slot first, instead of silently replacing the loaded table.
+- Fixed SQLite export flow by adding an explicit selector for exporting either a single table or the whole book into one `.db` file.
 
 ## [2025-10-05]
 

@@ -37,6 +37,8 @@ Table* db_load_table(DbManager *db, const char *name, char *err, size_t err_sz);
 
 // Persist current Table into SQLite (drops/recreates table to match schema)
 int  db_save_table(DbManager *db, const Table *t, char *err, size_t err_sz);
+int  db_export_table_path(const Table *t, const char *path, char *err, size_t err_sz);
+int  db_export_book_path(const char *book_path, const char *path, char *err, size_t err_sz);
 
 // Search mode is handled in the UI; no DB search API here.
 

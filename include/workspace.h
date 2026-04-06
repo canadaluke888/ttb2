@@ -11,6 +11,7 @@ int workspace_open_book(Table *table, const char *path, char *err, size_t err_sz
 int workspace_switch_table(Table *table, const char *table_id, char *err, size_t err_sz);
 int workspace_new_table(Table *table, char *err, size_t err_sz);
 int workspace_export_book(const char *path, char *err, size_t err_sz);
+int workspace_export_book_db(const char *path, char *err, size_t err_sz);
 int workspace_list_book_tables(char ***names_out, char ***ids_out, int *count_out, char *err, size_t err_sz);
 int workspace_book_is_active(void);
 const char *workspace_book_name(void);

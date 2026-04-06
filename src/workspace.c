@@ -1,4 +1,5 @@
 #include "workspace.h"
+#include "db_manager.h"
 #include "ttb_io.h"
 
 #include <sys/stat.h>
@@ -251,6 +252,16 @@ int workspace_export_book(const char *path, char *err, size_t err_sz)
     }
     if (g_active_table && save_project(g_active_table, err, err_sz) != 0) return -1;
     return ttbx_copy_book(g_project_path, path, err, err_sz);
+}
+
+int workspace_export_book_db(const char *path, char *err, size_t err_sz)
+{
+    if (!path || !*path) {
+        set_err(err, err_sz, "No destination provided");
+        return -1;
+    }
+    if (g_active_table && save_project(g_active_table, err, err_sz) != 0) return -1;
+    return db_export_book_path(g_project_path, path, err, err_sz);
 }
 
 int workspace_list_book_tables(char ***names_out, char ***ids_out, int *count_out, char *err, size_t err_sz)
