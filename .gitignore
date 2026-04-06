@@ -12,8 +12,7 @@ build/
 *.ttbl
 *.ttbx
 
-# CODEX config
-AGENTS.md
+.codex
 
 # Update file for developmnet 
 ttb2_updates.md
@@ -25,7 +24,7 @@ databases/
 workspace/
 
 # VS Code settings
-.vscode/settings.json
+.vscode/
 
 # Test files
 test_files/

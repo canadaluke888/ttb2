@@ -72,6 +72,54 @@ static void replace_loaded_table(Table *table, Table *loaded)
     workspace_set_active_table(table);
 }
 
+static int prepare_for_single_table_open(Table *table)
+{
+    DbManager *cur;
+
+    if (!table) return 0;
+
+    cur = db_get_active();
+    if (cur && db_is_connected(cur) && table->column_count > 0) {
+        char err[256] = {0};
+        db_save_table(cur, table, err, sizeof(err));
+    }
+
+    if ((table->column_count > 0 || table->row_count > 0) &&
+        (!cur || !db_is_connected(cur) || !db_autosave_enabled())) {
+        int h = 5;
+        int w = COLS - 4;
+        int y = (LINES - h) / 2;
+        int x = 2;
+        PmNode *sh = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+        PmNode *mo = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+        box(mo->win, 0, 0);
+        wattron(mo->win, COLOR_PAIR(3) | A_BOLD);
+        mvwprintw(mo->win, 1, 2, "Open another file? Current table will be saved first.");
+        wattroff(mo->win, COLOR_PAIR(3) | A_BOLD);
+        wattron(mo->win, COLOR_PAIR(4));
+        mvwprintw(mo->win, 2, 2, "[Enter] Continue   [Esc] Cancel");
+        wattroff(mo->win, COLOR_PAIR(4));
+        pm_wnoutrefresh(sh);
+        pm_wnoutrefresh(mo);
+        pm_update();
+        int c = wgetch(mo->win);
+        pm_remove(mo);
+        pm_remove(sh);
+        pm_update();
+        if (c == 27) return -1;
+    }
+
+    {
+        char err[256] = {0};
+        if (workspace_new_table(table, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to prepare new table.");
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 void show_open_file(Table *table) {
     char cwd[1024]; getcwd(cwd, sizeof(cwd));
     int sel = 0;
@@ -148,9 +196,13 @@ void show_open_file(Table *table) {
         int is_ttbx = ttbx_is_book_dir(path) || has_extension(path, ".ttbx");
         if (!is_csv && !is_xlsx && !is_ttbl && !is_ttbx) {
             show_error_message("Unsupported file type.");
-            pm_remove(modal); pm_remove(shadow); pm_update();
             free_entries(ents, count);
             continue;
+        }
+
+        if (!is_ttbx && prepare_for_single_table_open(table) != 0) {
+            free_entries(ents, count);
+            return;
         }
 
         // Load settings to get type inference preference

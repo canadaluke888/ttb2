@@ -21,6 +21,7 @@ All notable changes in this batch are documented here.
 - Fixed table switching so loading another table no longer overwrites the previous table slot in the workspace book.
 - Fixed exported books where manifest entry ids and filenames could remain stuck on old `Untitled_*` names after tables were renamed.
 - Fixed the file-open flow so the previous picker panel is removed before opening a selected book or file.
+- Fixed single-table Open File behavior so opening a CSV/XLSX/`.ttbl` now preserves the current table by creating a new workspace table slot first, instead of silently replacing the loaded table.
 
 ## [2025-10-05]
 
