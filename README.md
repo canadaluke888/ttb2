@@ -92,15 +92,16 @@ Supported startup inputs:
 - `S` Save workspace project
 - `Ctrl+H` Jump to top‑left (Home)
 - `m` Table menu (Rename, Save, Load, New Table, DB Manager, Settings)
+- `q` Quit
+
 - In Edit mode:
+  - `Enter` Edit cell
+  - `F` Search mode
   - `x` Delete row (interactive; Enter confirms)
   - `Shift+X` Delete column (interactive; Enter confirms)
   - `Backspace` Clear cell (with confirmation)
   - `Ctrl+H` Jump to top‑left (Home)
-- `q` Quit
-
-Notes:
-- Terminals often report Home as `Ctrl+H`; both are shown as “Home” in the footer.
+  - `Esc` Back
 
 ## Performance / Low‑RAM Mode
 - Enable “Low‑RAM seek paging” in Settings to browse large datasets without loading everything into memory.
