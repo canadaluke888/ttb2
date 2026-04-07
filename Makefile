@@ -73,7 +73,7 @@ deb: $(OUT)
 		'Maintainer: Luke Canada <canadaluke888@gmail.com>' \
 		'Depends: libc6, libncursesw6, libsqlite3-0, libjson-c5, zlib1g' \
 		'Description: Terminal Table Builder 2.0' \
-		' ncurses-based table editor with CSV, XLSX, TTBL, and TTBX support.' \
+		' ncurses-based table editor with CSV, XLSX, PDF, TTBL, and TTBX support.' \
 		> $(DEB_CONTROL)
 	dpkg-deb --build $(DEB_STAGE) $(DEB_PACKAGE)
 

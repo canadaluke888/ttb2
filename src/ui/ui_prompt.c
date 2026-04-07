@@ -8,6 +8,7 @@
 #include "ui.h"
 #include "csv.h"
 #include "xl.h"
+#include "pdf.h"
 #include "ttb_io.h"
 #include "db_manager.h"
 #include "workspace.h"
@@ -558,8 +559,8 @@ void show_export_menu(Table *table) {
     curs_set(0);
 
     /* Modal selection styled like header edit */
-    const char *labels[] = {"Table (.ttbl)", "Book (.ttbx)", "CSV", "XLSX", "SQLite DB (.db)", "Cancel"};
-    int options_count = 6;
+    const char *labels[] = {"Table (.ttbl)", "Book (.ttbx)", "CSV", "XLSX", "PDF", "SQLite DB (.db)", "Cancel"};
+    int options_count = 7;
     int h = options_count + 4;
     if (h < 8) h = 8;
     int w = COLS - 4;
@@ -661,6 +662,14 @@ void show_export_menu(Table *table) {
             show_error_message("Exported XLSX.");
         }
     } else if (selected == 4) {
+        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".pdf") != 0) {
+            show_error_message("Export path is too long.");
+        } else if (pdf_save(table, outpath, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to save PDF");
+        } else {
+            show_error_message("Exported PDF.");
+        }
+    } else if (selected == 5) {
         const char *scope_labels[] = {"Single Table", "Whole Book"};
         int scope_pick = 0;
         draw_simple_list_modal("Export SQLite DB", scope_labels, 2, &scope_pick);
