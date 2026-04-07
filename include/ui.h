@@ -29,6 +29,11 @@ extern int row_gutter_enabled; // show/hide row number gutter
 extern int del_row_mode;  // when 1, highlight full row and navigate with ↑/↓, Enter confirms delete
 extern int del_col_mode;  // when 1, highlight full column and navigate with ←/→, Enter confirms delete
 
+typedef enum {
+    UI_MENU_DONE = 0,
+    UI_MENU_BACK = 1
+} UiMenuResult;
+
 // Initialization functions
 void init_colors(void);
 bool validate_input(const char *input, DataType type);
@@ -49,10 +54,10 @@ void confirm_delete_column_at(Table *table, int col);
 void prompt_add_column(Table *table);
 void prompt_add_row(Table *table);
 void show_table_menu(Table *table);
-void show_export_menu(Table *table);
+UiMenuResult show_export_menu(Table *table);
 void prompt_rename_table(Table *table);
-void show_settings_menu(void);
-void show_open_file(Table *table);
+UiMenuResult show_settings_menu(void);
+UiMenuResult show_open_file(Table *table);
 int ui_open_path(Table *table, const char *path, int preserve_current_table, int show_book_success);
 int ui_pick_directory(char *out, size_t out_sz, const char *title);
 int show_text_input_modal(const char *title,

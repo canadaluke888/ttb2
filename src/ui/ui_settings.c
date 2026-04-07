@@ -21,7 +21,7 @@ static void ensure_loaded(void) {
     g_loaded = 1;
 }
 
-void show_settings_menu(void) {
+UiMenuResult show_settings_menu(void) {
     ensure_loaded();
     noecho(); curs_set(0);
     const char *labels[] = {
@@ -30,10 +30,11 @@ void show_settings_menu(void) {
         "Low-RAM seek paging: ",
         "Row gutter: ",
         "Save & Close",
-        "Cancel"
+        "Back"
     };
     int count = (int)(sizeof(labels) / sizeof(labels[0]));
     int sel = 0; int ch;
+    UiMenuResult result = UI_MENU_BACK;
 
     int h = count + 5; /* title row + underline + options + padding */
     if (h < 12) h = 12;
@@ -77,9 +78,10 @@ void show_settings_menu(void) {
             else if (sel == 1) { g_settings.type_infer_enabled = !g_settings.type_infer_enabled; }
             else if (sel == 2) { g_settings.low_ram_enabled = !g_settings.low_ram_enabled; low_ram_mode = g_settings.low_ram_enabled ? 1 : 0; }
             else if (sel == 3) { g_settings.show_row_gutter = !g_settings.show_row_gutter; row_gutter_enabled = g_settings.show_row_gutter ? 1 : 0; }
-            else if (sel == 4) { settings_save(settings_default_path(), &g_settings); break; }
-            else if (sel == 5) { break; }
-        } else if (ch == 27) { break; }
+            else if (sel == 4) { settings_save(settings_default_path(), &g_settings); result = UI_MENU_DONE; break; }
+            else if (sel == 5) { result = UI_MENU_BACK; break; }
+        } else if (ch == 27) { result = UI_MENU_DONE; break; }
     }
     pm_remove(modal); pm_remove(shadow); pm_update();
+    return result;
 }

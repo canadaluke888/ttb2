@@ -18,7 +18,9 @@
 #define MAX_INPUT 128
 
 static void draw_simple_list_modal(const char *title, const char **items, int count, int *io_selected);
-static void show_book_tables_page(Table *table);
+static UiMenuResult prompt_rename_active_table(Table *table);
+static UiMenuResult prompt_rename_book(void);
+static UiMenuResult show_book_tables_page(Table *table);
 int show_text_input_modal(const char *title,
                           const char *hint,
                           const char *prompt,
@@ -276,7 +278,7 @@ int show_text_input_modal(const char *title,
 static int prompt_filename_modal(const char *title, const char *prompt, char *out, size_t out_sz)
 {
     return show_text_input_modal(title,
-                                 "[Enter] Save   [Esc] Cancel",
+                                 "[Enter] Save   [Esc] Back",
                                  prompt,
                                  out,
                                  out_sz,
@@ -386,9 +388,9 @@ void prompt_add_row(Table *table) {
     free(input_strings);
 }
 
-void prompt_rename_table(Table *table) {
+static UiMenuResult prompt_rename_active_table(Table *table) {
     if (!table) {
-        return;
+        return UI_MENU_BACK;
     }
 
     char prompt_label[160];
@@ -397,13 +399,13 @@ void prompt_rename_table(Table *table) {
 
     char name[128];
     int rc = show_text_input_modal("Rename Table",
-                               "[Enter] Save   [Esc] Cancel",
+                               "[Enter] Save   [Esc] Back",
                                prompt_label,
                                name,
                                sizeof(name),
                                false);
     if (rc < 0) {
-        return;
+        return UI_MENU_BACK;
     }
 
     if (strlen(name) > 0) {
@@ -412,23 +414,30 @@ void prompt_rename_table(Table *table) {
             show_error_message(err[0] ? err : "Failed to save renamed table.");
         }
     }
+    return UI_MENU_DONE;
 }
 
-static void prompt_rename_book(void) {
+void prompt_rename_table(Table *table)
+{
+    (void)prompt_rename_active_table(table);
+}
+
+static UiMenuResult prompt_rename_book(void) {
     char prompt_label[192];
     char name[128];
     char err[256] = {0};
     snprintf(prompt_label, sizeof(prompt_label), "New name for %s:", workspace_book_name());
     int rc = show_text_input_modal("Rename Book",
-                               "[Enter] Save   [Esc] Cancel",
+                               "[Enter] Save   [Esc] Back",
                                prompt_label,
                                name,
                                sizeof(name),
                                false);
-    if (rc < 0) return;
+    if (rc < 0) return UI_MENU_BACK;
     if (workspace_rename_book(name, err, sizeof(err)) != 0) {
         show_error_message(err[0] ? err : "Failed to rename book.");
     }
+    return UI_MENU_DONE;
 }
 
 static void reset_table_view_state(Table *table)
@@ -439,7 +448,7 @@ static void reset_table_view_state(Table *table)
     row_page = 0;
 }
 
-static void show_book_tables_page(Table *table)
+static UiMenuResult show_book_tables_page(Table *table)
 {
     int sel = 0;
 
@@ -456,7 +465,7 @@ static void show_book_tables_page(Table *table)
             show_error_message(err[0] ? err : "No book tables found.");
             free_string_list(names, count);
             free_string_list(ids, count);
-            return;
+            return UI_MENU_DONE;
         }
         if (sel < 0) sel = 0;
         if (sel >= count) sel = count - 1;
@@ -485,7 +494,7 @@ static void show_book_tables_page(Table *table)
             mvwaddch(modal->win, 2, 0, ACS_LTEE);
             mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
             wattron(modal->win, COLOR_PAIR(4));
-            mvwprintw(modal->win, h - 2, 2, "[S] Select   [R] Rename   [D] Delete   [Esc] Back");
+            mvwprintw(modal->win, h - 2, 2, "[S] Select   [R] Rename   [D] Delete   [Esc] Close");
             wattroff(modal->win, COLOR_PAIR(4));
 
             visible = h - 5;
@@ -526,14 +535,14 @@ static void show_book_tables_page(Table *table)
                     pm_update();
                     free_string_list(names, count);
                     free_string_list(ids, count);
-                    return;
+                    return UI_MENU_DONE;
                 }
             } else if (ch == 'r' || ch == 'R') {
                 char prompt_label[160];
                 char new_name[128];
                 snprintf(prompt_label, sizeof(prompt_label), "New name for %s:", names[sel] ? names[sel] : "table");
                 int rc = show_text_input_modal("Rename Table",
-                                               "[Enter] Save   [Esc] Cancel",
+                                               "[Enter] Save   [Esc] Back",
                                                prompt_label,
                                                new_name,
                                                sizeof(new_name),
@@ -577,7 +586,7 @@ static void show_book_tables_page(Table *table)
                 pm_update();
                 free_string_list(names, count);
                 free_string_list(ids, count);
-                return;
+                return UI_MENU_DONE;
             }
         }
 
@@ -587,244 +596,273 @@ static void show_book_tables_page(Table *table)
 }
 
 void show_table_menu(Table *table) {
-    /* Menu uses key navigation only: hide cursor */
-    noecho();
-    curs_set(0);
+    int keep_open = 1;
 
-    int options_count = 8;
-    int h = options_count + 4; /* title underline + options */
-    if (h < 8) h = 8; /* minimum height for comfort */
-    int w = COLS - 4;
-    int y = (LINES - h) / 2;
-    int x = 2;
+    while (keep_open) {
+        /* Menu uses key navigation only: hide cursor */
+        noecho();
+        curs_set(0);
 
-    PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
-    PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
-    keypad(modal->win, TRUE);
+        int options_count = 8;
+        int h = options_count + 4; /* title underline + options */
+        if (h < 8) h = 8; /* minimum height for comfort */
+        int w = COLS - 4;
+        int y = (LINES - h) / 2;
+        int x = 2;
 
-    const char *labels[] = {"Rename Table", "Rename Book", "Export", "Open File", "Book Tables", "New Table", "Settings", "Cancel"};
-    int selected = 0;
-    int ch;
+        PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+        PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+        keypad(modal->win, TRUE);
 
-    while (1) {
-        werase(modal->win);
-        box(modal->win, 0, 0);
-        wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
-        mvwprintw(modal->win, 1, 2, "Table Menu: %s", workspace_book_name());
-        wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
-        mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
-        mvwaddch(modal->win, 2, 0, ACS_LTEE);
-        mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
+        const char *labels[] = {"Rename Table", "Rename Book", "Export", "Open File", "Book Tables", "New Table", "Settings", "Back to Editor"};
+        int selected = 0;
+        int ch;
 
-        for (int i = 0; i < options_count; i++) {
-            int row = 3 + i;
-            if (row >= h - 1) break;
-            if (i == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
-            mvwprintw(modal->win, row, 2, "%s", labels[i]);
-            if (i == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+        while (1) {
+            werase(modal->win);
+            box(modal->win, 0, 0);
+            wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
+            mvwprintw(modal->win, 1, 2, "Table Menu: %s", workspace_book_name());
+            wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+            mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
+            mvwaddch(modal->win, 2, 0, ACS_LTEE);
+            mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
+
+            for (int i = 0; i < options_count; i++) {
+                int row = 3 + i;
+                if (row >= h - 1) break;
+                if (i == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+                mvwprintw(modal->win, row, 2, "%s", labels[i]);
+                if (i == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+            }
+
+            pm_wnoutrefresh(shadow);
+            pm_wnoutrefresh(modal);
+            pm_update();
+
+            ch = wgetch(modal->win);
+            if (ch == KEY_UP) {
+                selected = (selected > 0) ? selected - 1 : options_count - 1;
+            } else if (ch == KEY_DOWN) {
+                selected = (selected + 1) % options_count;
+            } else if (ch == '\n') {
+                break;
+            } else if (ch == 27) { /* Esc */
+                selected = options_count - 1; /* Back to editor */
+                break;
+            }
         }
 
-        pm_wnoutrefresh(shadow);
-        pm_wnoutrefresh(modal);
+        pm_remove(modal);
+        pm_remove(shadow);
         pm_update();
+        noecho();
+        curs_set(0);
 
-        ch = wgetch(modal->win);
-        if (ch == KEY_UP) {
-            selected = (selected > 0) ? selected - 1 : options_count - 1;
-        } else if (ch == KEY_DOWN) {
-            selected = (selected + 1) % options_count;
-        } else if (ch == '\n') {
-            break;
-        } else if (ch == 27) { /* Esc */
-            selected = options_count - 1; /* Cancel */
-            break;
-        }
-    }
-
-    pm_remove(modal);
-    pm_remove(shadow);
-    pm_update();
-    noecho();
-    curs_set(0);
-
-    switch (selected) {
-        case 0: prompt_rename_table(table); break;
-        case 1: prompt_rename_book(); break;
-        case 2: show_export_menu(table); break;
-        case 3: show_open_file(table); break;
-        case 4: show_book_tables_page(table); break;
-        case 5: {
-            if (table->column_count > 0 && !workspace_autosave_enabled()) {
-                int h = 5; int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
-                PmNode *sh = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
-                PmNode *mo = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
-                box(mo->win, 0, 0);
-                wattron(mo->win, COLOR_PAIR(3) | A_BOLD);
-                mvwprintw(mo->win, 1, 2, "Start a new table? Unsaved changes may be lost.");
-                wattroff(mo->win, COLOR_PAIR(3) | A_BOLD);
-                wattron(mo->win, COLOR_PAIR(4)); mvwprintw(mo->win, 2, 2, "[Enter] Yes   [Esc] No"); wattroff(mo->win, COLOR_PAIR(4));
-                pm_wnoutrefresh(sh); pm_wnoutrefresh(mo); pm_update();
-                int c = wgetch(mo->win);
-                pm_remove(mo); pm_remove(sh); pm_update();
-                if (c == 27) break; // cancel new table
-            }
-            {
-                char err[256] = {0};
-                if (workspace_new_table(table, err, sizeof(err)) != 0) {
-                    show_error_message(err[0] ? err : "Failed to create table.");
-                    break;
+        switch (selected) {
+            case 0:
+                if (prompt_rename_active_table(table) == UI_MENU_DONE) keep_open = 0;
+                break;
+            case 1:
+                if (prompt_rename_book() == UI_MENU_DONE) keep_open = 0;
+                break;
+            case 2:
+                if (show_export_menu(table) == UI_MENU_DONE) keep_open = 0;
+                break;
+            case 3:
+                if (show_open_file(table) == UI_MENU_DONE) keep_open = 0;
+                break;
+            case 4:
+                if (show_book_tables_page(table) == UI_MENU_DONE) keep_open = 0;
+                break;
+            case 5: {
+                if (table->column_count > 0 && !workspace_autosave_enabled()) {
+                    int h = 5; int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
+                    PmNode *sh = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+                    PmNode *mo = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+                    box(mo->win, 0, 0);
+                    wattron(mo->win, COLOR_PAIR(3) | A_BOLD);
+                    mvwprintw(mo->win, 1, 2, "Start a new table? Unsaved changes may be lost.");
+                    wattroff(mo->win, COLOR_PAIR(3) | A_BOLD);
+                    wattron(mo->win, COLOR_PAIR(4)); mvwprintw(mo->win, 2, 2, "[Enter] Yes   [Esc] Back"); wattroff(mo->win, COLOR_PAIR(4));
+                    pm_wnoutrefresh(sh); pm_wnoutrefresh(mo); pm_update();
+                    int c = wgetch(mo->win);
+                    pm_remove(mo); pm_remove(sh); pm_update();
+                    if (c == 27) break;
                 }
+                {
+                    char err[256] = {0};
+                    if (workspace_new_table(table, err, sizeof(err)) != 0) {
+                        show_error_message(err[0] ? err : "Failed to create table.");
+                        break;
+                    }
+                }
+                cursor_row = -1; cursor_col = 0; col_page = 0;
+                keep_open = 0;
+                break;
             }
-            cursor_row = -1; cursor_col = 0; col_page = 0;
-            break;
+            case 6:
+                if (show_settings_menu() == UI_MENU_DONE) keep_open = 0;
+                break;
+            default:
+                keep_open = 0;
+                break; /* Back to editor */
         }
-        case 6: show_settings_menu(); break;
-        default: break; /* Cancel */
     }
 }
 
-void show_export_menu(Table *table) {
+UiMenuResult show_export_menu(Table *table) {
     /* Selection uses keys only: hide cursor */
-    noecho();
-    curs_set(0);
-
-    /* Modal selection styled like header edit */
-    const char *labels[] = {"Table (.ttbl)", "Book (.ttbx)", "CSV", "XLSX", "PDF", "SQLite DB (.db)", "Cancel"};
-    int options_count = 7;
-    int h = options_count + 4;
-    if (h < 8) h = 8;
-    int w = COLS - 4;
-    int y = (LINES - h) / 2;
-    int x = 2;
-
-    PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
-    PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
-    keypad(modal->win, TRUE);
-
-    int selected = 0; /* default to first item */
-    int ch;
     while (1) {
-        werase(modal->win);
-        box(modal->win, 0, 0);
-        wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
-        mvwprintw(modal->win, 1, 2, "Select export format:");
-        wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
-        mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
-        mvwaddch(modal->win, 2, 0, ACS_LTEE);
-        mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
+        noecho();
+        curs_set(0);
 
-        for (int i = 0; i < options_count; i++) {
-            int row = 3 + i;
-            if (row >= h - 1) break;
-            if (i == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
-            mvwprintw(modal->win, row, 2, "%s", labels[i]);
-            if (i == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+        /* Modal selection styled like header edit */
+        const char *labels[] = {"Table (.ttbl)", "Book (.ttbx)", "CSV", "XLSX", "PDF", "SQLite DB (.db)", "Back"};
+        int options_count = 7;
+        int h = options_count + 4;
+        if (h < 8) h = 8;
+        int w = COLS - 4;
+        int y = (LINES - h) / 2;
+        int x = 2;
+
+        PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+        PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+        keypad(modal->win, TRUE);
+
+        int selected = 0; /* default to first item */
+        int ch;
+        while (1) {
+            werase(modal->win);
+            box(modal->win, 0, 0);
+            wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
+            mvwprintw(modal->win, 1, 2, "Select export format:");
+            wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+            mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
+            mvwaddch(modal->win, 2, 0, ACS_LTEE);
+            mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
+
+            for (int i = 0; i < options_count; i++) {
+                int row = 3 + i;
+                if (row >= h - 1) break;
+                if (i == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+                mvwprintw(modal->win, row, 2, "%s", labels[i]);
+                if (i == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+            }
+
+            pm_wnoutrefresh(shadow);
+            pm_wnoutrefresh(modal);
+            pm_update();
+
+            ch = wgetch(modal->win);
+            if (ch == KEY_UP) selected = (selected > 0) ? selected - 1 : options_count - 1;
+            else if (ch == KEY_DOWN) selected = (selected + 1) % options_count;
+            else if (ch == '\n') break;
+            else if (ch == 27) {
+                pm_remove(modal);
+                pm_remove(shadow);
+                pm_update();
+                noecho();
+                curs_set(0);
+                return UI_MENU_DONE;
+            }
         }
 
-        pm_wnoutrefresh(shadow);
-        pm_wnoutrefresh(modal);
+        pm_remove(modal);
+        pm_remove(shadow);
         pm_update();
-
-        ch = wgetch(modal->win);
-        if (ch == KEY_UP) selected = (selected > 0) ? selected - 1 : options_count - 1;
-        else if (ch == KEY_DOWN) selected = (selected + 1) % options_count;
-        else if (ch == '\n') break;
-        else if (ch == 27) { selected = options_count - 1; break; } /* Cancel */
-    }
-
-    pm_remove(modal);
-    pm_remove(shadow);
-    pm_update();
-    if (selected == options_count - 1) { /* Cancel */
-        noecho();
-        curs_set(0);
-        return;
-    }
-
-    char directory[512];
-    char filename[128];
-    char outpath[512];
-    char err[256] = {0};
-
-    if (ui_pick_directory(directory, sizeof(directory), "Select Export Directory") != 0) {
-        noecho();
-        curs_set(0);
-        return;
-    }
-
-    int name_len = prompt_filename_modal("Export Table", "Filename:", filename, sizeof(filename));
-    if (name_len < 0) {
-        noecho();
-        curs_set(0);
-        return;
-    }
-
-    if (selected == 0) {
-        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".ttbl") != 0) {
-            show_error_message("Export path is too long.");
-        } else if (ttbl_save(table, outpath, err, sizeof(err)) != 0) {
-            show_error_message(err[0] ? err : "Failed to export .ttbl");
-        } else {
-            show_error_message("Exported table file.");
-        }
-    } else if (selected == 1) {
-        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".ttbx") != 0) {
-            show_error_message("Export path is too long.");
-        } else if (workspace_export_book(outpath, err, sizeof(err)) != 0) {
-            show_error_message(err[0] ? err : "Failed to export .ttbx");
-        } else {
-            show_error_message("Exported book.");
-        }
-    } else if (selected == 2) {
-        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".csv") != 0) {
-            show_error_message("Export path is too long.");
-        } else if (csv_save(table, outpath, err, sizeof(err)) != 0) {
-            show_error_message(err[0] ? err : "Failed to save CSV");
-        } else {
-            show_error_message("Exported CSV.");
-        }
-    } else if (selected == 3) {
-        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".xlsx") != 0) {
-            show_error_message("Export path is too long.");
-        } else if (xl_save(table, outpath, err, sizeof(err)) != 0) {
-            show_error_message(err[0] ? err : "Failed to save XLSX");
-        } else {
-            show_error_message("Exported XLSX.");
-        }
-    } else if (selected == 4) {
-        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".pdf") != 0) {
-            show_error_message("Export path is too long.");
-        } else if (pdf_save(table, outpath, err, sizeof(err)) != 0) {
-            show_error_message(err[0] ? err : "Failed to save PDF");
-        } else {
-            show_error_message("Exported PDF.");
-        }
-    } else if (selected == 5) {
-        const char *scope_labels[] = {"Single Table", "Whole Book"};
-        int scope_pick = 0;
-        draw_simple_list_modal("Export SQLite DB", scope_labels, 2, &scope_pick);
-        if (scope_pick < 0) {
-            clear();
-            refresh();
+        if (selected == options_count - 1) { /* Back */
             noecho();
             curs_set(0);
-            nodelay(stdscr, TRUE);
-            return;
+            return UI_MENU_BACK;
         }
-        if (build_export_path(outpath, sizeof(outpath), directory, filename, ".db") != 0) {
-            show_error_message("Export path is too long.");
-        } else if ((scope_pick == 0 && db_export_table_path(table, outpath, err, sizeof(err)) != 0) ||
-            (scope_pick == 1 && workspace_export_book_db(outpath, err, sizeof(err)) != 0)) {
-            show_error_message(err[0] ? err : "Failed to export SQLite DB");
-        } else {
-            show_error_message(scope_pick == 0 ? "Exported SQLite DB for table." : "Exported SQLite DB for book.");
+
+        char directory[512];
+        char filename[128];
+        char outpath[512];
+        char err[256] = {0};
+
+        if (ui_pick_directory(directory, sizeof(directory), "Select Export Directory") != 0) {
+            noecho();
+            curs_set(0);
+            continue;
         }
+
+        int name_len = prompt_filename_modal("Export Table", "Filename:", filename, sizeof(filename));
+        if (name_len < 0) {
+            noecho();
+            curs_set(0);
+            continue;
+        }
+
+        if (selected == 0) {
+            if (build_export_path(outpath, sizeof(outpath), directory, filename, ".ttbl") != 0) {
+                show_error_message("Export path is too long.");
+            } else if (ttbl_save(table, outpath, err, sizeof(err)) != 0) {
+                show_error_message(err[0] ? err : "Failed to export .ttbl");
+            } else {
+                show_error_message("Exported table file.");
+            }
+        } else if (selected == 1) {
+            if (build_export_path(outpath, sizeof(outpath), directory, filename, ".ttbx") != 0) {
+                show_error_message("Export path is too long.");
+            } else if (workspace_export_book(outpath, err, sizeof(err)) != 0) {
+                show_error_message(err[0] ? err : "Failed to export .ttbx");
+            } else {
+                show_error_message("Exported book.");
+            }
+        } else if (selected == 2) {
+            if (build_export_path(outpath, sizeof(outpath), directory, filename, ".csv") != 0) {
+                show_error_message("Export path is too long.");
+            } else if (csv_save(table, outpath, err, sizeof(err)) != 0) {
+                show_error_message(err[0] ? err : "Failed to save CSV");
+            } else {
+                show_error_message("Exported CSV.");
+            }
+        } else if (selected == 3) {
+            if (build_export_path(outpath, sizeof(outpath), directory, filename, ".xlsx") != 0) {
+                show_error_message("Export path is too long.");
+            } else if (xl_save(table, outpath, err, sizeof(err)) != 0) {
+                show_error_message(err[0] ? err : "Failed to save XLSX");
+            } else {
+                show_error_message("Exported XLSX.");
+            }
+        } else if (selected == 4) {
+            if (build_export_path(outpath, sizeof(outpath), directory, filename, ".pdf") != 0) {
+                show_error_message("Export path is too long.");
+            } else if (pdf_save(table, outpath, err, sizeof(err)) != 0) {
+                show_error_message(err[0] ? err : "Failed to save PDF");
+            } else {
+                show_error_message("Exported PDF.");
+            }
+        } else if (selected == 5) {
+            const char *scope_labels[] = {"Single Table", "Whole Book"};
+            int scope_pick = 0;
+            draw_simple_list_modal("Export SQLite DB", scope_labels, 2, &scope_pick);
+            if (scope_pick < 0) {
+                clear();
+                refresh();
+                noecho();
+                curs_set(0);
+                nodelay(stdscr, TRUE);
+                continue;
+            }
+            if (build_export_path(outpath, sizeof(outpath), directory, filename, ".db") != 0) {
+                show_error_message("Export path is too long.");
+            } else if ((scope_pick == 0 && db_export_table_path(table, outpath, err, sizeof(err)) != 0) ||
+                (scope_pick == 1 && workspace_export_book_db(outpath, err, sizeof(err)) != 0)) {
+                show_error_message(err[0] ? err : "Failed to export SQLite DB");
+            } else {
+                show_error_message(scope_pick == 0 ? "Exported SQLite DB for table." : "Exported SQLite DB for book.");
+            }
+        }
+
+        clear();
+        refresh();
+        noecho();
+        curs_set(0);
+
+        nodelay(stdscr, TRUE);
+        return UI_MENU_DONE;
     }
-
-    clear();
-    refresh();
-    noecho();
-    curs_set(0);
-
-    nodelay(stdscr, TRUE);
 }

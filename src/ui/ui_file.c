@@ -233,7 +233,7 @@ int ui_pick_directory(char *out, size_t out_sz, const char *title)
             mvwaddch(modal->win, 2, 0, ACS_LTEE);
             mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
             wattron(modal->win, COLOR_PAIR(4));
-            mvwprintw(modal->win, h - 2, 2, "[Enter] Open/Choose   [S] Select this directory   [Esc] Cancel");
+            mvwprintw(modal->win, h - 2, 2, "[Enter] Open/Choose   [S] Select this directory   [Esc] Back");
             wattroff(modal->win, COLOR_PAIR(4));
             visible = h - 5;
             if (visible < 1) visible = 1;
@@ -315,13 +315,13 @@ int ui_pick_directory(char *out, size_t out_sz, const char *title)
     }
 }
 
-void show_open_file(Table *table) {
+UiMenuResult show_open_file(Table *table) {
     char cwd[1024]; getcwd(cwd, sizeof(cwd));
     int sel = 0;
     while (1) {
         int count = 0; Entry *ents = list_dir(cwd, &count);
-        if (!ents) { show_error_message("Failed to read directory."); return; }
-        int h = (count + 6); if (h < 11) h = 11; if (h > LINES - 2) h = LINES - 2;
+        if (!ents) { show_error_message("Failed to read directory."); return UI_MENU_DONE; }
+        int h = (count + 7); if (h < 11) h = 11; if (h > LINES - 2) h = LINES - 2;
         int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
         PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
         PmNode *modal  = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
@@ -337,12 +337,15 @@ void show_open_file(Table *table) {
             mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
             mvwaddch(modal->win, 2, 0, ACS_LTEE);
             mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
-            int visible = h - 4; if (visible < 1) visible = 1;
+            wattron(modal->win, COLOR_PAIR(4));
+            mvwprintw(modal->win, h - 2, 2, "[Enter] Select/Open   [Esc] Back");
+            wattroff(modal->win, COLOR_PAIR(4));
+            int visible = h - 5; if (visible < 1) visible = 1;
             if (sel >= visible) top = sel - (visible - 1);
             for (int i = 0; i < visible && top + i < count; ++i) {
                 int idx = top + i;
                 int row = 3 + i;
-                if (row >= h - 1) break;
+                if (row >= h - 2) break;
                 if (idx == sel) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
                 mvwprintw(modal->win, row, 2, "%s%s", ents[idx].name, ents[idx].is_dir ? "/" : "");
                 if (idx == sel) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
@@ -353,7 +356,7 @@ void show_open_file(Table *table) {
             else if (ch == KEY_DOWN) { sel = (sel + 1) % count; if (sel >= top + visible) top = sel - visible + 1; }
             else if (ch == KEY_LEFT) { sel = 0; ch = 10; /* treat as enter on '..' */ }
             else if (ch == '\n') break;
-            else if (ch == 27) { pm_remove(modal); pm_remove(shadow); pm_update(); free_entries(ents, count); return; }
+            else if (ch == 27) { pm_remove(modal); pm_remove(shadow); pm_update(); free_entries(ents, count); return UI_MENU_BACK; }
         }
 
         // Handle selection
@@ -369,7 +372,7 @@ void show_open_file(Table *table) {
         }
 
         snprintf(path, sizeof(path), "%s/%s", cwd, ents[sel].name);
-        struct stat st; if (stat(path, &st) != 0) { show_error_message("Stat failed."); pm_remove(modal); pm_remove(shadow); pm_update(); free_entries(ents, count); return; }
+        struct stat st; if (stat(path, &st) != 0) { show_error_message("Stat failed."); pm_remove(modal); pm_remove(shadow); pm_update(); free_entries(ents, count); return UI_MENU_DONE; }
         if (S_ISDIR(st.st_mode) && !ttbx_is_book_dir(path)) {
             // enter directory
             strncpy(cwd, path, sizeof(cwd) - 1); cwd[sizeof(cwd) - 1] = '\0'; sel = 0;
@@ -386,6 +389,6 @@ void show_open_file(Table *table) {
 
         ui_open_path(table, path, 1, 1);
         free_entries(ents, count);
-        return;
+        return UI_MENU_DONE;
     }
 }
