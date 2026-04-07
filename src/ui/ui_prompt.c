@@ -18,6 +18,7 @@
 #define MAX_INPUT 128
 
 static void draw_simple_list_modal(const char *title, const char **items, int count, int *io_selected);
+static void show_book_tables_page(Table *table);
 int show_text_input_modal(const char *title,
                           const char *hint,
                           const char *prompt,
@@ -406,11 +407,8 @@ void prompt_rename_table(Table *table) {
     }
 
     if (strlen(name) > 0) {
-        free(table->name);
-        table->name = strdup(name);
         char err[256] = {0};
-        db_autosave_table(table, err, sizeof(err));
-        if (workspace_manual_save(table, err, sizeof(err)) != 0) {
+        if (workspace_rename_table(table, workspace_active_table_id(), name, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to save renamed table.");
         }
     }
@@ -433,6 +431,161 @@ static void prompt_rename_book(void) {
     }
 }
 
+static void reset_table_view_state(Table *table)
+{
+    cursor_row = (table && table->row_count > 0) ? 0 : -1;
+    cursor_col = 0;
+    col_page = 0;
+    row_page = 0;
+}
+
+static void show_book_tables_page(Table *table)
+{
+    int sel = 0;
+
+    noecho();
+    curs_set(0);
+
+    while (1) {
+        char **names = NULL, **ids = NULL;
+        int count = 0;
+        int top = 0;
+        char err[256] = {0};
+
+        if (workspace_list_book_tables(&names, &ids, &count, err, sizeof(err)) != 0 || count <= 0) {
+            show_error_message(err[0] ? err : "No book tables found.");
+            free_string_list(names, count);
+            free_string_list(ids, count);
+            return;
+        }
+        if (sel < 0) sel = 0;
+        if (sel >= count) sel = count - 1;
+
+        int h = count + 7;
+        if (h < 11) h = 11;
+        if (h > LINES - 2) h = LINES - 2;
+        int w = COLS - 4;
+        int y = (LINES - h) / 2;
+        int x = 2;
+        PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
+        PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
+        keypad(modal->win, TRUE);
+
+        while (1) {
+            int visible;
+            int ch;
+            const char *active_id = workspace_active_table_id();
+
+            werase(modal->win);
+            box(modal->win, 0, 0);
+            wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
+            mvwprintw(modal->win, 1, 2, "Book Tables: %s", workspace_book_name());
+            wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+            mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
+            mvwaddch(modal->win, 2, 0, ACS_LTEE);
+            mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
+            wattron(modal->win, COLOR_PAIR(4));
+            mvwprintw(modal->win, h - 2, 2, "[S] Select   [R] Rename   [D] Delete   [Esc] Back");
+            wattroff(modal->win, COLOR_PAIR(4));
+
+            visible = h - 5;
+            if (visible < 1) visible = 1;
+            if (sel < top) top = sel;
+            if (sel >= top + visible) top = sel - visible + 1;
+
+            for (int i = 0; i < visible && top + i < count; ++i) {
+                int idx = top + i;
+                int row = 3 + i;
+                int is_active = active_id && ids[idx] && strcmp(active_id, ids[idx]) == 0;
+                if (row >= h - 2) break;
+                if (idx == sel) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
+                mvwprintw(modal->win, row, 2, "%c %s%s",
+                          is_active ? '*' : ' ',
+                          names[idx] ? names[idx] : "",
+                          is_active ? " (active)" : "");
+                if (idx == sel) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
+            }
+
+            pm_wnoutrefresh(shadow);
+            pm_wnoutrefresh(modal);
+            pm_update();
+
+            ch = wgetch(modal->win);
+            if (ch == KEY_UP) {
+                sel = (sel > 0) ? sel - 1 : count - 1;
+            } else if (ch == KEY_DOWN) {
+                sel = (sel + 1) % count;
+            } else if (ch == 's' || ch == 'S' || ch == '\n') {
+                if (workspace_switch_table(table, ids[sel], err, sizeof(err)) != 0) {
+                    show_error_message(err[0] ? err : "Failed to switch table.");
+                    err[0] = '\0';
+                } else {
+                    reset_table_view_state(table);
+                    pm_remove(modal);
+                    pm_remove(shadow);
+                    pm_update();
+                    free_string_list(names, count);
+                    free_string_list(ids, count);
+                    return;
+                }
+            } else if (ch == 'r' || ch == 'R') {
+                char prompt_label[160];
+                char new_name[128];
+                snprintf(prompt_label, sizeof(prompt_label), "New name for %s:", names[sel] ? names[sel] : "table");
+                int rc = show_text_input_modal("Rename Table",
+                                               "[Enter] Save   [Esc] Cancel",
+                                               prompt_label,
+                                               new_name,
+                                               sizeof(new_name),
+                                               false);
+                if (rc >= 0) {
+                    if (workspace_rename_table(table, ids[sel], new_name, err, sizeof(err)) != 0) {
+                        show_error_message(err[0] ? err : "Failed to rename table.");
+                        err[0] = '\0';
+                    } else {
+                        pm_remove(modal);
+                        pm_remove(shadow);
+                        pm_update();
+                        break;
+                    }
+                }
+            } else if (ch == 'd' || ch == 'D') {
+                const char *opts[] = {"No", "Yes"};
+                char title[160];
+                int pick = 0;
+                int was_active = workspace_active_table_id() && ids[sel] &&
+                                 strcmp(workspace_active_table_id(), ids[sel]) == 0;
+                snprintf(title, sizeof(title), "Delete table '%s'?", names[sel] ? names[sel] : "");
+                draw_simple_list_modal(title, opts, 2, &pick);
+                if (pick == 1) {
+                    if (workspace_delete_table(table, ids[sel], err, sizeof(err)) != 0) {
+                        show_error_message(err[0] ? err : "Failed to delete table.");
+                        err[0] = '\0';
+                    } else {
+                        if (was_active) reset_table_view_state(table);
+                        if (sel >= count - 1) sel = count - 2;
+                        if (sel < 0) sel = 0;
+                        pm_remove(modal);
+                        pm_remove(shadow);
+                        pm_update();
+                        break;
+                    }
+                }
+            } else if (ch == 27) {
+                pm_remove(modal);
+                pm_remove(shadow);
+                pm_update();
+                free_string_list(names, count);
+                free_string_list(ids, count);
+                return;
+            }
+        }
+
+        free_string_list(names, count);
+        free_string_list(ids, count);
+    }
+}
+
 void show_table_menu(Table *table) {
     /* Menu uses key navigation only: hide cursor */
     noecho();
@@ -449,7 +602,7 @@ void show_table_menu(Table *table) {
     PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
     keypad(modal->win, TRUE);
 
-    const char *labels[] = {"Rename Table", "Rename Book", "Export", "Open File", "Switch Table", "New Table", "Settings", "Cancel"};
+    const char *labels[] = {"Rename Table", "Rename Book", "Export", "Open File", "Book Tables", "New Table", "Settings", "Cancel"};
     int selected = 0;
     int ch;
 
@@ -499,30 +652,7 @@ void show_table_menu(Table *table) {
         case 1: prompt_rename_book(); break;
         case 2: show_export_menu(table); break;
         case 3: show_open_file(table); break;
-        case 4: {
-            char **names = NULL, **ids = NULL;
-            int count = 0, pick = 0;
-            char err[256] = {0};
-            if (workspace_list_book_tables(&names, &ids, &count, err, sizeof(err)) != 0 || count <= 0) {
-                show_error_message(err[0] ? err : "No book tables found.");
-                free_string_list(names, count);
-                free_string_list(ids, count);
-                break;
-            }
-            draw_simple_list_modal("Select table to load", (const char **)names, count, &pick);
-            if (pick >= 0) {
-                if (workspace_switch_table(table, ids[pick], err, sizeof(err)) != 0) {
-                    show_error_message(err[0] ? err : "Failed to switch table.");
-                } else {
-                    cursor_row = (table->row_count > 0) ? 0 : -1;
-                    cursor_col = 0;
-                    col_page = 0;
-                }
-            }
-            free_string_list(names, count);
-            free_string_list(ids, count);
-            break;
-        }
+        case 4: show_book_tables_page(table); break;
         case 5: {
             if (table->column_count > 0 && !workspace_autosave_enabled()) {
                 int h = 5; int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;

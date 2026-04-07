@@ -244,6 +244,98 @@ int workspace_new_table(Table *table, char *err, size_t err_sz)
     return 0;
 }
 
+int workspace_rename_table(Table *table, const char *table_id, const char *name, char *err, size_t err_sz)
+{
+    char *new_name;
+
+    if (!table_id || !*table_id) {
+        set_err(err, err_sz, "No table selected");
+        return -1;
+    }
+    if (!name || !*name) {
+        set_err(err, err_sz, "No table name provided");
+        return -1;
+    }
+    if (ensure_session_book(table, err, err_sz) != 0) return -1;
+
+    if (g_active_table_id[0] && strcmp(g_active_table_id, table_id) == 0) {
+        new_name = strdup(name);
+        if (!new_name) {
+            set_err(err, err_sz, "Out of memory");
+            return -1;
+        }
+        free(table->name);
+        table->name = new_name;
+        return save_project(table, err, err_sz);
+    }
+
+    if (save_project(table, err, err_sz) != 0) return -1;
+    if (ttbx_rename_table(g_project_path, table_id, name, err, err_sz) != 0) return -1;
+    return refresh_workspace_meta(err, err_sz);
+}
+
+int workspace_delete_table(Table *table, const char *table_id, char *err, size_t err_sz)
+{
+    TtbxManifest manifest;
+    char next_id[256] = {0};
+    int deleting_active;
+    char *book_name = NULL;
+    Table *loaded = NULL;
+
+    if (!table_id || !*table_id) {
+        set_err(err, err_sz, "No table selected");
+        return -1;
+    }
+    if (ensure_session_book(table, err, err_sz) != 0) return -1;
+    if (save_project(table, err, err_sz) != 0) return -1;
+
+    if (ttbx_manifest_load(g_project_path, &manifest, err, err_sz) != 0) return -1;
+    deleting_active = manifest.active_table_id && strcmp(manifest.active_table_id, table_id) == 0;
+
+    if (manifest.table_count <= 1) {
+        if (!deleting_active) {
+            ttbx_manifest_free(&manifest);
+            set_err(err, err_sz, "Book table not found");
+            return -1;
+        }
+        book_name = strdup(manifest.book_name ? manifest.book_name : WORKSPACE_DEFAULT_BOOK_NAME);
+        ttbx_manifest_free(&manifest);
+        if (!book_name) {
+            set_err(err, err_sz, "Out of memory");
+            return -1;
+        }
+        clear_table(table, WORKSPACE_DEFAULT_TABLE_NAME);
+        copy_active_table_id("");
+        if (ttbx_remove_book(g_project_path, err, err_sz) != 0) {
+            free(book_name);
+            return -1;
+        }
+        if (ttbx_save_table(table, g_project_path, "", err, err_sz) != 0) {
+            free(book_name);
+            return -1;
+        }
+        if (workspace_rename_book(book_name, err, err_sz) != 0) {
+            free(book_name);
+            return -1;
+        }
+        free(book_name);
+        if (refresh_workspace_meta(err, err_sz) != 0) return -1;
+        workspace_set_active_table(table);
+        return 0;
+    }
+    ttbx_manifest_free(&manifest);
+
+    if (ttbx_delete_table(g_project_path, table_id, next_id, sizeof(next_id), err, err_sz) != 0) return -1;
+    if (deleting_active) {
+        loaded = ttbx_load_table(g_project_path, next_id, err, err_sz);
+        if (!loaded) return -1;
+        replace_table_contents(table, loaded);
+        copy_active_table_id(next_id);
+        workspace_set_active_table(table);
+    }
+    return refresh_workspace_meta(err, err_sz);
+}
+
 int workspace_export_book(const char *path, char *err, size_t err_sz)
 {
     if (!path || !*path) {

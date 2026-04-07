@@ -797,6 +797,153 @@ Table *ttbx_load(const char *path, char *err, size_t err_sz)
     return ttbx_load_table(path, NULL, err, err_sz);
 }
 
+int ttbx_rename_table(const char *path, const char *table_id, const char *name, char *err, size_t err_sz)
+{
+    TtbxManifest manifest;
+    Table *table = NULL;
+    int idx;
+    char old_table_path[PATH_MAX];
+    char new_table_path[PATH_MAX];
+    char *new_name;
+
+    if (!path || !table_id || !*table_id) {
+        set_err(err, err_sz, "No table selected");
+        return -1;
+    }
+
+    if (ttbx_manifest_load(path, &manifest, err, err_sz) != 0) return -1;
+    idx = manifest_find_index(&manifest, table_id);
+    if (idx < 0) {
+        ttbx_manifest_free(&manifest);
+        set_err(err, err_sz, "Book table not found");
+        return -1;
+    }
+
+    join_path(old_table_path, sizeof(old_table_path), path, manifest.tables[idx].file);
+    if (load_table_file(old_table_path, &table, err, err_sz) != 0) {
+        ttbx_manifest_free(&manifest);
+        return -1;
+    }
+
+    new_name = strdup((name && *name) ? name : "Untitled Table");
+    if (!new_name) {
+        free_table(table);
+        ttbx_manifest_free(&manifest);
+        set_err(err, err_sz, "Out of memory");
+        return -1;
+    }
+    free(table->name);
+    table->name = new_name;
+
+    if (update_entry_identity(&manifest, idx, table->name, path, err, err_sz) != 0) {
+        free_table(table);
+        ttbx_manifest_free(&manifest);
+        return -1;
+    }
+
+    join_path(new_table_path, sizeof(new_table_path), path, manifest.tables[idx].file);
+    if (save_table_file(table, new_table_path, err, err_sz) != 0) {
+        free_table(table);
+        ttbx_manifest_free(&manifest);
+        return -1;
+    }
+    free_table(table);
+
+    if (ttbx_manifest_save(path, &manifest, err, err_sz) != 0) {
+        ttbx_manifest_free(&manifest);
+        return -1;
+    }
+
+    ttbx_manifest_free(&manifest);
+    return 0;
+}
+
+int ttbx_delete_table(const char *path, const char *table_id, char *next_active_id, size_t next_active_id_sz, char *err, size_t err_sz)
+{
+    TtbxManifest manifest;
+    int idx;
+    int was_active;
+    char deleted_path[PATH_MAX];
+    char *next_id = NULL;
+
+    if (next_active_id && next_active_id_sz > 0) next_active_id[0] = '\0';
+    if (!path || !table_id || !*table_id) {
+        set_err(err, err_sz, "No table selected");
+        return -1;
+    }
+
+    if (ttbx_manifest_load(path, &manifest, err, err_sz) != 0) return -1;
+    idx = manifest_find_index(&manifest, table_id);
+    if (idx < 0) {
+        ttbx_manifest_free(&manifest);
+        set_err(err, err_sz, "Book table not found");
+        return -1;
+    }
+    if (manifest.table_count <= 1) {
+        ttbx_manifest_free(&manifest);
+        set_err(err, err_sz, "Cannot delete the last table");
+        return -1;
+    }
+
+    was_active = manifest.active_table_id && strcmp(manifest.active_table_id, table_id) == 0;
+    if (was_active) {
+        int next_idx = (idx < manifest.table_count - 1) ? idx + 1 : idx - 1;
+        next_id = strdup(manifest.tables[next_idx].id ? manifest.tables[next_idx].id : "");
+        if (!next_id) {
+            ttbx_manifest_free(&manifest);
+            set_err(err, err_sz, "Out of memory");
+            return -1;
+        }
+    } else {
+        next_id = strdup(manifest.active_table_id ? manifest.active_table_id : "");
+        if (!next_id) {
+            ttbx_manifest_free(&manifest);
+            set_err(err, err_sz, "Out of memory");
+            return -1;
+        }
+    }
+
+    join_path(deleted_path, sizeof(deleted_path), path, manifest.tables[idx].file);
+    if (access(deleted_path, F_OK) == 0 && unlink(deleted_path) != 0) {
+        free(next_id);
+        ttbx_manifest_free(&manifest);
+        set_err(err, err_sz, strerror(errno));
+        return -1;
+    }
+
+    free(manifest.tables[idx].id);
+    free(manifest.tables[idx].name);
+    free(manifest.tables[idx].file);
+    if (idx < manifest.table_count - 1) {
+        memmove(&manifest.tables[idx], &manifest.tables[idx + 1],
+                sizeof(TtbxTableEntry) * (manifest.table_count - idx - 1));
+    }
+    manifest.table_count--;
+
+    free(manifest.active_table_id);
+    manifest.active_table_id = strdup(next_id);
+    if (!manifest.active_table_id) {
+        free(next_id);
+        ttbx_manifest_free(&manifest);
+        set_err(err, err_sz, "Out of memory");
+        return -1;
+    }
+
+    if (ttbx_manifest_save(path, &manifest, err, err_sz) != 0) {
+        free(next_id);
+        ttbx_manifest_free(&manifest);
+        return -1;
+    }
+
+    if (next_active_id && next_active_id_sz > 0) {
+        strncpy(next_active_id, next_id, next_active_id_sz - 1);
+        next_active_id[next_active_id_sz - 1] = '\0';
+    }
+    free(next_id);
+    ttbx_manifest_free(&manifest);
+    return 0;
+}
+
 int ttbx_save_table(const Table *table, const char *path, const char *table_id, char *err, size_t err_sz)
 {
     TtbxManifest manifest;

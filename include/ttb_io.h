@@ -28,6 +28,8 @@ int ttbx_copy_book(const char *src_path, const char *dst_path, char *err, size_t
 int ttbx_remove_book(const char *path, char *err, size_t err_sz);
 Table *ttbx_load(const char *path, char *err, size_t err_sz);
 Table *ttbx_load_table(const char *path, const char *table_id, char *err, size_t err_sz);
+int ttbx_rename_table(const char *path, const char *table_id, const char *name, char *err, size_t err_sz);
+int ttbx_delete_table(const char *path, const char *table_id, char *next_active_id, size_t next_active_id_sz, char *err, size_t err_sz);
 int ttbx_save(const Table *table, const char *path, char *err, size_t err_sz);
 int ttbx_save_table(const Table *table, const char *path, const char *table_id, char *err, size_t err_sz);
 
