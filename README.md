@@ -2,7 +2,7 @@
 
 ![logo](assets/ttb2_img.png)
 
-TTB2 is the new and improved 2.0 version of the terminal table builder. It features a clean ncurses UI that displays table data live, list-based menus, an integrated SQLite database manager, autosave, paging for wide and tall tables, an inline search mode, interactive row/column deletion, and a simple JSON-backed settings system. CSV and XLSX import/export support is built in, with PDF export for sharing table snapshots.
+TTB2 is the new and improved 2.0 version of the terminal table builder. It features a clean ncurses UI that displays table data live, list-based menus, autosave, paging for wide and tall tables, an inline search mode, and interactive row/column deletion. CSV and XLSX import/export support is built in, with simple PDF export for sharing table snapshots.
 
 All of the features you're used to, just improved.
 
@@ -68,9 +68,8 @@ Supported startup inputs:
 - Row paging with ↑/↓
 - Search mode: press F to search; navigate matches with ←/→/↑/↓; Esc exits; exact substring highlight inside the selected cell
 - Edit mode tools: [x] Delete Row, [Shift+X] Delete Column (guarded), [Backspace] Clear Cell
-- DB Manager: Connect/Create/Delete DB, Load Table, Delete Table, Close
-- Smart sync prompts when connecting/creating DB or loading CSV with a conflicting table name
 - Workspace auto-save to `.ttbx` projects (toggle via Settings, manual save with `S`)
+- Table Manager: Easily switch between tables within a book, rename, and delete tables.
 - Settings modal (saved to `settings/settings.json`; includes type inference, Low‑RAM seek paging, row gutter)
 - Exports: native CSV, XLSX, and PDF save options (no external runtime required)
 
@@ -85,7 +84,7 @@ Supported startup inputs:
 ![table_menu](assets/menu.png)
 
 
-## Keybindings
+## Editor Keybindings
 - `c` Add column
 - `r` Add row
 - `e` Edit mode (arrows to navigate, Enter to edit, Esc to exit)
