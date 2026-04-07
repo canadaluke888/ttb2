@@ -8,7 +8,20 @@ All of the features you're used to, just improved.
 
 ## Install
 
-Dependencies (Debian/Ubuntu packages):
+### Debian/Ubuntu package
+
+Go to the [latest TTB2 release](https://github.com/canadaluke888/ttb2/releases/latest) and download the `.deb` file.
+
+Install the downloaded package:
+```bash
+sudo apt install ./ttb2_VERSION_ARCH.deb
+```
+
+Replace `ttb2_VERSION_ARCH.deb` with the name of the file you downloaded.
+
+### Build from source
+
+Install dependencies (Debian/Ubuntu packages):
 - GCC/Clang (`build-essential`) 
   `sudo apt install build-essential`
 - ncurses (wide-char) (`libncursesw5-dev`) 
