@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include "tablecraft.h"
+#include "settings.h"
 
 // Global UI state (defined in ui_loop.c)
 extern int editing_mode;
@@ -36,6 +37,7 @@ typedef enum {
 
 // Initialization functions
 void init_colors(void);
+void apply_ui_color_settings(const AppSettings *settings);
 bool validate_input(const char *input, DataType type);
 
 // Drawing functions

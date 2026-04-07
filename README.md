@@ -70,7 +70,7 @@ Supported startup inputs:
 - Edit mode tools: [x] Delete Row, [Shift+X] Delete Column (guarded), [Backspace] Clear Cell
 - Workspace auto-save to `.ttbx` projects (toggle via Settings, manual save with `S`)
 - Table Manager: Easily switch between tables within a book, rename, and delete tables.
-- Settings modal (saved to `settings/settings.json`; includes type inference, Low‑RAM seek paging, row gutter)
+- Settings modal (saved to `settings/settings.json`; includes core toggles and editor color options)
 - Exports: native CSV, XLSX, and PDF save options (no external runtime required)
 
 ## Screenshots
