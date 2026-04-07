@@ -41,7 +41,6 @@ install: $(OUT)
 	mkdir -p $(DESTDIR)$(ICONDIR)
 	install -m 755 $(OUT) $(DESTDIR)$(BINDIR)/ttb2
 	install -m 644 README.md $(DESTDIR)$(DOCDIR)/README.md
-	install -m 644 CHANGELOG.md $(DESTDIR)$(DOCDIR)/CHANGELOG.md
 	install -m 644 LICENSE $(DESTDIR)$(DOCDIR)/LICENSE
 	install -m 644 assets/ttb2_img.png $(DESTDIR)$(ICONDIR)/ttb2.png
 	install -m 644 assets/main_ui.png $(DESTDIR)$(DOCDIR)/assets/main_ui.png
@@ -51,7 +50,6 @@ install: $(OUT)
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/ttb2
 	rm -f $(DESTDIR)$(DOCDIR)/README.md
-	rm -f $(DESTDIR)$(DOCDIR)/CHANGELOG.md
 	rm -f $(DESTDIR)$(DOCDIR)/LICENSE
 	rm -f $(DESTDIR)$(DOCDIR)/assets/main_ui.png
 	rm -f $(DESTDIR)$(DOCDIR)/assets/menu.png
