@@ -165,9 +165,6 @@ int ui_open_path(Table *table, const char *path, int preserve_current_table, int
         snprintf(err, sizeof(err), "Legacy .ttbx files are not supported. Open a .ttbx directory book.");
     } else if (workspace_open_book(table, path, err, sizeof(err)) == 0) {
         workspace_set_active_table(table);
-        if (show_book_success) {
-            show_error_message("Book loaded.");
-        }
     }
 
     if (loading_modal) {
