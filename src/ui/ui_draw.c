@@ -259,7 +259,8 @@ void draw_table_grid(Table *t) {
                         int k = 0; while (buf[p + k] && k < qlen) {
                             char a = buf[p + k]; if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
                             char b = search_query[k]; if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
-                            if (a != b) break; k++;
+                            if (a != b) break;
+                            k++;
                         }
                         if (k == qlen) { start = p; break; }
                     }
@@ -380,7 +381,7 @@ void draw_ui(Table *table) {
         } else if (del_col_mode) {
             printw("Delete Column: [←][→] Select  [Enter] Confirm  [Esc] Cancel");
         } else {
-            printw("[←][→][↑][↓] Navigate    [Enter] Edit Cell    [x] Del Row    [Shift+X] Del Col    [Backspace] Clear    [Ctrl+H] Top-Left    [Esc] Exit Edit Mode");
+            printw("[←][→][↑][↓] Navigate    [Enter] Edit Cell    [F] Search    [x] Del Row    [Shift+X] Del Col    [Backspace] Clear    [Ctrl+H] Top-Left    [Esc] Exit Edit Mode");
         }
         attroff(COLOR_PAIR(5));
         // Also show paging context in edit mode if applicable

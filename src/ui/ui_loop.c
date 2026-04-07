@@ -435,6 +435,10 @@ void start_ui_loop(Table *table) {
                         seek_mode_fetch_first(table, page, err, sizeof err);
                     }
                     break;
+                case 'f':
+                case 'F':
+                    enter_search(table);
+                    break;
                 case '\n': // Enter key
                     if (cursor_row == -1)
                         edit_header_cell(table, cursor_col);
