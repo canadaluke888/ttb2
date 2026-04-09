@@ -18,6 +18,33 @@
 
 #define MAX_INPUT 128
 
+typedef enum {
+    TABLE_MENU_ACTION_RENAME_TABLE = 0,
+    TABLE_MENU_ACTION_RENAME_BOOK,
+    TABLE_MENU_ACTION_SORT_ROWS,
+    TABLE_MENU_ACTION_FILTER_ROWS,
+    TABLE_MENU_ACTION_CLEAR_VIEW,
+    TABLE_MENU_ACTION_EXPORT,
+    TABLE_MENU_ACTION_OPEN_FILE,
+    TABLE_MENU_ACTION_BOOK_TABLES,
+    TABLE_MENU_ACTION_NEW_TABLE,
+    TABLE_MENU_ACTION_SETTINGS,
+    TABLE_MENU_ACTION_BACK
+} TableMenuAction;
+
+typedef struct {
+    int kind;
+    const char *label;
+    int action_id;
+} TableMenuEntry;
+
+enum {
+    TABLE_MENU_ROW_ACTION = 0,
+    TABLE_MENU_ROW_HEADING,
+    TABLE_MENU_ROW_UNDERLINE,
+    TABLE_MENU_ROW_SPACER
+};
+
 static int draw_simple_list_modal(const char *title, const char **items, int count, int initial_selected);
 static UiMenuResult prompt_rename_active_table(Table *table);
 static UiMenuResult prompt_rename_book(void);
@@ -31,6 +58,29 @@ int show_text_input_modal(const char *title,
 static int prompt_filename_modal(const char *title, const char *prompt, char *out, size_t out_sz);
 static int has_extension(const char *name, const char *ext);
 // (no local string-list helpers required here)
+
+static int table_menu_next_selectable(const TableMenuEntry *entries, int count, int start, int dir)
+{
+    int idx = start;
+
+    if (!entries || count <= 0 || dir == 0) return -1;
+    for (int step = 0; step < count; ++step) {
+        idx += dir;
+        if (idx < 0) idx = count - 1;
+        else if (idx >= count) idx = 0;
+        if (entries[idx].kind == TABLE_MENU_ROW_ACTION) return idx;
+    }
+    return -1;
+}
+
+static int table_menu_find_first_selectable(const TableMenuEntry *entries, int count)
+{
+    if (!entries) return -1;
+    for (int i = 0; i < count; ++i) {
+        if (entries[i].kind == TABLE_MENU_ROW_ACTION) return i;
+    }
+    return -1;
+}
 
 static int build_export_path(char *outpath, size_t outpath_sz, const char *dir, const char *filename, const char *ext)
 {
@@ -777,24 +827,63 @@ void show_table_menu(Table *table) {
     int keep_open = 1;
 
     while (keep_open) {
+        const TableMenuEntry entries[] = {
+            {TABLE_MENU_ROW_HEADING, "Table", -1},
+            {TABLE_MENU_ROW_UNDERLINE, "Table", -1},
+            {TABLE_MENU_ROW_ACTION, "Rename Table", TABLE_MENU_ACTION_RENAME_TABLE},
+            {TABLE_MENU_ROW_ACTION, "New Table", TABLE_MENU_ACTION_NEW_TABLE},
+            {TABLE_MENU_ROW_ACTION, "Book Tables", TABLE_MENU_ACTION_BOOK_TABLES},
+            {TABLE_MENU_ROW_SPACER, "", -1},
+            {TABLE_MENU_ROW_HEADING, "View", -1},
+            {TABLE_MENU_ROW_UNDERLINE, "View", -1},
+            {TABLE_MENU_ROW_ACTION, "Sort Rows", TABLE_MENU_ACTION_SORT_ROWS},
+            {TABLE_MENU_ROW_ACTION, "Filter Rows", TABLE_MENU_ACTION_FILTER_ROWS},
+            {TABLE_MENU_ROW_ACTION, "Clear Sort/Filter", TABLE_MENU_ACTION_CLEAR_VIEW},
+            {TABLE_MENU_ROW_SPACER, "", -1},
+            {TABLE_MENU_ROW_HEADING, "File", -1},
+            {TABLE_MENU_ROW_UNDERLINE, "File", -1},
+            {TABLE_MENU_ROW_ACTION, "Export", TABLE_MENU_ACTION_EXPORT},
+            {TABLE_MENU_ROW_ACTION, "Open File", TABLE_MENU_ACTION_OPEN_FILE},
+            {TABLE_MENU_ROW_SPACER, "", -1},
+            {TABLE_MENU_ROW_HEADING, "Workspace", -1},
+            {TABLE_MENU_ROW_UNDERLINE, "Workspace", -1},
+            {TABLE_MENU_ROW_ACTION, "Rename Book", TABLE_MENU_ACTION_RENAME_BOOK},
+            {TABLE_MENU_ROW_ACTION, "Settings", TABLE_MENU_ACTION_SETTINGS},
+            {TABLE_MENU_ROW_SPACER, "", -1},
+            {TABLE_MENU_ROW_ACTION, "Back to Editor", TABLE_MENU_ACTION_BACK}
+        };
+        const int entry_count = (int)(sizeof(entries) / sizeof(entries[0]));
+        const char *hint = "[↑][↓] Navigate  [Enter] Select  [Esc] Back";
+        int body_rows = entry_count + 2; /* blank line before footer + footer hint row */
+        int content_w = 0;
+        int selected = table_menu_find_first_selectable(entries, entry_count);
+        int chosen_action = TABLE_MENU_ACTION_BACK;
+        int ch;
+
         /* Menu uses key navigation only: hide cursor */
         noecho();
         curs_set(0);
 
-        int options_count = 11;
-        int h = options_count + 4; /* title underline + options */
+        for (int i = 0; i < entry_count; ++i) {
+            int len = (int)strlen(entries[i].label);
+            if (len > content_w) content_w = len;
+        }
+        if ((int)strlen(hint) > content_w) content_w = (int)strlen(hint);
+
+        int h = body_rows + 4; /* title underline + body + footer area */
         if (h < 8) h = 8; /* minimum height for comfort */
-        int w = COLS - 4;
+        if (h > LINES - 2) h = LINES - 2;
+        int w = content_w + 8;
+        if (w < 34) w = 34;
+        if (w > COLS - 4) w = COLS - 4;
+        if (w < 20) w = COLS - 2;
+        if (w < 20) w = 20;
         int y = (LINES - h) / 2;
-        int x = 2;
+        int x = (COLS - w) / 2;
 
         PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
         PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
         keypad(modal->win, TRUE);
-
-        const char *labels[] = {"Rename Table", "Rename Book", "Sort Rows", "Filter Rows", "Clear Sort/Filter", "Export", "Open File", "Book Tables", "New Table", "Settings", "Back to Editor"};
-        int selected = 0;
-        int ch;
 
         while (1) {
             werase(modal->win);
@@ -806,13 +895,36 @@ void show_table_menu(Table *table) {
             mvwaddch(modal->win, 2, 0, ACS_LTEE);
             mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
 
-            for (int i = 0; i < options_count; i++) {
+            for (int i = 0; i < entry_count; i++) {
                 int row = 3 + i;
-                if (row >= h - 1) break;
+                if (row >= h - 2) break;
+                if (entries[i].kind != TABLE_MENU_ROW_ACTION) {
+                    if (entries[i].kind == TABLE_MENU_ROW_SPACER) {
+                        mvwhline(modal->win, row, 2, ' ', w - 4);
+                    } else if (entries[i].kind == TABLE_MENU_ROW_UNDERLINE) {
+                        mvwhline(modal->win, row, 2, ACS_HLINE, w - 4);
+                    } else {
+                        int heading_x = (w - (int)strlen(entries[i].label)) / 2;
+                        if (heading_x < 2) heading_x = 2;
+                        wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
+                        mvwprintw(modal->win, row, heading_x, "%s", entries[i].label);
+                        wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
+                    }
+                    continue;
+                }
                 if (i == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
-                mvwprintw(modal->win, row, 2, "%s", labels[i]);
+                mvwprintw(modal->win,
+                          row,
+                          (entries[i].action_id == TABLE_MENU_ACTION_BACK) ? 2 : 4,
+                          "%s",
+                          entries[i].label);
                 if (i == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
             }
+
+            mvwhline(modal->win, h - 3, 2, ' ', w - 4);
+            wattron(modal->win, COLOR_PAIR(4));
+            mvwprintw(modal->win, h - 2, 2, "%.*s", w - 4, hint);
+            wattroff(modal->win, COLOR_PAIR(4));
 
             pm_wnoutrefresh(shadow);
             pm_wnoutrefresh(modal);
@@ -820,13 +932,18 @@ void show_table_menu(Table *table) {
 
             ch = wgetch(modal->win);
             if (ch == KEY_UP) {
-                selected = (selected > 0) ? selected - 1 : options_count - 1;
+                int next = table_menu_next_selectable(entries, entry_count, selected, -1);
+                if (next >= 0) selected = next;
             } else if (ch == KEY_DOWN) {
-                selected = (selected + 1) % options_count;
+                int next = table_menu_next_selectable(entries, entry_count, selected, +1);
+                if (next >= 0) selected = next;
             } else if (ch == '\n') {
+                if (selected >= 0 && selected < entry_count && entries[selected].kind == TABLE_MENU_ROW_ACTION) {
+                    chosen_action = entries[selected].action_id;
+                }
                 break;
             } else if (ch == 27) { /* Esc */
-                selected = options_count - 1; /* Back to editor */
+                chosen_action = TABLE_MENU_ACTION_BACK;
                 break;
             }
         }
@@ -837,35 +954,35 @@ void show_table_menu(Table *table) {
         noecho();
         curs_set(0);
 
-        switch (selected) {
-            case 0:
+        switch (chosen_action) {
+            case TABLE_MENU_ACTION_RENAME_TABLE:
                 if (prompt_rename_active_table(table) == UI_MENU_DONE) keep_open = 0;
                 break;
-            case 1:
+            case TABLE_MENU_ACTION_RENAME_BOOK:
                 if (prompt_rename_book() == UI_MENU_DONE) keep_open = 0;
                 break;
-            case 2:
+            case TABLE_MENU_ACTION_SORT_ROWS:
                 prompt_sort_rows(table);
                 keep_open = 0;
                 break;
-            case 3:
+            case TABLE_MENU_ACTION_FILTER_ROWS:
                 prompt_filter_rows(table);
                 keep_open = 0;
                 break;
-            case 4:
+            case TABLE_MENU_ACTION_CLEAR_VIEW:
                 clear_table_view_prompt(table);
                 keep_open = 0;
                 break;
-            case 5:
+            case TABLE_MENU_ACTION_EXPORT:
                 if (show_export_menu(table) == UI_MENU_DONE) keep_open = 0;
                 break;
-            case 6:
+            case TABLE_MENU_ACTION_OPEN_FILE:
                 if (show_open_file(table) == UI_MENU_DONE) keep_open = 0;
                 break;
-            case 7:
+            case TABLE_MENU_ACTION_BOOK_TABLES:
                 if (show_book_tables_page(table) == UI_MENU_DONE) keep_open = 0;
                 break;
-            case 8: {
+            case TABLE_MENU_ACTION_NEW_TABLE: {
                 if (table->column_count > 0 && !workspace_autosave_enabled()) {
                     int h = 5; int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
                     PmNode *sh = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
@@ -891,7 +1008,7 @@ void show_table_menu(Table *table) {
                 keep_open = 0;
                 break;
             }
-            case 9:
+            case TABLE_MENU_ACTION_SETTINGS:
                 if (show_settings_menu() == UI_MENU_DONE) keep_open = 0;
                 break;
             default:
