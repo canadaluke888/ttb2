@@ -107,15 +107,67 @@ static void draw_action_hint_segment(int y, int *x, int max_x, const char *text)
             }
             {
                 char keybuf[256];
-                size_t len = (size_t)(close - open + 1);
+                char display_buf[256];
+                int key_attr = COLOR_PAIR(7) | A_BOLD;
+                size_t len = (size_t)(close - open - 1);
                 if (len >= sizeof(keybuf)) len = sizeof(keybuf) - 1;
-                memcpy(keybuf, open, len);
+                memcpy(keybuf, open + 1, len);
                 keybuf[len] = '\0';
-                draw_status_segment(y, x, max_x, COLOR_PAIR(7) | A_BOLD, keybuf);
+
+                if (strcmp(keybuf, "Left Bracket") == 0) {
+                    snprintf(display_buf, sizeof(display_buf), "[");
+                    key_attr = COLOR_PAIR(10) | A_BOLD;
+                } else if (strcmp(keybuf, "Right Bracket") == 0) {
+                    snprintf(display_buf, sizeof(display_buf), "]");
+                    key_attr = COLOR_PAIR(10) | A_BOLD;
+                } else if (strcmp(keybuf, "{") == 0 || strcmp(keybuf, "}") == 0) {
+                    snprintf(display_buf, sizeof(display_buf), "%s", keybuf);
+                    key_attr = COLOR_PAIR(10) | A_BOLD;
+                } else if (strcmp(keybuf, "v") == 0 || strcmp(keybuf, "V") == 0) {
+                    snprintf(display_buf, sizeof(display_buf), "[%s]", keybuf);
+                } else {
+                    snprintf(display_buf, sizeof(display_buf), "%s", keybuf);
+                }
+
+                draw_status_segment(y, x, max_x, key_attr, display_buf);
             }
             cursor = close + 1;
         }
     }
+}
+
+static void draw_footer_page_indicator(int y, int *x, int max_x)
+{
+    char buf[48];
+
+    snprintf(buf, sizeof(buf), "Footer %d/2 [Tab] More", footer_page + 1);
+    draw_status_segment(y, x, max_x, COLOR_PAIR(4) | A_BOLD, buf);
+}
+
+static void draw_footer_separator(int y, int *x, int max_x)
+{
+    draw_status_segment(y, x, max_x, COLOR_PAIR(8) | A_BOLD, "  |  ");
+}
+
+static void draw_footer_box(void)
+{
+    int left = 1;
+    int right = COLS - 2;
+    int top = LINES - 3;
+    int bottom = LINES - 1;
+
+    if (COLS < 4 || LINES < 4) return;
+
+    attron(COLOR_PAIR(6));
+    mvaddch(top, left, ACS_ULCORNER);
+    mvhline(top, left + 1, ACS_HLINE, right - left - 1);
+    mvaddch(top, right, ACS_URCORNER);
+    mvvline(top + 1, left, ACS_VLINE, bottom - top - 1);
+    mvvline(top + 1, right, ACS_VLINE, bottom - top - 1);
+    mvaddch(bottom, left, ACS_LLCORNER);
+    mvhline(bottom, left + 1, ACS_HLINE, right - left - 1);
+    mvaddch(bottom, right, ACS_LRCORNER);
+    attroff(COLOR_PAIR(6));
 }
 
 void draw_table_grid(Table *t) {
@@ -135,7 +187,7 @@ void draw_table_grid(Table *t) {
 
     int x = 2, y = 2;
     // Estimate rows visible to constrain width scan to current page (prevents O(N) scans)
-    int grid_available_lines_est = LINES - 4;
+    int grid_available_lines_est = LINES - 5;
     int rows_vis_est = (grid_available_lines_est - 3) / 2;
     if (rows_vis_est < 1) rows_vis_est = 1;
     int rstart_est = row_page * rows_vis_est; if (rstart_est < 0) rstart_est = 0; if (rstart_est > visible_row_count) rstart_est = visible_row_count;
@@ -201,7 +253,8 @@ void draw_table_grid(Table *t) {
     }
 
     // If in search mode, ensure the page shows the cursor column
-    if (search_mode && t->column_count > 0 && cursor_col >= 0 && cursor_col < t->column_count) {
+    if ((search_mode || reorder_mode == UI_REORDER_MOVE_COL || reorder_mode == UI_REORDER_SWAP_COL) &&
+        t->column_count > 0 && cursor_col >= 0 && cursor_col < t->column_count) {
         for (int p = 0; p < pages; ++p) {
             int s = page_starts[p];
             int wsum2 = 0, vis2 = 0;
@@ -274,8 +327,16 @@ void draw_table_grid(Table *t) {
         int remaining;
         int used = 0;
         extern int del_col_mode;
+        int highlight_source = (editing_mode &&
+                                (reorder_mode == UI_REORDER_MOVE_COL || reorder_mode == UI_REORDER_SWAP_COL) &&
+                                reorder_source_col == j);
+        int highlight_dest_col = (editing_mode &&
+                                  (reorder_mode == UI_REORDER_MOVE_COL || reorder_mode == UI_REORDER_SWAP_COL) &&
+                                  cursor_col == j);
         if ((editing_mode || search_mode) && cursor_row == -1 && cursor_col == j) attron(A_REVERSE);
         if (editing_mode && del_col_mode && cursor_col == j) attron(A_REVERSE);
+        if (highlight_dest_col) attron(A_REVERSE);
+        if (highlight_source) attron(A_REVERSE);
 
         attron(COLOR_PAIR(t->columns[j].color_pair_id) | A_BOLD);
         addch(' ');
@@ -294,6 +355,8 @@ void draw_table_grid(Table *t) {
 
         if ((editing_mode || search_mode) && cursor_row == -1 && cursor_col == j) attroff(A_REVERSE);
         if (editing_mode && del_col_mode && cursor_col == j) attroff(A_REVERSE);
+        if (highlight_dest_col) attroff(A_REVERSE);
+        if (highlight_source) attroff(A_REVERSE);
 
         for (int s = used; s < col_widths[j]; s++)
             addch(' ');
@@ -314,7 +377,7 @@ void draw_table_grid(Table *t) {
     attroff(COLOR_PAIR(6));
 
     // Calculate vertical paging capacity
-    int grid_available_lines = LINES - 4; // space between title and footer
+    int grid_available_lines = LINES - 5; // space between title and boxed footer
     int max_rows = (grid_available_lines - 3) / 2; // from 2*N + 3 <= available
     if (max_rows < 1) max_rows = 1;
     rows_visible = max_rows;
@@ -352,9 +415,19 @@ void draw_table_grid(Table *t) {
 
             extern int del_row_mode, del_col_mode;
             int highlight_cell = 0;
+            int highlight_source = 0;
             if ((editing_mode || search_mode) && cursor_row == i && cursor_col == j) highlight_cell = 1;
+            if (editing_mode && (reorder_mode == UI_REORDER_MOVE_ROW || reorder_mode == UI_REORDER_SWAP_ROW) && i == cursor_row)
+                highlight_cell = 1;
+            if (editing_mode && (reorder_mode == UI_REORDER_MOVE_COL || reorder_mode == UI_REORDER_SWAP_COL) && j == cursor_col)
+                highlight_cell = 1;
             if (editing_mode && del_row_mode && i == cursor_row) highlight_cell = 1;
             if (editing_mode && del_col_mode && j == cursor_col) highlight_cell = 1;
+            if (editing_mode && (reorder_mode == UI_REORDER_MOVE_ROW || reorder_mode == UI_REORDER_SWAP_ROW) && i == reorder_source_row)
+                highlight_source = 1;
+            if (editing_mode && (reorder_mode == UI_REORDER_MOVE_COL || reorder_mode == UI_REORDER_SWAP_COL) && j == reorder_source_col)
+                highlight_source = 1;
+            if (highlight_source) attron(A_REVERSE);
             if (highlight_cell) attron(A_REVERSE);
 
             // Draw cell with optional search substring highlight if selected in search mode
@@ -365,6 +438,7 @@ void draw_table_grid(Table *t) {
             }
 
             if (highlight_cell) attroff(A_REVERSE);
+            if (highlight_source) attroff(A_REVERSE);
 
             attron(COLOR_PAIR(6)); addstr("│"); attroff(COLOR_PAIR(6));
         }
@@ -403,7 +477,6 @@ void draw_table_grid(Table *t) {
 void draw_ui(Table *table) {
     char view_buf[512];
     int max_x = COLS - 3;
-    int separator_attr = COLOR_PAIR(8) | A_BOLD;
 
     erase();
 
@@ -435,36 +508,44 @@ void draw_ui(Table *table) {
         attroff(COLOR_PAIR(4));
     }
 
+    draw_footer_box();
+
     // Footer: general hints vs paging hints colored differently
     int fy = LINES - 2;
     int fx = 2;
     if (search_mode) {
         draw_action_hint_segment(fy, &fx, max_x, "[←][→][↑][↓] Prev/Next Match");
-        draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+        draw_footer_separator(fy, &fx, max_x);
         draw_action_hint_segment(fy, &fx, max_x, "[Esc] Exit Search");
         extern int search_hit_index; extern int search_hit_count;
         {
             char match_buf[64];
-            draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+            draw_footer_separator(fy, &fx, max_x);
             snprintf(match_buf, sizeof(match_buf), "Matches %d/%d", (search_hit_count > 0 ? (search_hit_index + 1) : 0), search_hit_count);
             draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), match_buf);
         }
     } else if (!editing_mode) {
-        draw_action_hint_segment(fy, &fx, max_x, "[C] Add Column  [R] Add Row  [F] Search  [E] Edit Mode  [M] Menu  [S] Save  [Q] Quit  [Ctrl+H] Top-Left");
+        draw_action_hint_segment(fy, &fx, max_x, "[C] Add Column  [R] Add Row");
+        draw_footer_separator(fy, &fx, max_x);
+        draw_action_hint_segment(fy, &fx, max_x, "[F] Search  [E] Edit Mode");
+        draw_footer_separator(fy, &fx, max_x);
+        draw_action_hint_segment(fy, &fx, max_x, "[M] Menu  [S] Save  [Q] Quit");
+        draw_footer_separator(fy, &fx, max_x);
+        draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+H] Top-Left");
         if (ui_visible_row_count(table) == 0 && ui_table_view_is_active()) {
-            draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+            draw_footer_separator(fy, &fx, max_x);
             draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, "0 results");
         }
         if (total_pages > 1 || total_row_pages > 1) {
             if (total_pages > 1) {
                 char buf[64];
-                draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+                draw_footer_separator(fy, &fx, max_x);
                 snprintf(buf, sizeof(buf), "Cols Pg %d/%d [←][→] Columns", col_page + 1, total_pages);
                 draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
             if (total_row_pages > 1) {
                 char buf[64];
-                draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+                draw_footer_separator(fy, &fx, max_x);
                 snprintf(buf, sizeof(buf), "Rows Pg %d/%d [↑][↓] Rows", row_page + 1, total_row_pages);
                 draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
@@ -475,25 +556,61 @@ void draw_ui(Table *table) {
             draw_action_hint_segment(fy, &fx, max_x, "Del Row: [↑][↓] Select [Enter] Confirm [Esc] Cancel");
         } else if (del_col_mode) {
             draw_action_hint_segment(fy, &fx, max_x, "Del Col: [←][→] Select [Enter] Confirm [Esc] Cancel");
+        } else if (reorder_mode == UI_REORDER_MOVE_ROW) {
+            if (footer_page == 0) {
+                draw_action_hint_segment(fy, &fx, max_x, "Move Row: [↑][↓] Destination [Enter] Place [Esc] Cancel");
+            } else {
+                draw_action_hint_segment(fy, &fx, max_x, "[Source] Highlighted [Cursor] Highlighted  Prompt: [Above] or [Below]");
+            }
+        } else if (reorder_mode == UI_REORDER_MOVE_COL) {
+            if (footer_page == 0) {
+                draw_action_hint_segment(fy, &fx, max_x, "Move Col: [←][→] Destination [Enter] Place [Esc] Cancel");
+            } else {
+                draw_action_hint_segment(fy, &fx, max_x, "[Source] Highlighted [Cursor] Highlighted  Prompt: [Left] or [Right]");
+            }
+        } else if (reorder_mode == UI_REORDER_SWAP_ROW) {
+            if (footer_page == 0) {
+                draw_action_hint_segment(fy, &fx, max_x, "Swap Row: [↑][↓] Destination [Enter] Confirm [Esc] Cancel");
+            } else {
+                draw_action_hint_segment(fy, &fx, max_x, "[Source] Highlighted [Cursor] Highlighted  Swap occurs after destination confirm");
+            }
+        } else if (reorder_mode == UI_REORDER_SWAP_COL) {
+            if (footer_page == 0) {
+                draw_action_hint_segment(fy, &fx, max_x, "Swap Col: [←][→] Destination [Enter] Confirm [Esc] Cancel");
+            } else {
+                draw_action_hint_segment(fy, &fx, max_x, "[Source] Highlighted [Cursor] Highlighted  Swap occurs after destination confirm");
+            }
         } else {
-            draw_action_hint_segment(fy, &fx, max_x, "[←][→][↑][↓] Nav [Enter] Edit [F] Search [x] Del Row [Shift+X] Del Col [Bksp] Clear [Ctrl+H] Home [Esc] Exit");
-            draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
-            draw_action_hint_segment(fy, &fx, max_x, "Insert: [Left Bracket] Above  [Right Bracket] Below  [{] Left  [}] Right");
+            if (footer_page == 0) {
+                draw_action_hint_segment(fy, &fx, max_x, "[←][→][↑][↓] Nav  [Enter] Edit  [F] Search");
+                draw_footer_separator(fy, &fx, max_x);
+                draw_action_hint_segment(fy, &fx, max_x, "[x] Del Row  [Shift+X] Del Col  [Bksp] Clear");
+                draw_footer_separator(fy, &fx, max_x);
+                draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+H] Home  [Esc] Exit");
+            } else {
+                draw_action_hint_segment(fy, &fx, max_x, "Insert: [Left Bracket] Above  [Right Bracket] Below");
+                draw_footer_separator(fy, &fx, max_x);
+                draw_action_hint_segment(fy, &fx, max_x, "[{] Left  [}] Right");
+                draw_footer_separator(fy, &fx, max_x);
+                draw_action_hint_segment(fy, &fx, max_x, "[v] Move  [V] Swap");
+            }
         }
+        draw_footer_separator(fy, &fx, max_x);
+        draw_footer_page_indicator(fy, &fx, max_x);
         if (ui_visible_row_count(table) == 0 && ui_table_view_is_active()) {
-            draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+            draw_footer_separator(fy, &fx, max_x);
             draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, "0 results");
         }
         if (total_pages > 1 || total_row_pages > 1) {
             if (total_pages > 1) {
                 char buf[32];
-                draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+                draw_footer_separator(fy, &fx, max_x);
                 snprintf(buf, sizeof(buf), "Cols Pg %d/%d", col_page + 1, total_pages);
                 draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
             if (total_row_pages > 1) {
                 char buf[32];
-                draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+                draw_footer_separator(fy, &fx, max_x);
                 snprintf(buf, sizeof(buf), "Rows Pg %d/%d", row_page + 1, total_row_pages);
                 draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }

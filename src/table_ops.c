@@ -173,6 +173,14 @@ static void assign_column_color(Table *table, int index)
     table->columns[index].color_pair_id = color_cycle[index % color_count];
 }
 
+static void reassign_column_colors(Table *table)
+{
+    if (!table) return;
+    for (int i = 0; i < table->column_count; ++i) {
+        assign_column_color(table, i);
+    }
+}
+
 int tableop_set_cell(Table *table, int row, int col, const char *input, char *err, size_t err_sz)
 {
     void *parsed = NULL;
@@ -262,6 +270,158 @@ int tableop_delete_column(Table *table, int col, char *err, size_t err_sz)
         }
     }
 
+    table->dirty = 1;
+    return 0;
+}
+
+int tableop_move_row(Table *table, int src_row, int dst_row, int place_after, char *err, size_t err_sz)
+{
+    Row moved_row;
+    int insert_index;
+
+    if (!table || src_row < 0 || src_row >= table->row_count || dst_row < 0 || dst_row >= table->row_count) {
+        set_err(err, err_sz, "Invalid row");
+        return -1;
+    }
+
+    if (src_row == dst_row) {
+        set_err(err, err_sz, "Choose a different destination row");
+        return -1;
+    }
+
+    insert_index = dst_row + (place_after ? 1 : 0);
+    if ((!place_after && src_row == dst_row - 1) || (place_after && src_row == dst_row + 1)) {
+        set_err(err, err_sz, "Move would not change row order");
+        return -1;
+    }
+    moved_row = table->rows[src_row];
+
+    if (src_row < dst_row) {
+        memmove(&table->rows[src_row],
+                &table->rows[src_row + 1],
+                (size_t)(dst_row - src_row) * sizeof(Row));
+        insert_index--;
+    } else {
+        memmove(&table->rows[dst_row + 1],
+                &table->rows[dst_row],
+                (size_t)(src_row - dst_row) * sizeof(Row));
+    }
+
+    table->rows[insert_index] = moved_row;
+    table->dirty = 1;
+    return 0;
+}
+
+int tableop_move_column(Table *table, int src_col, int dst_col, int place_after, char *err, size_t err_sz)
+{
+    Column moved_col;
+    int insert_index;
+
+    if (!table || src_col < 0 || src_col >= table->column_count || dst_col < 0 || dst_col >= table->column_count) {
+        set_err(err, err_sz, "Invalid column");
+        return -1;
+    }
+
+    if (src_col == dst_col) {
+        set_err(err, err_sz, "Choose a different destination column");
+        return -1;
+    }
+
+    insert_index = dst_col + (place_after ? 1 : 0);
+    if ((!place_after && src_col == dst_col - 1) || (place_after && src_col == dst_col + 1)) {
+        set_err(err, err_sz, "Move would not change column order");
+        return -1;
+    }
+    moved_col = table->columns[src_col];
+
+    if (src_col < dst_col) {
+        memmove(&table->columns[src_col],
+                &table->columns[src_col + 1],
+                (size_t)(dst_col - src_col) * sizeof(Column));
+        insert_index--;
+    } else {
+        memmove(&table->columns[dst_col + 1],
+                &table->columns[dst_col],
+                (size_t)(src_col - dst_col) * sizeof(Column));
+    }
+    table->columns[insert_index] = moved_col;
+
+    for (int r = 0; r < table->row_count; ++r) {
+        void **values;
+        void *moved_value;
+
+        values = table->rows[r].values;
+        if (!values) continue;
+
+        moved_value = values[src_col];
+        if (src_col < dst_col) {
+            memmove(&values[src_col],
+                    &values[src_col + 1],
+                    (size_t)(dst_col - src_col) * sizeof(void *));
+            insert_index = dst_col + (place_after ? 1 : 0) - 1;
+        } else {
+            memmove(&values[dst_col + 1],
+                    &values[dst_col],
+                    (size_t)(src_col - dst_col) * sizeof(void *));
+            insert_index = dst_col + (place_after ? 1 : 0);
+        }
+        values[insert_index] = moved_value;
+    }
+
+    reassign_column_colors(table);
+    table->dirty = 1;
+    return 0;
+}
+
+int tableop_swap_rows(Table *table, int row_a, int row_b, char *err, size_t err_sz)
+{
+    Row tmp;
+
+    if (!table || row_a < 0 || row_a >= table->row_count || row_b < 0 || row_b >= table->row_count) {
+        set_err(err, err_sz, "Invalid row");
+        return -1;
+    }
+
+    if (row_a == row_b) {
+        set_err(err, err_sz, "Choose a different destination row");
+        return -1;
+    }
+
+    tmp = table->rows[row_a];
+    table->rows[row_a] = table->rows[row_b];
+    table->rows[row_b] = tmp;
+    table->dirty = 1;
+    return 0;
+}
+
+int tableop_swap_columns(Table *table, int col_a, int col_b, char *err, size_t err_sz)
+{
+    Column tmp_col;
+
+    if (!table || col_a < 0 || col_a >= table->column_count || col_b < 0 || col_b >= table->column_count) {
+        set_err(err, err_sz, "Invalid column");
+        return -1;
+    }
+
+    if (col_a == col_b) {
+        set_err(err, err_sz, "Choose a different destination column");
+        return -1;
+    }
+
+    tmp_col = table->columns[col_a];
+    table->columns[col_a] = table->columns[col_b];
+    table->columns[col_b] = tmp_col;
+
+    for (int r = 0; r < table->row_count; ++r) {
+        void *tmp_value;
+
+        if (!table->rows[r].values) continue;
+        tmp_value = table->rows[r].values[col_a];
+        table->rows[r].values[col_a] = table->rows[r].values[col_b];
+        table->rows[r].values[col_b] = tmp_value;
+    }
+
+    reassign_column_colors(table);
     table->dirty = 1;
     return 0;
 }

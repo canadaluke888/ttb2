@@ -80,7 +80,8 @@ Supported startup inputs:
 - Column paging with ←/→ and footer hints
 - Row paging with ↑/↓
 - Search mode: press F to search; navigate matches with ←/→/↑/↓; Esc exits; exact substring highlight inside the selected cell
-- Edit mode tools: [x] Delete Row, [Shift+X] Delete Column (guarded), [Backspace] Clear Cell
+- Edit mode tools: [x] Delete Row, [Shift+X] Delete Column (guarded), [Backspace] Clear Cell, [v] Move Row/Column, [V] Swap Row/Column
+- Paged edit footer hints with `Tab` to switch between footer pages
 - Workspace auto-save to `.ttbx` projects (toggle via Settings, manual save with `S`)
 - Table Manager: Easily switch between tables within a book, rename, and delete tables.
 - Settings modal (saved to `settings/settings.json`; includes core toggles and editor color options)
@@ -112,7 +113,12 @@ Supported startup inputs:
   - `F` Search mode
   - `x` Delete row (interactive; Enter confirms)
   - `Shift+X` Delete column (interactive; Enter confirms)
+  - `v` Move row or column (row when on a body row, column when on the header)
+  - `V` Swap row or column (row when on a body row, column when on the header)
+  - `Tab` Cycle footer hint pages
   - `Backspace` Clear cell (with confirmation)
+  - Move row prompts for `Above` or `Below` after you pick the destination row
+  - Move column prompts for `Left` or `Right` after you pick the destination column
   - `Ctrl+H` Jump to top‑left (Home)
   - `Esc` Back
 

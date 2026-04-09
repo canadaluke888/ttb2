@@ -266,6 +266,29 @@ static int list_confirm(const char *title, const char **items, int count) {
     return sel;
 }
 
+int prompt_move_row_placement(Table *t, int source_row, int target_row)
+{
+    const char *opts[] = { "Above", "Below", "Cancel" };
+    char title[96];
+
+    (void)t;
+    snprintf(title, sizeof(title), "Move Row %d relative to Row %d", source_row + 1, target_row + 1);
+    return list_confirm(title, opts, 3);
+}
+
+int prompt_move_column_placement(Table *t, int source_col, int target_col)
+{
+    const char *opts[] = { "Left", "Right", "Cancel" };
+    char title[160];
+
+    snprintf(title,
+             sizeof(title),
+             "Move '%s' relative to '%s'",
+             t->columns[source_col].name,
+             t->columns[target_col].name);
+    return list_confirm(title, opts, 3);
+}
+
 void confirm_delete_row_at(Table *t, int row) {
     if (!t || t->row_count <= 0 || row < 0 || row >= t->row_count) { show_error_message("No row to delete."); return; }
     const char *opts[] = { "Yes", "No" };

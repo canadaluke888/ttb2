@@ -27,10 +27,23 @@ extern int total_row_pages; // total row pages
 // Performance mode
 extern int low_ram_mode; // when 1, UI fetches windows via seekdb
 extern int row_gutter_enabled; // show/hide row number gutter
+extern int footer_page;
 // Destructive selection modes inside edit mode
 extern int del_row_mode;  // when 1, highlight full row and navigate with ↑/↓, Enter confirms delete
 extern int del_col_mode;  // when 1, highlight full column and navigate with ←/→, Enter confirms delete
 extern TableView ui_table_view;
+
+typedef enum {
+    UI_REORDER_NONE = 0,
+    UI_REORDER_MOVE_ROW,
+    UI_REORDER_MOVE_COL,
+    UI_REORDER_SWAP_ROW,
+    UI_REORDER_SWAP_COL
+} UiReorderMode;
+
+extern UiReorderMode reorder_mode;
+extern int reorder_source_row;
+extern int reorder_source_col;
 
 typedef enum {
     UI_MENU_DONE = 0,
@@ -53,6 +66,8 @@ void edit_body_cell(Table *table, int row, int col);
 void prompt_clear_cell(Table *table, int row, int col);
 void confirm_delete_row_at(Table *table, int row);
 void confirm_delete_column_at(Table *table, int col);
+int prompt_move_row_placement(Table *table, int source_row, int target_row);
+int prompt_move_column_placement(Table *table, int source_col, int target_col);
 
 // Prompt functions
 void prompt_add_column(Table *table);

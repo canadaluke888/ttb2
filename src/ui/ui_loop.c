@@ -8,6 +8,8 @@
 #include "errors.h"  // Added to provide declaration for show_error_message
 #include "panel_manager.h"
 #include "workspace.h"
+#include "db_manager.h"
+#include "table_ops.h"
 
 // Define global UI state variables
 int editing_mode = 0;
@@ -27,6 +29,10 @@ int rows_visible = 0;
 int total_row_pages = 1;
 int low_ram_mode = 0; // exported in ui.h
 int row_gutter_enabled = 1; // exported in ui.h
+int footer_page = 0;
+UiReorderMode reorder_mode = UI_REORDER_NONE;
+int reorder_source_row = -1;
+int reorder_source_col = -1;
 TableView ui_table_view;
 
 // Local search state (current in-memory table/window)
@@ -37,6 +43,96 @@ int search_sel_start = -1;
 int search_sel_len = 0;
 
 static void exit_search(void);
+
+static int ui_reorder_active(void)
+{
+    return reorder_mode != UI_REORDER_NONE;
+}
+
+static void clear_reorder_mode(void)
+{
+    reorder_mode = UI_REORDER_NONE;
+    reorder_source_row = -1;
+    reorder_source_col = -1;
+}
+
+static void advance_footer_page(void)
+{
+    footer_page = (footer_page + 1) % 2;
+}
+
+static void ensure_cursor_column_visible(const Table *table)
+{
+    if (!table || table->column_count <= 0) {
+        col_page = 0;
+        return;
+    }
+
+    if (cursor_col < 0) cursor_col = 0;
+    if (cursor_col >= table->column_count) cursor_col = table->column_count - 1;
+
+    while (cols_visible > 0 && cursor_col < col_start && col_page > 0) {
+        col_page--;
+    }
+    while (cols_visible > 0 && cursor_col >= col_start + cols_visible && col_page < total_pages - 1) {
+        col_page++;
+    }
+}
+
+static void ensure_cursor_row_visible(Table *table)
+{
+    int visible_rows = ui_visible_row_count(table);
+
+    if (visible_rows <= 0 || rows_visible <= 0) {
+        cursor_row = -1;
+        row_page = 0;
+        return;
+    }
+
+    if (cursor_row < 0) cursor_row = 0;
+    if (cursor_row >= visible_rows) cursor_row = visible_rows - 1;
+    row_page = cursor_row / rows_visible;
+}
+
+static void move_cursor_left_paged(const Table *table)
+{
+    if (!table || table->column_count <= 0) return;
+    if (cursor_col > 0) cursor_col--;
+    ensure_cursor_column_visible(table);
+}
+
+static void move_cursor_right_paged(const Table *table)
+{
+    if (!table || table->column_count <= 0) return;
+    if (cursor_col < table->column_count - 1) cursor_col++;
+    ensure_cursor_column_visible(table);
+}
+
+static void move_cursor_up_paged(Table *table)
+{
+    int visible_rows = ui_visible_row_count(table);
+
+    if (visible_rows <= 0) {
+        cursor_row = -1;
+        row_page = 0;
+        return;
+    }
+    if (cursor_row > 0) cursor_row--;
+    ensure_cursor_row_visible(table);
+}
+
+static void move_cursor_down_paged(Table *table)
+{
+    int visible_rows = ui_visible_row_count(table);
+
+    if (visible_rows <= 0) {
+        cursor_row = -1;
+        row_page = 0;
+        return;
+    }
+    if (cursor_row < visible_rows - 1) cursor_row++;
+    ensure_cursor_row_visible(table);
+}
 
 static void clear_search_hits(void) {
     if (hits) { free(hits); hits = NULL; }
@@ -81,6 +177,8 @@ void ui_reset_table_view(Table *table)
 {
     (void)table;
     exit_search();
+    clear_reorder_mode();
+    footer_page = 0;
     tableview_free(&ui_table_view);
     cursor_row = -1;
     cursor_col = 0;
@@ -112,6 +210,26 @@ static void clamp_cursor_viewport(const Table *table) {
         } else {
             if (cursor_row < 0) cursor_row = 0;
             if (cursor_row >= visible_rows) cursor_row = visible_rows - 1;
+        }
+        return;
+    }
+
+    if (ui_reorder_active()) {
+        if (table) {
+            if (cursor_col < 0) cursor_col = 0;
+            if (cursor_col >= table->column_count) cursor_col = (table->column_count > 0) ? (table->column_count - 1) : 0;
+        }
+        if (visible_rows <= 0) {
+            cursor_row = -1;
+            row_page = 0;
+        } else {
+            if (reorder_mode == UI_REORDER_MOVE_COL || reorder_mode == UI_REORDER_SWAP_COL) {
+                if (cursor_row < -1) cursor_row = -1;
+            } else if (cursor_row < 0) {
+                cursor_row = 0;
+            }
+            if (cursor_row >= visible_rows) cursor_row = visible_rows - 1;
+            if (cursor_row >= 0 && rows_visible > 0) row_page = cursor_row / rows_visible;
         }
         return;
     }
@@ -225,6 +343,18 @@ static void exit_search(void) {
     clear_search_hits();
 }
 
+static void finish_reorder_action(Table *table, int keep_header_cursor)
+{
+    char err[256] = {0};
+
+    if (ui_rebuild_table_view(table, err, sizeof(err)) != 0) {
+        if (err[0]) show_error_message(err);
+    }
+    db_autosave_table(table, err, sizeof(err));
+    if (keep_header_cursor) cursor_row = -1;
+    clear_reorder_mode();
+}
+
 void start_ui_loop(Table *table) {
     keypad(stdscr, TRUE);  // Enable arrow keys
     nodelay(stdscr, TRUE); // Non-blocking input to coalesce repeats
@@ -299,6 +429,8 @@ void start_ui_loop(Table *table) {
             }
             else if (ch == 'e' || ch == 'E') {
                 editing_mode = 1;
+                footer_page = 0;
+                clear_reorder_mode();
                 // Focus top-left of current page (not table top)
                 int start_row = row_page * (rows_visible > 0 ? rows_visible : 1);
                 if (start_row < 0) start_row = 0;
@@ -358,6 +490,110 @@ void start_ui_loop(Table *table) {
                 }
                 else {
                     show_error_message("Workspace saved.");
+                }
+                continue;
+            }
+            if (ch == '\t') {
+                advance_footer_page();
+                continue;
+            }
+            if (ui_reorder_active()) {
+                switch (ch) {
+                    case KEY_LEFT:
+                        move_cursor_left_paged(table);
+                        break;
+                    case KEY_RIGHT:
+                        move_cursor_right_paged(table);
+                        break;
+                    case KEY_UP:
+                        if (reorder_mode == UI_REORDER_MOVE_COL || reorder_mode == UI_REORDER_SWAP_COL) {
+                            if (cursor_row > -1) cursor_row--;
+                        } else {
+                            move_cursor_up_paged(table);
+                        }
+                        break;
+                    case KEY_DOWN:
+                        if (reorder_mode == UI_REORDER_MOVE_COL || reorder_mode == UI_REORDER_SWAP_COL) {
+                            int visible_rows = ui_visible_row_count(table);
+                            if (cursor_row < visible_rows - 1) cursor_row++;
+                        } else {
+                            move_cursor_down_paged(table);
+                        }
+                        break;
+                    case '\n':
+                        if (reorder_mode == UI_REORDER_MOVE_ROW || reorder_mode == UI_REORDER_SWAP_ROW) {
+                            int source_visible = reorder_source_row;
+                            int source_actual = ui_actual_row_for_visible(table, source_visible);
+                            int dest_visible = cursor_row;
+                            int dest_actual = ui_actual_row_for_visible(table, dest_visible);
+                            char err[256] = {0};
+
+                            if (source_visible < 0 || dest_visible < 0 || source_actual < 0 || dest_actual < 0) {
+                                show_error_message("Invalid row selection.");
+                                clear_reorder_mode();
+                                break;
+                            }
+                            if (source_visible == dest_visible) {
+                                show_error_message("Source and destination row are the same.");
+                                clear_reorder_mode();
+                                break;
+                            }
+
+                            if (reorder_mode == UI_REORDER_MOVE_ROW) {
+                                int placement = prompt_move_row_placement(table, source_actual, dest_actual);
+                                if (placement == 0 || placement == 1) {
+                                    if (tableop_move_row(table, source_actual, dest_actual, placement == 1, err, sizeof(err)) != 0) {
+                                        show_error_message(err[0] ? err : "Failed to move row.");
+                                    } else {
+                                        finish_reorder_action(table, 0);
+                                    }
+                                }
+                            } else {
+                                if (tableop_swap_rows(table, source_actual, dest_actual, err, sizeof(err)) != 0) {
+                                    show_error_message(err[0] ? err : "Failed to swap rows.");
+                                } else {
+                                    finish_reorder_action(table, 0);
+                                }
+                            }
+                        } else {
+                            int source_col = reorder_source_col;
+                            int dest_col = cursor_col;
+                            char err[256] = {0};
+
+                            if (source_col < 0 || dest_col < 0 || source_col >= table->column_count || dest_col >= table->column_count) {
+                                show_error_message("Invalid column selection.");
+                                clear_reorder_mode();
+                                break;
+                            }
+                            if (source_col == dest_col) {
+                                show_error_message("Source and destination column are the same.");
+                                clear_reorder_mode();
+                                break;
+                            }
+
+                            if (reorder_mode == UI_REORDER_MOVE_COL) {
+                                int placement = prompt_move_column_placement(table, source_col, dest_col);
+                                if (placement == 0 || placement == 1) {
+                                    if (tableop_move_column(table, source_col, dest_col, placement == 1, err, sizeof(err)) != 0) {
+                                        show_error_message(err[0] ? err : "Failed to move column.");
+                                    } else {
+                                        finish_reorder_action(table, 1);
+                                    }
+                                }
+                            } else {
+                                if (tableop_swap_columns(table, source_col, dest_col, err, sizeof(err)) != 0) {
+                                    show_error_message(err[0] ? err : "Failed to swap columns.");
+                                } else {
+                                    finish_reorder_action(table, 1);
+                                }
+                            }
+                        }
+                        break;
+                    case 27:
+                        clear_reorder_mode();
+                        break;
+                    default:
+                        break;
                 }
                 continue;
             }
@@ -505,6 +741,8 @@ void start_ui_loop(Table *table) {
                     }
                     break;
                 case 27: // ESC key
+                    clear_reorder_mode();
+                    footer_page = 0;
                     editing_mode = 0;
                     break;
                 case 8: // Ctrl+H: Home to top-left page
@@ -531,7 +769,29 @@ void start_ui_loop(Table *table) {
                     // Enter interactive row delete selection mode
                     if (ui_visible_row_count(table) <= 0) { show_error_message("No rows to delete."); break; }
                     if (cursor_row < 0) cursor_row = 0;
+                    clear_reorder_mode();
                     del_row_mode = 1; del_col_mode = 0;
+                    break;
+                case 'v':
+                    if (cursor_row < 0) {
+                        if (table->column_count <= 0) {
+                            show_error_message("No columns to move.");
+                            break;
+                        }
+                        clear_reorder_mode();
+                        reorder_mode = UI_REORDER_MOVE_COL;
+                        reorder_source_col = cursor_col;
+                    } else {
+                        if (ui_visible_row_count(table) <= 0) {
+                            show_error_message("No rows to move.");
+                            break;
+                        }
+                        clear_reorder_mode();
+                        reorder_mode = UI_REORDER_MOVE_ROW;
+                        reorder_source_row = cursor_row;
+                    }
+                    del_row_mode = 0;
+                    del_col_mode = 0;
                     break;
                 case '[': {
                     int insert_row = 0;
@@ -571,7 +831,29 @@ void start_ui_loop(Table *table) {
                     if (table->column_count <= 0) { show_error_message("No columns to delete."); break; }
                     if (table->column_count == 1) { show_error_message("Cannot delete the last column."); break; }
                     if (cursor_col < 0) cursor_col = 0;
+                    clear_reorder_mode();
                     del_col_mode = 1; del_row_mode = 0;
+                    break;
+                case 'V':
+                    if (cursor_row < 0) {
+                        if (table->column_count <= 0) {
+                            show_error_message("No columns to swap.");
+                            break;
+                        }
+                        clear_reorder_mode();
+                        reorder_mode = UI_REORDER_SWAP_COL;
+                        reorder_source_col = cursor_col;
+                    } else {
+                        if (ui_visible_row_count(table) <= 0) {
+                            show_error_message("No rows to swap.");
+                            break;
+                        }
+                        clear_reorder_mode();
+                        reorder_mode = UI_REORDER_SWAP_ROW;
+                        reorder_source_row = cursor_row;
+                    }
+                    del_row_mode = 0;
+                    del_col_mode = 0;
                     break;
                 case '{': {
                     int insert_col = (table->column_count > 0) ? cursor_col : 0;
