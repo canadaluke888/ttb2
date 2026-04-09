@@ -533,6 +533,39 @@ void start_ui_loop(Table *table) {
                     if (cursor_row < 0) cursor_row = 0;
                     del_row_mode = 1; del_col_mode = 0;
                     break;
+                case '[': {
+                    int insert_row = 0;
+                    if (table->column_count <= 0) {
+                        show_error_message("Add at least one column first.");
+                        break;
+                    }
+                    if (cursor_row >= 0) {
+                        insert_row = ui_actual_row_for_visible(table, cursor_row);
+                        if (insert_row < 0) insert_row = 0;
+                    } else if (ui_visible_row_count(table) > 0) {
+                        insert_row = ui_actual_row_for_visible(table, 0);
+                        if (insert_row < 0) insert_row = 0;
+                    }
+                    prompt_insert_row_at(table, insert_row);
+                    break;
+                }
+                case ']': {
+                    int insert_row = 0;
+                    if (table->column_count <= 0) {
+                        show_error_message("Add at least one column first.");
+                        break;
+                    }
+                    if (cursor_row >= 0) {
+                        insert_row = ui_actual_row_for_visible(table, cursor_row);
+                        if (insert_row < 0) insert_row = table->row_count;
+                        else insert_row++;
+                    } else if (ui_visible_row_count(table) > 0) {
+                        insert_row = ui_actual_row_for_visible(table, 0);
+                        if (insert_row < 0) insert_row = 0;
+                    }
+                    prompt_insert_row_at(table, insert_row);
+                    break;
+                }
                 case 'X':
                     // Enter interactive column delete selection mode
                     if (table->column_count <= 0) { show_error_message("No columns to delete."); break; }
@@ -540,6 +573,19 @@ void start_ui_loop(Table *table) {
                     if (cursor_col < 0) cursor_col = 0;
                     del_col_mode = 1; del_row_mode = 0;
                     break;
+                case '{': {
+                    int insert_col = (table->column_count > 0) ? cursor_col : 0;
+                    if (insert_col < 0) insert_col = 0;
+                    prompt_insert_column_at(table, insert_col);
+                    break;
+                }
+                case '}': {
+                    int insert_col = (table->column_count > 0) ? (cursor_col + 1) : 0;
+                    if (insert_col < 0) insert_col = 0;
+                    if (insert_col > table->column_count) insert_col = table->column_count;
+                    prompt_insert_column_at(table, insert_col);
+                    break;
+                }
                 case KEY_BACKSPACE:
                 case 127: // some terms send DEL for backspace
                     if (cursor_row < 0) {

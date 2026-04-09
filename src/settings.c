@@ -23,6 +23,16 @@ static int normalize_color(int color, int fallback)
     return (color >= 0 && color <= 7) ? color : fallback;
 }
 
+static const struct {
+    const char *name;
+    AppThemePalette palette;
+} THEMES[] = {
+    {"Classic", {2, 3, 5, 4, 7, 6}},
+    {"Ocean",   {6, 4, 7, 6, 3, 5}},
+    {"Forest",  {2, 3, 6, 2, 7, 3}},
+    {"Sunset",  {3, 5, 7, 1, 6, 3}}
+};
+
 const char *settings_default_path(void)
 {
     return SETTINGS_FILE;
@@ -45,10 +55,7 @@ void settings_init_defaults(AppSettings *s) {
     s->type_infer_enabled = true;
     s->low_ram_enabled = false;
     s->show_row_gutter = true;
-    s->editor_actions_color = 5; // magenta
-    s->table_line_color = 4;     // blue
-    s->table_name_color = 2;     // green
-    s->table_hint_color = 3;     // yellow
+    s->theme_id = 0;
 }
 
 int settings_load(const char *path, AppSettings *out) {
@@ -74,21 +81,9 @@ int settings_load(const char *path, AppSettings *out) {
     if (json_object_object_get_ex(root, "show_row_gutter", &jg)) {
         out->show_row_gutter = json_object_get_boolean(jg);
     }
-    struct json_object *j_actions = NULL;
-    if (json_object_object_get_ex(root, "editor_actions_color", &j_actions)) {
-        out->editor_actions_color = normalize_color(json_object_get_int(j_actions), out->editor_actions_color);
-    }
-    struct json_object *j_lines = NULL;
-    if (json_object_object_get_ex(root, "table_line_color", &j_lines)) {
-        out->table_line_color = normalize_color(json_object_get_int(j_lines), out->table_line_color);
-    }
-    struct json_object *j_name = NULL;
-    if (json_object_object_get_ex(root, "table_name_color", &j_name)) {
-        out->table_name_color = normalize_color(json_object_get_int(j_name), out->table_name_color);
-    }
-    struct json_object *j_hints = NULL;
-    if (json_object_object_get_ex(root, "table_hint_color", &j_hints)) {
-        out->table_hint_color = normalize_color(json_object_get_int(j_hints), out->table_hint_color);
+    struct json_object *jtheme = NULL;
+    if (json_object_object_get_ex(root, "theme_id", &jtheme)) {
+        out->theme_id = settings_normalize_theme(json_object_get_int(jtheme));
     }
     json_object_put(root);
     return 0;
@@ -105,11 +100,37 @@ int settings_save(const char *path, const AppSettings *s) {
     json_object_object_add(root, "type_infer_enabled", json_object_new_boolean(s->type_infer_enabled));
     json_object_object_add(root, "low_ram_enabled", json_object_new_boolean(s->low_ram_enabled));
     json_object_object_add(root, "show_row_gutter", json_object_new_boolean(s->show_row_gutter));
-    json_object_object_add(root, "editor_actions_color", json_object_new_int(normalize_color(s->editor_actions_color, 5)));
-    json_object_object_add(root, "table_line_color", json_object_new_int(normalize_color(s->table_line_color, 4)));
-    json_object_object_add(root, "table_name_color", json_object_new_int(normalize_color(s->table_name_color, 2)));
-    json_object_object_add(root, "table_hint_color", json_object_new_int(normalize_color(s->table_hint_color, 3)));
+    json_object_object_add(root, "theme_id", json_object_new_int(settings_normalize_theme(s->theme_id)));
     int rc = json_object_to_file_ext(path, root, JSON_C_TO_STRING_PRETTY);
     json_object_put(root);
     return (rc == 0) ? 0 : -1;
+}
+
+int settings_theme_count(void)
+{
+    return (int)(sizeof(THEMES) / sizeof(THEMES[0]));
+}
+
+int settings_normalize_theme(int theme_id)
+{
+    return (theme_id >= 0 && theme_id < settings_theme_count()) ? theme_id : 0;
+}
+
+const char *settings_theme_name(int theme_id)
+{
+    return THEMES[settings_normalize_theme(theme_id)].name;
+}
+
+void settings_theme_palette(int theme_id, AppThemePalette *out)
+{
+    int normalized = settings_normalize_theme(theme_id);
+
+    if (!out) return;
+    *out = THEMES[normalized].palette;
+    out->table_name_color = normalize_color(out->table_name_color, 2);
+    out->table_hint_color = normalize_color(out->table_hint_color, 3);
+    out->editor_actions_color = normalize_color(out->editor_actions_color, 5);
+    out->table_line_color = normalize_color(out->table_line_color, 4);
+    out->key_hint_color = normalize_color(out->key_hint_color, 7);
+    out->separator_color = normalize_color(out->separator_color, 6);
 }

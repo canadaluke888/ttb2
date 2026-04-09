@@ -7,29 +7,18 @@
 #include "ui.h"
 #include "settings.h"
 
-static int normalize_color(int color, int fallback)
-{
-    return (color >= 0 && color <= 7) ? color : fallback;
-}
-
 void apply_ui_color_settings(const AppSettings *settings)
 {
-    int table_name = 2;
-    int hints = 3;
-    int actions = 5;
-    int lines = 4;
+    AppThemePalette palette;
 
-    if (settings) {
-        table_name = normalize_color(settings->table_name_color, table_name);
-        hints = normalize_color(settings->table_hint_color, hints);
-        actions = normalize_color(settings->editor_actions_color, actions);
-        lines = normalize_color(settings->table_line_color, lines);
-    }
+    settings_theme_palette(settings ? settings->theme_id : 0, &palette);
 
-    init_pair(1, table_name, -1);    // Title
-    init_pair(4, hints, -1);         // Column/row hints and selection prompts
-    init_pair(5, actions, -1);       // Footer / editor action hotkeys
-    init_pair(6, lines, -1);         // Unicode borders
+    init_pair(1, palette.table_name_color, -1);    // Title
+    init_pair(4, palette.table_hint_color, -1);    // Column/row hints and selection prompts
+    init_pair(5, palette.editor_actions_color, -1); // Footer / editor action hotkeys
+    init_pair(6, palette.table_line_color, -1);    // Unicode borders
+    init_pair(7, palette.key_hint_color, -1);      // Key hints like [Enter]
+    init_pair(8, palette.separator_color, -1);     // Footer separators
 }
 
 void init_colors(void) {

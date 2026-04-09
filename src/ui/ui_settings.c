@@ -22,27 +22,6 @@ static void ensure_loaded(void) {
     g_loaded = 1;
 }
 
-static const char *color_name(int color)
-{
-    switch (color) {
-        case COLOR_BLACK: return "Black";
-        case COLOR_RED: return "Red";
-        case COLOR_GREEN: return "Green";
-        case COLOR_YELLOW: return "Yellow";
-        case COLOR_BLUE: return "Blue";
-        case COLOR_MAGENTA: return "Magenta";
-        case COLOR_CYAN: return "Cyan";
-        case COLOR_WHITE: return "White";
-        default: return "Default";
-    }
-}
-
-static int next_color(int color)
-{
-    if (color < 0 || color >= 7) return 0;
-    return color + 1;
-}
-
 static int is_selectable_row(int row)
 {
     return row != 0 && row != 4;
@@ -67,10 +46,7 @@ UiMenuResult show_settings_menu(void) {
         ROW_LOW_RAM,
         ROW_COSMETIC,
         ROW_ROW_GUTTER,
-        ROW_ACTION_COLOR,
-        ROW_LINE_COLOR,
-        ROW_NAME_COLOR,
-        ROW_HINT_COLOR,
+        ROW_THEME,
         ROW_SAVE,
         ROW_BACK,
         ROW_COUNT
@@ -106,10 +82,7 @@ UiMenuResult show_settings_menu(void) {
             else if (i == ROW_LOW_RAM) snprintf(linebuf, sizeof(linebuf), "Low-RAM seek paging: %s", g_settings.low_ram_enabled ? "On" : "Off");
             else if (i == ROW_COSMETIC) snprintf(linebuf, sizeof(linebuf), "Appearance");
             else if (i == ROW_ROW_GUTTER) snprintf(linebuf, sizeof(linebuf), "Row gutter: %s", g_settings.show_row_gutter ? "On" : "Off");
-            else if (i == ROW_ACTION_COLOR) snprintf(linebuf, sizeof(linebuf), "Editor actions color: %s", color_name(g_settings.editor_actions_color));
-            else if (i == ROW_LINE_COLOR) snprintf(linebuf, sizeof(linebuf), "Table line color: %s", color_name(g_settings.table_line_color));
-            else if (i == ROW_NAME_COLOR) snprintf(linebuf, sizeof(linebuf), "Table name color: %s", color_name(g_settings.table_name_color));
-            else if (i == ROW_HINT_COLOR) snprintf(linebuf, sizeof(linebuf), "Column/row hints color: %s", color_name(g_settings.table_hint_color));
+            else if (i == ROW_THEME) snprintf(linebuf, sizeof(linebuf), "Theme: %s", settings_theme_name(g_settings.theme_id));
             else if (i == ROW_SAVE) snprintf(linebuf, sizeof(linebuf), "Save & Close");
             else if (i == ROW_BACK) snprintf(linebuf, sizeof(linebuf), "Back");
             // clear line region and print clipped
@@ -135,10 +108,7 @@ UiMenuResult show_settings_menu(void) {
             else if (sel == ROW_TYPE_INFER) { g_settings.type_infer_enabled = !g_settings.type_infer_enabled; }
             else if (sel == ROW_LOW_RAM) { g_settings.low_ram_enabled = !g_settings.low_ram_enabled; low_ram_mode = g_settings.low_ram_enabled ? 1 : 0; }
             else if (sel == ROW_ROW_GUTTER) { g_settings.show_row_gutter = !g_settings.show_row_gutter; row_gutter_enabled = g_settings.show_row_gutter ? 1 : 0; }
-            else if (sel == ROW_ACTION_COLOR) { g_settings.editor_actions_color = next_color(g_settings.editor_actions_color); apply_ui_color_settings(&g_settings); }
-            else if (sel == ROW_LINE_COLOR) { g_settings.table_line_color = next_color(g_settings.table_line_color); apply_ui_color_settings(&g_settings); }
-            else if (sel == ROW_NAME_COLOR) { g_settings.table_name_color = next_color(g_settings.table_name_color); apply_ui_color_settings(&g_settings); }
-            else if (sel == ROW_HINT_COLOR) { g_settings.table_hint_color = next_color(g_settings.table_hint_color); apply_ui_color_settings(&g_settings); }
+            else if (sel == ROW_THEME) { g_settings.theme_id = (g_settings.theme_id + 1) % settings_theme_count(); apply_ui_color_settings(&g_settings); }
             else if (sel == ROW_SAVE) { settings_save(settings_default_path(), &g_settings); result = UI_MENU_DONE; break; }
             else if (sel == ROW_BACK) { result = UI_MENU_BACK; break; }
         } else if (ch == 27) { result = UI_MENU_DONE; break; }

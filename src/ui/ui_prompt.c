@@ -58,6 +58,8 @@ int show_text_input_modal(const char *title,
 static int prompt_filename_modal(const char *title, const char *prompt, char *out, size_t out_sz);
 static int has_extension(const char *name, const char *ext);
 // (no local string-list helpers required here)
+static int prompt_add_column_at_internal(Table *table, int col_index, int focus_inserted, const char *title);
+static int prompt_add_row_at_internal(Table *table, int row_index, int focus_inserted, const char *title);
 
 static int table_menu_next_selectable(const TableMenuEntry *entries, int count, int start, int dir)
 {
@@ -346,20 +348,35 @@ static int has_extension(const char *name, const char *ext)
 }
 
 void prompt_add_column(Table *table) {
+    (void)prompt_add_column_at_internal(table, table ? table->column_count : 0, 0, "Add Column");
+}
+
+int prompt_insert_column_at(Table *table, int col_index)
+{
+    const char *title = "Add Column";
+
+    if (table && table->column_count > 0) {
+        title = (col_index <= cursor_col) ? "Add Column Left" : "Add Column Right";
+    }
+    return prompt_add_column_at_internal(table, col_index, 1, title);
+}
+
+static int prompt_add_column_at_internal(Table *table, int col_index, int focus_inserted, const char *title)
+{
     char name[MAX_INPUT];
-    int name_len = show_text_input_modal("Add Column",
+    int name_len = show_text_input_modal(title ? title : "Add Column",
                                      "[Enter] Next   [Esc] Cancel",
                                      "Name:",
                                      name,
                                      sizeof(name),
                                      false);
     if (name_len < 0) {
-        return;
+        return -1;
     }
 
     const char *type_items[] = { "int", "float", "str", "bool" };
     int selected = draw_simple_list_modal("[2/2] Select column type", type_items, 4, 0);
-    if (selected < 0) return;
+    if (selected < 0) return -1;
 
     DataType type = TYPE_UNKNOWN;
     if (selected == 0) type = TYPE_INT;
@@ -368,25 +385,59 @@ void prompt_add_column(Table *table) {
     else if (selected == 3) type = TYPE_BOOL;
     if (type != TYPE_UNKNOWN) {
         char err[256] = {0};
-        if (tableop_insert_column(table, name, type, err, sizeof(err)) != 0) {
+        if (tableop_insert_column_at(table, col_index, name, type, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to add column.");
         } else {
             ui_rebuild_table_view(table, NULL, 0);
+            if (focus_inserted) {
+                cursor_col = col_index;
+            }
             db_autosave_table(table, err, sizeof(err));
+            return 0;
         }
     }
+    return -1;
 }
 
 void prompt_add_row(Table *table) {
+    (void)prompt_add_row_at_internal(table, table ? table->row_count : 0, 0, "Add Row");
+}
+
+int prompt_insert_row_at(Table *table, int row_index)
+{
+    const char *title = "Add Row";
+
+    if (cursor_row == -1 || row_index <= 0) title = "Add Row Above";
+    else title = "Add Row Below";
+    return prompt_add_row_at_internal(table, row_index, 1, title);
+}
+
+static int find_visible_row_for_actual(Table *table, int actual_row)
+{
+    int visible_rows;
+
+    if (!table || actual_row < 0) return -1;
+    visible_rows = ui_visible_row_count(table);
+    if (!ui_table_view_is_active()) {
+        return (actual_row < visible_rows) ? actual_row : -1;
+    }
+    for (int visible = 0; visible < visible_rows; ++visible) {
+        if (ui_actual_row_for_visible(table, visible) == actual_row) return visible;
+    }
+    return -1;
+}
+
+static int prompt_add_row_at_internal(Table *table, int row_index, int focus_inserted, const char *title)
+{
     if (!table || table->column_count == 0) {
         show_error_message("Add at least one column first.");
-        return;
+        return -1;
     }
 
     char **input_strings = calloc(table->column_count, sizeof(char *));
     if (!input_strings) {
         show_error_message("Out of memory");
-        return;
+        return -1;
     }
 
     bool cancelled = false;
@@ -409,7 +460,7 @@ void prompt_add_row(Table *table) {
                  col_type);
 
         while (1) {
-            int rc = show_text_input_modal("Add Row",
+            int rc = show_text_input_modal(title ? title : "Add Row",
                                        "[Enter] Accept   [Esc] Cancel",
                                        prompt_label,
                                        input_strings[i],
@@ -433,11 +484,26 @@ void prompt_add_row(Table *table) {
 
     if (!cancelled) {
         char err[256] = {0};
-        if (tableop_insert_row(table, (const char **)input_strings, err, sizeof(err)) != 0) {
+        if (tableop_insert_row_at(table, row_index, (const char **)input_strings, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to add row.");
         } else {
             ui_rebuild_table_view(table, NULL, 0);
+            if (focus_inserted) {
+                int inserted_visible_row = find_visible_row_for_actual(table, row_index);
+                if (inserted_visible_row >= 0) {
+                    cursor_row = inserted_visible_row;
+                    if (rows_visible > 0) row_page = cursor_row / rows_visible;
+                } else {
+                    cursor_row = (ui_visible_row_count(table) > 0) ? 0 : -1;
+                    row_page = 0;
+                }
+            }
             db_autosave_table(table, err, sizeof(err));
+            for (int i = 0; i < table->column_count; ++i) {
+                free(input_strings[i]);
+            }
+            free(input_strings);
+            return 0;
         }
     }
 
@@ -445,6 +511,7 @@ void prompt_add_row(Table *table) {
         free(input_strings[i]);
     }
     free(input_strings);
+    return -1;
 }
 
 static UiMenuResult prompt_rename_active_table(Table *table) {

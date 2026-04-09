@@ -266,9 +266,9 @@ int tableop_delete_column(Table *table, int col, char *err, size_t err_sz)
     return 0;
 }
 
-int tableop_insert_row(Table *table, const char **values, char *err, size_t err_sz)
+int tableop_insert_row_at(Table *table, int row_index, const char **values, char *err, size_t err_sz)
 {
-    Row *row;
+    Row new_row;
 
     if (!table) {
         set_err(err, err_sz, "No table");
@@ -278,36 +278,56 @@ int tableop_insert_row(Table *table, const char **values, char *err, size_t err_
         set_err(err, err_sz, "Add at least one column first");
         return -1;
     }
+    if (row_index < 0 || row_index > table->row_count) {
+        set_err(err, err_sz, "Invalid row index");
+        return -1;
+    }
     if (ensure_row_capacity(table) != 0) {
         set_err(err, err_sz, "Out of memory");
         return -1;
     }
 
-    row = &table->rows[table->row_count];
-    row->values = calloc((size_t)table->column_count, sizeof(void *));
-    if (!row->values) {
+    new_row.values = calloc((size_t)table->column_count, sizeof(void *));
+    if (!new_row.values) {
         set_err(err, err_sz, "Out of memory");
         return -1;
     }
 
     for (int c = 0; c < table->column_count; ++c) {
-        if (parse_value(table->columns[c].type, values ? values[c] : "", &row->values[c]) != 0) {
-            for (int i = 0; i < c; ++i) free(row->values[i]);
-            free(row->values);
-            row->values = NULL;
+        if (parse_value(table->columns[c].type, values ? values[c] : "", &new_row.values[c]) != 0) {
+            for (int i = 0; i < c; ++i) free(new_row.values[i]);
+            free(new_row.values);
+            new_row.values = NULL;
             set_err(err, err_sz, "Invalid row value");
             return -1;
         }
     }
 
+    if (row_index < table->row_count) {
+        memmove(&table->rows[row_index + 1],
+                &table->rows[row_index],
+                (size_t)(table->row_count - row_index) * sizeof(Row));
+    }
+    table->rows[row_index] = new_row;
     table->row_count++;
     table->dirty = 1;
     return 0;
 }
 
-int tableop_insert_column(Table *table, const char *name, DataType type, char *err, size_t err_sz)
+int tableop_insert_row(Table *table, const char **values, char *err, size_t err_sz)
+{
+    if (!table) {
+        set_err(err, err_sz, "No table");
+        return -1;
+    }
+    return tableop_insert_row_at(table, table->row_count, values, err, err_sz);
+}
+
+int tableop_insert_column_at(Table *table, int col_index, const char *name, DataType type, char *err, size_t err_sz)
 {
     char *name_copy;
+    void ***expanded_rows = NULL;
+    int new_column_count;
 
     if (!table) {
         set_err(err, err_sz, "No table");
@@ -321,6 +341,10 @@ int tableop_insert_column(Table *table, const char *name, DataType type, char *e
         set_err(err, err_sz, "Invalid column type");
         return -1;
     }
+    if (col_index < 0 || col_index > table->column_count) {
+        set_err(err, err_sz, "Invalid column index");
+        return -1;
+    }
     if (ensure_column_capacity(table) != 0) {
         set_err(err, err_sz, "Out of memory");
         return -1;
@@ -332,26 +356,85 @@ int tableop_insert_column(Table *table, const char *name, DataType type, char *e
         return -1;
     }
 
-    table->columns[table->column_count].name = name_copy;
-    table->columns[table->column_count].type = type;
-    assign_column_color(table, table->column_count);
-    table->column_count++;
-
-    for (int r = 0; r < table->row_count; ++r) {
-        void **values = realloc(table->rows[r].values, (size_t)table->column_count * sizeof(void *));
-        if (!values) {
-            table->column_count--;
-            free(table->columns[table->column_count].name);
-            table->columns[table->column_count].name = NULL;
+    new_column_count = table->column_count + 1;
+    if (table->row_count > 0) {
+        expanded_rows = calloc((size_t)table->row_count, sizeof(void **));
+        if (!expanded_rows) {
+            free(name_copy);
             set_err(err, err_sz, "Out of memory");
             return -1;
         }
-        table->rows[r].values = values;
-        table->rows[r].values[table->column_count - 1] = NULL;
     }
+
+    for (int r = 0; r < table->row_count; ++r) {
+        void **values = calloc((size_t)new_column_count, sizeof(void *));
+        if (!values) {
+            for (int i = 0; i < r; ++i) {
+                free(expanded_rows[i][col_index]);
+                free(expanded_rows[i]);
+            }
+            free(expanded_rows);
+            free(name_copy);
+            set_err(err, err_sz, "Out of memory");
+            return -1;
+        }
+        if (col_index > 0 && table->rows[r].values) {
+            memcpy(values,
+                   table->rows[r].values,
+                   (size_t)col_index * sizeof(void *));
+        }
+        if (col_index < table->column_count && table->rows[r].values) {
+            memcpy(&values[col_index + 1],
+                   &table->rows[r].values[col_index],
+                   (size_t)(table->column_count - col_index) * sizeof(void *));
+        }
+        values[col_index] = default_value_for_type(type);
+        if (!values[col_index]) {
+            free(values);
+            for (int i = 0; i < r; ++i) {
+                free(expanded_rows[i][col_index]);
+                free(expanded_rows[i]);
+            }
+            free(expanded_rows);
+            free(name_copy);
+            set_err(err, err_sz, "Out of memory");
+            return -1;
+        }
+        expanded_rows[r] = values;
+    }
+
+    if (col_index < table->column_count) {
+        memmove(&table->columns[col_index + 1],
+                &table->columns[col_index],
+                (size_t)(table->column_count - col_index) * sizeof(Column));
+    }
+
+    table->columns[col_index].name = name_copy;
+    table->columns[col_index].type = type;
+    table->columns[col_index].color_pair_id = 0;
+    table->column_count = new_column_count;
+
+    for (int c = col_index; c < table->column_count; ++c) {
+        assign_column_color(table, c);
+    }
+
+    for (int r = 0; r < table->row_count; ++r) {
+        free(table->rows[r].values);
+        table->rows[r].values = expanded_rows ? expanded_rows[r] : NULL;
+    }
+    free(expanded_rows);
 
     table->dirty = 1;
     return 0;
+}
+
+int tableop_insert_column(Table *table, const char *name, DataType type, char *err, size_t err_sz)
+{
+    if (!table) {
+        set_err(err, err_sz, "No table");
+        return -1;
+    }
+    return tableop_insert_column_at(table, table->column_count, name, type, err, err_sz);
 }
 
 int tableop_rename_column(Table *table, int col, const char *name, char *err, size_t err_sz)

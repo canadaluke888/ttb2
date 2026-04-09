@@ -10,6 +10,8 @@ int tableop_clear_cell(Table *table, int row, int col, char *err, size_t err_sz)
 int tableop_delete_row(Table *table, int row, char *err, size_t err_sz);
 int tableop_delete_column(Table *table, int col, char *err, size_t err_sz);
 
+int tableop_insert_row_at(Table *table, int row_index, const char **values, char *err, size_t err_sz);
+int tableop_insert_column_at(Table *table, int col_index, const char *name, DataType type, char *err, size_t err_sz);
 int tableop_insert_row(Table *table, const char **values, char *err, size_t err_sz);
 int tableop_insert_column(Table *table, const char *name, DataType type, char *err, size_t err_sz);
 

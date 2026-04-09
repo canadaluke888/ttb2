@@ -80,6 +80,44 @@ static void draw_status_segment(int y, int *x, int max_x, int color_attr, const 
     attroff(color_attr);
 }
 
+static void draw_action_hint_segment(int y, int *x, int max_x, const char *text)
+{
+    const char *cursor = text;
+
+    if (!text) return;
+    while (*cursor && *x <= max_x) {
+        const char *open = strchr(cursor, '[');
+        if (!open) {
+            draw_status_segment(y, x, max_x, COLOR_PAIR(5), cursor);
+            break;
+        }
+        if (open > cursor) {
+            char plain[256];
+            size_t len = (size_t)(open - cursor);
+            if (len >= sizeof(plain)) len = sizeof(plain) - 1;
+            memcpy(plain, cursor, len);
+            plain[len] = '\0';
+            draw_status_segment(y, x, max_x, COLOR_PAIR(5), plain);
+        }
+        {
+            const char *close = strchr(open + 1, ']');
+            if (!close) {
+                draw_status_segment(y, x, max_x, COLOR_PAIR(5), open);
+                break;
+            }
+            {
+                char keybuf[256];
+                size_t len = (size_t)(close - open + 1);
+                if (len >= sizeof(keybuf)) len = sizeof(keybuf) - 1;
+                memcpy(keybuf, open, len);
+                keybuf[len] = '\0';
+                draw_status_segment(y, x, max_x, COLOR_PAIR(7) | A_BOLD, keybuf);
+            }
+            cursor = close + 1;
+        }
+    }
+}
+
 void draw_table_grid(Table *t) {
     int visible_row_count = ui_visible_row_count(t);
 
@@ -365,6 +403,7 @@ void draw_table_grid(Table *t) {
 void draw_ui(Table *table) {
     char view_buf[512];
     int max_x = COLS - 3;
+    int separator_attr = COLOR_PAIR(8) | A_BOLD;
 
     erase();
 
@@ -400,51 +439,62 @@ void draw_ui(Table *table) {
     int fy = LINES - 2;
     int fx = 2;
     if (search_mode) {
-        draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), "[←][→][↑][↓] Prev/Next Match | [Esc] Exit Search");
+        draw_action_hint_segment(fy, &fx, max_x, "[←][→][↑][↓] Prev/Next Match");
+        draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+        draw_action_hint_segment(fy, &fx, max_x, "[Esc] Exit Search");
         extern int search_hit_index; extern int search_hit_count;
         {
             char match_buf[64];
-            snprintf(match_buf, sizeof(match_buf), " | Matches %d/%d", (search_hit_count > 0 ? (search_hit_index + 1) : 0), search_hit_count);
+            draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+            snprintf(match_buf, sizeof(match_buf), "Matches %d/%d", (search_hit_count > 0 ? (search_hit_index + 1) : 0), search_hit_count);
             draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), match_buf);
         }
     } else if (!editing_mode) {
-        draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), "[C] Add Column  [R] Add Row  [F] Search  [E] Edit Mode  [M] Menu  [S] Save  [Q] Quit  [Ctrl+H] Top-Left");
+        draw_action_hint_segment(fy, &fx, max_x, "[C] Add Column  [R] Add Row  [F] Search  [E] Edit Mode  [M] Menu  [S] Save  [Q] Quit  [Ctrl+H] Top-Left");
         if (ui_visible_row_count(table) == 0 && ui_table_view_is_active()) {
-            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, " | 0 results");
+            draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, "0 results");
         }
         if (total_pages > 1 || total_row_pages > 1) {
             if (total_pages > 1) {
                 char buf[64];
-                snprintf(buf, sizeof(buf), " | Cols Pg %d/%d [←][→] Columns", col_page + 1, total_pages);
+                draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+                snprintf(buf, sizeof(buf), "Cols Pg %d/%d [←][→] Columns", col_page + 1, total_pages);
                 draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
             if (total_row_pages > 1) {
                 char buf[64];
-                snprintf(buf, sizeof(buf), " | Rows Pg %d/%d [↑][↓] Rows", row_page + 1, total_row_pages);
+                draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+                snprintf(buf, sizeof(buf), "Rows Pg %d/%d [↑][↓] Rows", row_page + 1, total_row_pages);
                 draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
         }
     } else {
         extern int del_row_mode, del_col_mode;
         if (del_row_mode) {
-            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), "Del Row: [↑][↓] Select [Enter] Confirm [Esc] Cancel");
+            draw_action_hint_segment(fy, &fx, max_x, "Del Row: [↑][↓] Select [Enter] Confirm [Esc] Cancel");
         } else if (del_col_mode) {
-            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), "Del Col: [←][→] Select [Enter] Confirm [Esc] Cancel");
+            draw_action_hint_segment(fy, &fx, max_x, "Del Col: [←][→] Select [Enter] Confirm [Esc] Cancel");
         } else {
-            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), "[←][→][↑][↓] Nav [Enter] Edit [F] Search [x] Del Row [Shift+X] Del Col [Bksp] Clear [Ctrl+H] Home [Esc] Exit");
+            draw_action_hint_segment(fy, &fx, max_x, "[←][→][↑][↓] Nav [Enter] Edit [F] Search [x] Del Row [Shift+X] Del Col [Bksp] Clear [Ctrl+H] Home [Esc] Exit");
+            draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+            draw_action_hint_segment(fy, &fx, max_x, "Insert: [Left Bracket] Above  [Right Bracket] Below  [{] Left  [}] Right");
         }
         if (ui_visible_row_count(table) == 0 && ui_table_view_is_active()) {
-            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, " | 0 results");
+            draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, "0 results");
         }
         if (total_pages > 1 || total_row_pages > 1) {
             if (total_pages > 1) {
                 char buf[32];
-                snprintf(buf, sizeof(buf), " | Cols Pg %d/%d", col_page + 1, total_pages);
+                draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+                snprintf(buf, sizeof(buf), "Cols Pg %d/%d", col_page + 1, total_pages);
                 draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
             if (total_row_pages > 1) {
                 char buf[32];
-                snprintf(buf, sizeof(buf), " | Rows Pg %d/%d", row_page + 1, total_row_pages);
+                draw_status_segment(fy, &fx, max_x, separator_attr, " | ");
+                snprintf(buf, sizeof(buf), "Rows Pg %d/%d", row_page + 1, total_row_pages);
                 draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
         }

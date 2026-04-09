@@ -57,6 +57,8 @@ void confirm_delete_column_at(Table *table, int col);
 // Prompt functions
 void prompt_add_column(Table *table);
 void prompt_add_row(Table *table);
+int prompt_insert_column_at(Table *table, int col_index);
+int prompt_insert_row_at(Table *table, int row_index);
 void show_table_menu(Table *table);
 void prompt_sort_rows(Table *table);
 void prompt_filter_rows(Table *table);
