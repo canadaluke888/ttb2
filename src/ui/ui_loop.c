@@ -27,6 +27,7 @@ int rows_visible = 0;
 int total_row_pages = 1;
 int low_ram_mode = 0; // exported in ui.h
 int row_gutter_enabled = 1; // exported in ui.h
+TableView ui_table_view;
 
 // Local search state (current in-memory table/window)
 typedef struct { int row; int col; int start; int len; } SearchHit;
@@ -35,9 +36,56 @@ char search_query[128];
 int search_sel_start = -1;
 int search_sel_len = 0;
 
+static void exit_search(void);
+
 static void clear_search_hits(void) {
     if (hits) { free(hits); hits = NULL; }
     search_hit_count = 0; search_hit_index = 0;
+    search_query[0] = '\0';
+    search_sel_start = -1;
+    search_sel_len = 0;
+}
+
+int ui_table_view_is_active(void)
+{
+    return ui_table_view.filter_active || ui_table_view.sort_active;
+}
+
+int ui_visible_row_count(Table *table)
+{
+    return tableview_visible_row_count(table, &ui_table_view);
+}
+
+int ui_actual_row_for_visible(Table *table, int visible_row)
+{
+    return tableview_row_to_actual(table, &ui_table_view, visible_row);
+}
+
+int ui_rebuild_table_view(Table *table, char *err, size_t err_sz)
+{
+    int rc = tableview_rebuild(table, &ui_table_view, err, err_sz);
+    int visible_rows = ui_visible_row_count(table);
+
+    if (rc != 0) return rc;
+    if (visible_rows <= 0) {
+        cursor_row = -1;
+        row_page = 0;
+    } else {
+        if (cursor_row >= visible_rows) cursor_row = visible_rows - 1;
+        if (cursor_row >= 0 && rows_visible > 0) row_page = cursor_row / rows_visible;
+    }
+    return 0;
+}
+
+void ui_reset_table_view(Table *table)
+{
+    (void)table;
+    exit_search();
+    tableview_free(&ui_table_view);
+    cursor_row = -1;
+    cursor_col = 0;
+    col_page = 0;
+    row_page = 0;
 }
 
 static void trim_ascii(char *s) {
@@ -52,6 +100,22 @@ static void trim_ascii(char *s) {
 
 // Clamp cursor indices to current viewport (visible page boundaries)
 static void clamp_cursor_viewport(const Table *table) {
+    int visible_rows = tableview_visible_row_count(table, &ui_table_view);
+
+    if (search_mode) {
+        if (table) {
+            if (cursor_col < 0) cursor_col = 0;
+            if (cursor_col >= table->column_count) cursor_col = (table->column_count > 0) ? (table->column_count - 1) : 0;
+        }
+        if (visible_rows <= 0) {
+            cursor_row = -1;
+        } else {
+            if (cursor_row < 0) cursor_row = 0;
+            if (cursor_row >= visible_rows) cursor_row = visible_rows - 1;
+        }
+        return;
+    }
+
     // Columns
     int cmin = col_start;
     int cmax = (cols_visible > 0) ? (col_start + cols_visible - 1) : (table ? table->column_count - 1 : 0);
@@ -62,11 +126,12 @@ static void clamp_cursor_viewport(const Table *table) {
     int rmin = row_page * (rows_visible > 0 ? rows_visible : 1);
     if (rmin < 0) rmin = 0;
     int rmax = rmin + (rows_visible > 0 ? rows_visible - 1 : 0);
-    if (table && rmax >= table->row_count) rmax = table->row_count - 1;
+    if (rmax >= visible_rows) rmax = visible_rows - 1;
     if (cursor_row >= 0) {
         if (cursor_row < rmin) cursor_row = rmin;
         if (cursor_row > rmax) cursor_row = rmax;
     }
+    if (visible_rows <= 0) cursor_row = -1;
 }
 
 // Case-insensitive ASCII substring
@@ -87,29 +152,45 @@ static int ci_find(const char *hay, const char *need) {
     return -1;
 }
 
+int ui_format_cell_value(const Table *t, int row, int col, char *buf, size_t buf_sz)
+{
+    if (!buf || buf_sz == 0) return -1;
+    buf[0] = '\0';
+    if (!t || row < 0 || row >= t->row_count || col < 0 || col >= t->column_count) return -1;
+    if (!t->rows[row].values || !t->rows[row].values[col]) return 0;
+
+    if (t->columns[col].type == TYPE_INT)
+        snprintf(buf, buf_sz, "%d", *(int *)t->rows[row].values[col]);
+    else if (t->columns[col].type == TYPE_FLOAT)
+        snprintf(buf, buf_sz, "%.2f", *(float *)t->rows[row].values[col]);
+    else if (t->columns[col].type == TYPE_BOOL)
+        snprintf(buf, buf_sz, "%s", (*(int *)t->rows[row].values[col]) ? "true" : "false");
+    else
+        snprintf(buf, buf_sz, "%s", (char *)t->rows[row].values[col]);
+
+    return 0;
+}
+
 static void gather_search_hits(Table *t, const char *query) {
     clear_search_hits();
-    if (!t || t->column_count <= 0 || t->row_count <= 0) return;
+    int visible_rows = ui_visible_row_count(t);
+    if (!t || t->column_count <= 0 || visible_rows <= 0) return;
     strncpy(search_query, query, sizeof(search_query)-1); search_query[sizeof(search_query)-1] = '\0';
     trim_ascii(search_query);
+    if (search_query[0] == '\0') return;
     int cap = 0;
-    for (int r = 0; r < t->row_count; ++r) {
+    for (int r = 0; r < visible_rows; ++r) {
+        int actual_row = ui_actual_row_for_visible(t, r);
+        if (actual_row < 0) continue;
         for (int c = 0; c < t->column_count; ++c) {
             char buf[128] = "";
-            if (t->columns[c].type == TYPE_INT && t->rows[r].values[c])
-                snprintf(buf, sizeof(buf), "%d", *(int *)t->rows[r].values[c]);
-            else if (t->columns[c].type == TYPE_FLOAT && t->rows[r].values[c])
-                snprintf(buf, sizeof(buf), "%.2f", *(float *)t->rows[r].values[c]);
-            else if (t->columns[c].type == TYPE_BOOL && t->rows[r].values[c])
-                snprintf(buf, sizeof(buf), "%s", (*(int *)t->rows[r].values[c]) ? "true" : "false");
-            else if (t->rows[r].values[c])
-                snprintf(buf, sizeof(buf), "%s", (char *)t->rows[r].values[c]);
+            ui_format_cell_value(t, actual_row, c, buf, sizeof(buf));
             if (buf[0] == '\0') continue;
-            int start = ci_find(buf, query);
+            int start = ci_find(buf, search_query);
             if (start >= 0) {
                 if (search_hit_count == cap) { cap = cap ? cap * 2 : 16; hits = realloc(hits, sizeof(SearchHit) * cap); }
                 hits[search_hit_count].row = r; hits[search_hit_count].col = c;
-                hits[search_hit_count].start = start; hits[search_hit_count].len = (int)strlen(query);
+                hits[search_hit_count].start = start; hits[search_hit_count].len = (int)strlen(search_query);
                 search_hit_count++;
             }
         }
@@ -148,6 +229,7 @@ void start_ui_loop(Table *table) {
     keypad(stdscr, TRUE);  // Enable arrow keys
     nodelay(stdscr, TRUE); // Non-blocking input to coalesce repeats
     int ch;
+    tableview_init(&ui_table_view);
 
     while (1) {
         draw_ui(table);
@@ -220,7 +302,7 @@ void start_ui_loop(Table *table) {
                 // Focus top-left of current page (not table top)
                 int start_row = row_page * (rows_visible > 0 ? rows_visible : 1);
                 if (start_row < 0) start_row = 0;
-                cursor_row = (start_row < table->row_count) ? start_row : (table->row_count > 0 ? table->row_count - 1 : -1);
+                cursor_row = (start_row < ui_visible_row_count(table)) ? start_row : (ui_visible_row_count(table) > 0 ? ui_visible_row_count(table) - 1 : -1);
                 cursor_col = col_start;
             }
             else if (ch == 'm' || ch == 'M') {
@@ -280,7 +362,7 @@ void start_ui_loop(Table *table) {
                 continue;
             }
             if (del_row_mode) {
-                if (table->row_count <= 0) { del_row_mode = 0; }
+                if (ui_visible_row_count(table) <= 0) { del_row_mode = 0; }
                 switch (ch) {
                     case KEY_UP:
                         {
@@ -293,14 +375,14 @@ void start_ui_loop(Table *table) {
                         {
                             int rmin = row_page * (rows_visible > 0 ? rows_visible : 1);
                             int rmax = rmin + (rows_visible > 0 ? rows_visible - 1 : 0);
-                            if (rmax >= table->row_count) rmax = table->row_count - 1;
+                            if (rmax >= ui_visible_row_count(table)) rmax = ui_visible_row_count(table) - 1;
                             if (cursor_row < rmax) cursor_row++;
                         }
                         break;
                     case '\n':
-                        confirm_delete_row_at(table, cursor_row);
-                        if (cursor_row >= table->row_count) cursor_row = table->row_count - 1;
-                        if (cursor_row < 0) { cursor_row = -1; editing_mode = (table->row_count > 0); }
+                        confirm_delete_row_at(table, ui_actual_row_for_visible(table, cursor_row));
+                        if (cursor_row >= ui_visible_row_count(table)) cursor_row = ui_visible_row_count(table) - 1;
+                        if (cursor_row < 0) { cursor_row = -1; editing_mode = (ui_visible_row_count(table) > 0); }
                         del_row_mode = 0;
                         break;
                     case 27: // ESC cancels mode
@@ -353,7 +435,7 @@ void start_ui_loop(Table *table) {
                         } else if (ch == KEY_DOWN) {
                             int rmin = row_page * (rows_visible > 0 ? rows_visible : 1);
                             int rmax = rmin + (rows_visible > 0 ? rows_visible - 1 : 0);
-                            if (rmax >= table->row_count) rmax = table->row_count - 1;
+                            if (rmax >= ui_visible_row_count(table)) rmax = ui_visible_row_count(table) - 1;
                             if (cursor_row < rmax) cursor_row++;
                         }
                         break;
@@ -418,7 +500,7 @@ void start_ui_loop(Table *table) {
                         // restrict to page bottom
                         int rmin = row_page * (rows_visible > 0 ? rows_visible : 1);
                         int rmax = rmin + (rows_visible > 0 ? rows_visible - 1 : 0);
-                        if (rmax >= table->row_count) rmax = table->row_count - 1;
+                        if (rmax >= ui_visible_row_count(table)) rmax = ui_visible_row_count(table) - 1;
                         if (cursor_row < rmax) cursor_row++;
                     }
                     break;
@@ -428,7 +510,7 @@ void start_ui_loop(Table *table) {
                 case 8: // Ctrl+H: Home to top-left page
                 case KEY_HOME:
                     col_page = 0; row_page = 0; cursor_col = col_start; cursor_row = (row_page * (rows_visible>0?rows_visible:1));
-                    if (cursor_row >= table->row_count) cursor_row = table->row_count - 1;
+                    if (cursor_row >= ui_visible_row_count(table)) cursor_row = ui_visible_row_count(table) - 1;
                     if (cursor_row < 0) cursor_row = -1; // header if empty
                     if (low_ram_mode && seek_mode_active()) {
                         char err[128]={0}; int page=(rows_visible>0?rows_visible:200);
@@ -443,11 +525,11 @@ void start_ui_loop(Table *table) {
                     if (cursor_row == -1)
                         edit_header_cell(table, cursor_col);
                     else
-                        edit_body_cell(table, cursor_row, cursor_col);
+                        edit_body_cell(table, ui_actual_row_for_visible(table, cursor_row), cursor_col);
                     break;
                 case 'x':
                     // Enter interactive row delete selection mode
-                    if (table->row_count <= 0) { show_error_message("No rows to delete."); break; }
+                    if (ui_visible_row_count(table) <= 0) { show_error_message("No rows to delete."); break; }
                     if (cursor_row < 0) cursor_row = 0;
                     del_row_mode = 1; del_col_mode = 0;
                     break;
@@ -463,7 +545,7 @@ void start_ui_loop(Table *table) {
                     if (cursor_row < 0) {
                         show_error_message("Move to a cell to clear.");
                     } else {
-                        prompt_clear_cell(table, cursor_row, cursor_col);
+                        prompt_clear_cell(table, ui_actual_row_for_visible(table, cursor_row), cursor_col);
                     }
                     break;
             }
@@ -473,11 +555,11 @@ void start_ui_loop(Table *table) {
         if (editing_mode && final_vdir != 0 && rows_visible > 0 && vcount >= 3) {
             int rstart = row_page * rows_visible;
             int rend = rstart + rows_visible - 1;
-            if (rend >= table->row_count) rend = table->row_count - 1;
+            if (rend >= ui_visible_row_count(table)) rend = ui_visible_row_count(table) - 1;
             if (final_vdir > 0) {
                 if (rend >= 0) cursor_row = rend;
             } else if (final_vdir < 0) {
-                if (rstart < table->row_count) cursor_row = (rstart >= 0 ? rstart : 0);
+                if (rstart < ui_visible_row_count(table)) cursor_row = (rstart >= 0 ? rstart : 0);
             }
         }
         if (quit) break;

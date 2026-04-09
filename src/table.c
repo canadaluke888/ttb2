@@ -12,6 +12,7 @@ Table *create_table(const char *name) {
     t->row_count = 0;
     t->capacity_columns = 0;
     t->capacity_rows = 0;
+    t->dirty = 0;
     return t;
 }
 
@@ -68,6 +69,7 @@ void clear_table(Table *t, const char *name) {
     t->row_count = 0;
     t->capacity_columns = 0;
     t->capacity_rows = 0;
+    t->dirty = 0;
 }
 
 int replace_table_contents(Table *dest, Table *src) {
@@ -82,6 +84,7 @@ int replace_table_contents(Table *dest, Table *src) {
     dest->row_count = src->row_count;
     dest->capacity_columns = src->capacity_columns;
     dest->capacity_rows = src->capacity_rows;
+    dest->dirty = src->dirty;
 
     src->name = NULL;
     src->columns = NULL;
@@ -90,6 +93,7 @@ int replace_table_contents(Table *dest, Table *src) {
     src->row_count = 0;
     src->capacity_columns = 0;
     src->capacity_rows = 0;
+    src->dirty = 0;
     free(src);
     return 0;
 }

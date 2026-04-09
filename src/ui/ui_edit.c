@@ -7,6 +7,7 @@
 #include "errors.h"  // Added to provide declaration for show_error_message
 #include "panel_manager.h"
 #include "db_manager.h"
+#include "table_ops.h"
 
 #define MAX_INPUT 128
 
@@ -69,10 +70,13 @@ void edit_header_cell(Table *t, int col) {
                                        sizeof(name_buf),
                                        false);
         if (rc >= 0 && strlen(name_buf) > 0) {
-            free(t->columns[col].name);
-            t->columns[col].name = strdup(name_buf);
             char err[256] = {0};
-            db_autosave_table(t, err, sizeof(err));
+            if (tableop_rename_column(t, col, name_buf, err, sizeof(err)) != 0) {
+                show_error_message(err[0] ? err : "Rename failed.");
+            } else {
+                ui_rebuild_table_view(t, NULL, 0);
+                db_autosave_table(t, err, sizeof(err));
+            }
         }
     } else {
         // Change column type via list modal (no typing)
@@ -170,123 +174,21 @@ void edit_header_cell(Table *t, int col) {
                 bool do_force = (key == 'f' || key == 'F');
                 pm_remove(mo3); pm_remove(sh3); pm_update();
 
-                if (!do_force) {
-                    /* keep old type and abort */
-                    // no change; just return to UI
-                } else {
-                    /* perform conversion; clear incompatible cells */
-                    for (int r = 0; r < t->row_count; r++) {
-                        void *v = (t->rows[r].values ? t->rows[r].values[col] : NULL);
-                        if (!v) {
-                            /* set explicit default for new typed columns */
-                            void *new_ptr = NULL;
-                            switch (new_type) {
-                                case TYPE_INT: { int *i = malloc(sizeof(int)); *i = 0; new_ptr = i; break; }
-                                case TYPE_FLOAT: { float *f = malloc(sizeof(float)); *f = 0.0f; new_ptr = f; break; }
-                                case TYPE_BOOL: { int *b = malloc(sizeof(int)); *b = 0; new_ptr = b; break; }
-                                case TYPE_STR: new_ptr = strdup(""); break;
-                                default: new_ptr = NULL; break;
-                            }
-                            t->rows[r].values[col] = new_ptr;
-                            continue;
-                        }
-
-                        char buf[128];
-                        switch (old_type) {
-                            case TYPE_INT: snprintf(buf, sizeof(buf), "%d", *(int *)v); break;
-                            case TYPE_FLOAT: snprintf(buf, sizeof(buf), "%g", *(float *)v); break;
-                            case TYPE_BOOL: snprintf(buf, sizeof(buf), "%s", (*(int *)v) ? "true" : "false"); break;
-                            case TYPE_STR: default: snprintf(buf, sizeof(buf), "%s", (char *)v); break;
-                        }
-
-                        void *new_ptr = NULL;
-                        bool convertible = validate_input(buf, new_type);
-                        if (convertible) {
-                            switch (new_type) {
-                                case TYPE_INT: { int *i = malloc(sizeof(int)); *i = atoi(buf); new_ptr = i; break; }
-                                case TYPE_FLOAT: { float *f = malloc(sizeof(float)); *f = strtof(buf, NULL); new_ptr = f; break; }
-                                case TYPE_BOOL: { int *b = malloc(sizeof(int)); *b = (strcasecmp(buf, "true") == 0 || strcmp(buf, "1") == 0); new_ptr = b; break; }
-                                case TYPE_STR: new_ptr = strdup(buf); break;
-                                default: new_ptr = NULL; break;
-                            }
-                        } else {
-                            /* not convertible: clear to default */
-                            switch (new_type) {
-                                case TYPE_INT: { int *i = malloc(sizeof(int)); *i = 0; new_ptr = i; break; }
-                                case TYPE_FLOAT: { float *f = malloc(sizeof(float)); *f = 0.0f; new_ptr = f; break; }
-                                case TYPE_BOOL: { int *b = malloc(sizeof(int)); *b = 0; new_ptr = b; break; }
-                                case TYPE_STR: new_ptr = strdup(""); break;
-                                default: new_ptr = NULL; break;
-                            }
-                        }
-
-                        free(t->rows[r].values[col]);
-                        t->rows[r].values[col] = new_ptr;
-                    }
-                    t->columns[col].type = new_type;
-                    {
-                        char err[256] = {0};
+                if (do_force) {
+                    char err[256] = {0};
+                    if (tableop_change_column_type(t, col, new_type, err, sizeof(err)) != 0) {
+                        show_error_message(err[0] ? err : "Type change failed.");
+                    } else {
+                        ui_rebuild_table_view(t, NULL, 0);
                         db_autosave_table(t, err, sizeof(err));
                     }
                 }
             } else {
-                /* perform in-place conversion for existing data */
-                for (int r = 0; r < t->row_count; r++) {
-                    void *v = (t->rows[r].values ? t->rows[r].values[col] : NULL);
-                    if (!v) continue;
-                    char buf[128];
-                    switch (old_type) {
-                        case TYPE_INT:
-                            snprintf(buf, sizeof(buf), "%d", *(int *)v);
-                            break;
-                        case TYPE_FLOAT:
-                            snprintf(buf, sizeof(buf), "%g", *(float *)v);
-                            break;
-                        case TYPE_BOOL:
-                            snprintf(buf, sizeof(buf), "%s", (*(int *)v) ? "true" : "false");
-                            break;
-                        case TYPE_STR:
-                        default:
-                            snprintf(buf, sizeof(buf), "%s", (char *)v);
-                            break;
-                    }
-
-                    void *new_ptr = NULL;
-                    switch (new_type) {
-                        case TYPE_INT: {
-                            int *i = malloc(sizeof(int));
-                            *i = atoi(buf);
-                            new_ptr = i;
-                            break;
-                        }
-                        case TYPE_FLOAT: {
-                            float *f = malloc(sizeof(float));
-                            *f = strtof(buf, NULL);
-                            new_ptr = f;
-                            break;
-                        }
-                        case TYPE_BOOL: {
-                            int *b = malloc(sizeof(int));
-                            *b = (strcasecmp(buf, "true") == 0 || strcmp(buf, "1") == 0);
-                            new_ptr = b;
-                            break;
-                        }
-                        case TYPE_STR: {
-                            new_ptr = strdup(buf);
-                            break;
-                        }
-                        default:
-                            new_ptr = NULL;
-                            break;
-                    }
-
-                    /* replace old value */
-                    free(t->rows[r].values[col]);
-                    t->rows[r].values[col] = new_ptr;
-                }
-                t->columns[col].type = new_type;
-                {
-                    char err[256] = {0};
+                char err[256] = {0};
+                if (tableop_change_column_type(t, col, new_type, err, sizeof(err)) != 0) {
+                    show_error_message(err[0] ? err : "Type change failed.");
+                } else {
+                    ui_rebuild_table_view(t, NULL, 0);
                     db_autosave_table(t, err, sizeof(err));
                 }
             }
@@ -323,43 +225,14 @@ void edit_body_cell(Table *t, int row, int col) {
             continue;
         }
 
-        void *ptr = NULL;
-        switch (t->columns[col].type) {
-            case TYPE_INT: {
-                int *i = malloc(sizeof(int));
-                if (!i) return;
-                *i = atoi(value);
-                ptr = i;
-                break;
-            }
-            case TYPE_FLOAT: {
-                float *f = malloc(sizeof(float));
-                if (!f) return;
-                *f = atof(value);
-                ptr = f;
-                break;
-            }
-            case TYPE_BOOL: {
-                int *b = malloc(sizeof(int));
-                if (!b) return;
-                *b = (strcasecmp(value, "true") == 0 || strcmp(value, "1") == 0);
-                ptr = b;
-                break;
-            }
-            case TYPE_STR: {
-                ptr = strdup(value);
-                break;
-            }
-            default:
-                ptr = NULL;
-                break;
-        }
-
-        if (t->rows[row].values[col])
-            free(t->rows[row].values[col]);
-        t->rows[row].values[col] = ptr;
         {
             char err[256] = {0};
+            if (tableop_set_cell(t, row, col, value, err, sizeof(err)) != 0) {
+                show_error_message(err[0] ? err : "Failed to update cell.");
+                value[0] = '\0';
+                continue;
+            }
+            ui_rebuild_table_view(t, NULL, 0);
             db_autosave_table(t, err, sizeof(err));
         }
         break;
@@ -393,54 +266,19 @@ static int list_confirm(const char *title, const char **items, int count) {
     return sel;
 }
 
-// Internal helpers to mutate the table safely
-static void delete_row_internal(Table *t, int r) {
-    if (!t || r < 0 || r >= t->row_count) return;
-    if (t->rows[r].values) {
-        for (int c = 0; c < t->column_count; ++c) {
-            if (t->rows[r].values[c]) free(t->rows[r].values[c]);
-        }
-        free(t->rows[r].values);
-    }
-    if (r < t->row_count - 1) {
-        memmove(&t->rows[r], &t->rows[r+1], sizeof(Row) * (t->row_count - r - 1));
-    }
-    t->row_count--;
-}
-
-static void delete_column_internal(Table *t, int c) {
-    if (!t || c < 0 || c >= t->column_count) return;
-    if (t->column_count <= 1) return; // guard; caller should handle
-    if (t->columns[c].name) free(t->columns[c].name);
-    if (c < t->column_count - 1) {
-        memmove(&t->columns[c], &t->columns[c+1], sizeof(Column) * (t->column_count - c - 1));
-    }
-    t->column_count--;
-    // Shrink column array
-    if (t->capacity_columns > t->column_count) {
-        t->columns = realloc(t->columns, sizeof(Column) * t->column_count);
-        t->capacity_columns = t->column_count;
-    }
-    // Adjust each row
-    for (int r = 0; r < t->row_count; ++r) {
-        if (!t->rows[r].values) continue;
-        if (t->rows[r].values[c]) free(t->rows[r].values[c]);
-        if (c < t->column_count) {
-            memmove(&t->rows[r].values[c], &t->rows[r].values[c+1], sizeof(void*) * (t->column_count - c));
-        }
-        // shrink row values
-        t->rows[r].values = realloc(t->rows[r].values, sizeof(void*) * t->column_count);
-    }
-}
-
 void confirm_delete_row_at(Table *t, int row) {
     if (!t || t->row_count <= 0 || row < 0 || row >= t->row_count) { show_error_message("No row to delete."); return; }
     const char *opts[] = { "Yes", "No" };
     char title[64]; snprintf(title, sizeof(title), "Delete Row %d?", row + 1);
     int pick = list_confirm(title, opts, 2);
     if (pick != 0) return;
-    delete_row_internal(t, row);
-    char err[256] = {0}; db_autosave_table(t, err, sizeof(err));
+    char err[256] = {0};
+    if (tableop_delete_row(t, row, err, sizeof(err)) != 0) {
+        show_error_message(err[0] ? err : "Failed to delete row.");
+    } else {
+        ui_rebuild_table_view(t, NULL, 0);
+        db_autosave_table(t, err, sizeof(err));
+    }
 }
 
 void confirm_delete_column_at(Table *t, int col) {
@@ -450,8 +288,13 @@ void confirm_delete_column_at(Table *t, int col) {
     char title[96]; snprintf(title, sizeof(title), "Delete Column '%s'?", t->columns[col].name);
     int pick = list_confirm(title, opts, 2);
     if (pick != 0) return;
-    delete_column_internal(t, col);
-    char err[256] = {0}; db_autosave_table(t, err, sizeof(err));
+    char err[256] = {0};
+    if (tableop_delete_column(t, col, err, sizeof(err)) != 0) {
+        show_error_message(err[0] ? err : "Failed to delete column.");
+    } else {
+        ui_reset_table_view(t);
+        db_autosave_table(t, err, sizeof(err));
+    }
 }
 
 void prompt_clear_cell(Table *t, int row, int col) {
@@ -468,15 +311,13 @@ void prompt_clear_cell(Table *t, int row, int col) {
     pm_remove(mo); pm_remove(sh); pm_update();
     if (!(key == 'y' || key == 'Y' || key == '\n')) return;
 
-    if (t->rows[row].values[col]) { free(t->rows[row].values[col]); t->rows[row].values[col] = NULL; }
-    // Assign type-appropriate empty
-    void *new_ptr = NULL;
-    switch (t->columns[col].type) {
-        case TYPE_INT: { int *i = malloc(sizeof(int)); *i = 0; new_ptr = i; break; }
-        case TYPE_FLOAT: { float *f = malloc(sizeof(float)); *f = 0.0f; new_ptr = f; break; }
-        case TYPE_BOOL: { int *b = malloc(sizeof(int)); *b = 0; new_ptr = b; break; }
-        case TYPE_STR: default: new_ptr = strdup(""); break;
+    {
+        char err[256] = {0};
+        if (tableop_clear_cell(t, row, col, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to clear cell.");
+            return;
+        }
+        ui_rebuild_table_view(t, NULL, 0);
+        db_autosave_table(t, err, sizeof(err));
     }
-    t->rows[row].values[col] = new_ptr;
-    char err[256] = {0}; db_autosave_table(t, err, sizeof(err));
 }

@@ -4,8 +4,85 @@
 #include <stdio.h>
 #include "tablecraft.h"
 #include "ui.h"
+#include "ui_text.h"
+
+static void add_repeat(const char *text, int count)
+{
+    for (int i = 0; i < count; ++i) addstr(text);
+}
+
+static void add_spaces(int count)
+{
+    for (int i = 0; i < count; ++i) addch(' ');
+}
+
+static int draw_cell_text(const char *text, int width, int color_pair)
+{
+    int used = 0;
+
+    addch(' ');
+    used++;
+    attron(COLOR_PAIR(color_pair));
+    used += ui_text_addstr_width(stdscr, text ? text : "", width - used);
+    attroff(COLOR_PAIR(color_pair));
+    if (used < width) add_spaces(width - used);
+    return width;
+}
+
+static void draw_highlighted_cell_text(const char *text, int width, int color_pair, int match_start, int match_len)
+{
+    size_t text_len;
+    int used = 0;
+
+    if (!text) text = "";
+    text_len = strlen(text);
+    if (match_start < 0 || match_len <= 0 || (size_t)match_start >= text_len) {
+        draw_cell_text(text, width, color_pair);
+        return;
+    }
+
+    addch(' ');
+    used++;
+
+    attron(COLOR_PAIR(color_pair));
+    used += ui_text_addnstr_width(stdscr, text, (size_t)match_start, width - used);
+    attroff(COLOR_PAIR(color_pair));
+
+    if (used < width) {
+        size_t match_bytes = (size_t)match_len;
+        if ((size_t)match_start + match_bytes > text_len) match_bytes = text_len - (size_t)match_start;
+        attron(COLOR_PAIR(10) | A_BOLD);
+        used += ui_text_addnstr_width(stdscr, text + match_start, match_bytes, width - used);
+        attroff(COLOR_PAIR(10) | A_BOLD);
+    }
+
+    if (used < width) {
+        attron(COLOR_PAIR(color_pair));
+        used += ui_text_addstr_width(stdscr, text + match_start + match_len, width - used);
+        attroff(COLOR_PAIR(color_pair));
+    }
+
+    if (used < width) add_spaces(width - used);
+}
+
+static void draw_status_segment(int y, int *x, int max_x, int color_attr, const char *text)
+{
+    int remaining;
+
+    if (!x || !text || !*text) return;
+    if (*x > max_x) return;
+    remaining = max_x - *x + 1;
+    if (remaining <= 0) return;
+
+    move(y, *x);
+    attron(color_attr);
+    *x += ui_text_addstr_width(stdscr, text, remaining);
+    attroff(color_attr);
+}
 
 void draw_table_grid(Table *t) {
+    int visible_row_count = ui_visible_row_count(t);
+
     if (t->column_count == 0)
     {
         total_pages = 1;
@@ -23,27 +100,21 @@ void draw_table_grid(Table *t) {
     int grid_available_lines_est = LINES - 4;
     int rows_vis_est = (grid_available_lines_est - 3) / 2;
     if (rows_vis_est < 1) rows_vis_est = 1;
-    int rstart_est = row_page * rows_vis_est; if (rstart_est < 0) rstart_est = 0; if (rstart_est > t->row_count) rstart_est = t->row_count;
-    int rend_est = rstart_est + rows_vis_est; if (rend_est > t->row_count) rend_est = t->row_count;
+    int rstart_est = row_page * rows_vis_est; if (rstart_est < 0) rstart_est = 0; if (rstart_est > visible_row_count) rstart_est = visible_row_count;
+    int rend_est = rstart_est + rows_vis_est; if (rend_est > visible_row_count) rend_est = visible_row_count;
 
     int *col_widths = malloc(t->column_count * sizeof(int));
     for (int j = 0; j < t->column_count; j++) {
         char header_buf[128];
         snprintf(header_buf, sizeof(header_buf), "%s (%s)", t->columns[j].name, type_to_string(t->columns[j].type));
-        int max = (int)strlen(header_buf) + 2;
+        int max = ui_text_width(header_buf) + 2;
         // Only scan visible rows for width to avoid full-table cost
         for (int i = rstart_est; i < rend_est; i++) {
+            int actual_row = ui_actual_row_for_visible(t, i);
             char buf[64];
-            if (!t->rows[i].values[j]) continue;
-            if (t->columns[j].type == TYPE_INT)
-                snprintf(buf, sizeof(buf), "%d", *(int *)t->rows[i].values[j]);
-            else if (t->columns[j].type == TYPE_FLOAT)
-                snprintf(buf, sizeof(buf), "%.2f", *(float *)t->rows[i].values[j]);
-            else if (t->columns[j].type == TYPE_BOOL)
-                snprintf(buf, sizeof(buf), "%s", (*(int *)t->rows[i].values[j]) ? "true" : "false");
-            else
-                snprintf(buf, sizeof(buf), "%s", (char *)t->rows[i].values[j]);
-            int len = (int)strlen(buf) + 2;
+            if (actual_row < 0) continue;
+            ui_format_cell_value(t, actual_row, j, buf, sizeof(buf));
+            int len = ui_text_width(buf) + 2;
             if (len > max) max = len;
         }
         col_widths[j] = max;
@@ -139,11 +210,11 @@ void draw_table_grid(Table *t) {
     attron(COLOR_PAIR(6));
     mvprintw(y++, x, "┏");
     if (use_gutter) {
-        for (int i2 = 0; i2 < gutter_w; ++i2) addstr("━");
+        add_repeat("━", gutter_w);
         addstr((start < end) ? "┳" : "┓");
     }
     for (int j = start; j < end; j++) {
-        for (int i3 = 0; i3 < col_widths[j]; i3++) addstr("━");
+        add_repeat("━", col_widths[j]);
         addstr((j < end - 1) ? "┳" : "┓");
     }
     attroff(COLOR_PAIR(6));
@@ -162,22 +233,30 @@ void draw_table_grid(Table *t) {
     for (int j = start; j < end; j++) {
         const char *name = t->columns[j].name;
         const char *type = type_to_string(t->columns[j].type);
+        int remaining;
+        int used = 0;
         extern int del_col_mode;
         if ((editing_mode || search_mode) && cursor_row == -1 && cursor_col == j) attron(A_REVERSE);
         if (editing_mode && del_col_mode && cursor_col == j) attron(A_REVERSE);
 
         attron(COLOR_PAIR(t->columns[j].color_pair_id) | A_BOLD);
-        printw(" %s", name);
+        addch(' ');
+        used = 1;
+        used += ui_text_addstr_width(stdscr, name, col_widths[j] - used);
         attroff(COLOR_PAIR(t->columns[j].color_pair_id) | A_BOLD);
 
         attron(COLOR_PAIR(3));
-        printw(" (%s)", type);
+        remaining = col_widths[j] - used;
+        used += ui_text_addstr_width(stdscr, " (", remaining);
+        remaining = col_widths[j] - used;
+        used += ui_text_addstr_width(stdscr, type, remaining);
+        remaining = col_widths[j] - used;
+        used += ui_text_addstr_width(stdscr, ")", remaining);
         attroff(COLOR_PAIR(3));
 
         if ((editing_mode || search_mode) && cursor_row == -1 && cursor_col == j) attroff(A_REVERSE);
         if (editing_mode && del_col_mode && cursor_col == j) attroff(A_REVERSE);
 
-        int used = strlen(name) + strlen(type) + 4;
         for (int s = used; s < col_widths[j]; s++)
             addch(' ');
 
@@ -187,11 +266,11 @@ void draw_table_grid(Table *t) {
     attron(COLOR_PAIR(6));
     mvprintw(y++, x, "┡");
     if (use_gutter) {
-        for (int i2 = 0; i2 < gutter_w; ++i2) addstr("━");
+        add_repeat("━", gutter_w);
         addstr((start < end) ? "╇" : "┩");
     }
     for (int j = start; j < end; j++) {
-        for (int i = 0; i < col_widths[j]; i++) addstr("━");
+        add_repeat("━", col_widths[j]);
         addstr((j < end - 1) ? "╇" : "┩");
     }
     attroff(COLOR_PAIR(6));
@@ -201,18 +280,19 @@ void draw_table_grid(Table *t) {
     int max_rows = (grid_available_lines - 3) / 2; // from 2*N + 3 <= available
     if (max_rows < 1) max_rows = 1;
     rows_visible = max_rows;
-    total_row_pages = (t->row_count + rows_visible - 1) / rows_visible;
+    total_row_pages = (visible_row_count + rows_visible - 1) / rows_visible;
     // If in search mode, ensure the visible rows include the cursor row
-    if (search_mode && cursor_row >= 0 && cursor_row < t->row_count && rows_visible > 0) {
+    if (search_mode && cursor_row >= 0 && cursor_row < visible_row_count && rows_visible > 0) {
         row_page = cursor_row / rows_visible;
     }
     if (row_page >= total_row_pages) row_page = (total_row_pages > 0 ? total_row_pages - 1 : 0);
     int rstart = row_page * rows_visible;
     if (rstart < 0) rstart = 0;
     int rend = rstart + rows_visible;
-    if (rend > t->row_count) rend = t->row_count;
+    if (rend > visible_row_count) rend = visible_row_count;
 
     for (int i = rstart; i < rend; i++) {
+        int actual_row = ui_actual_row_for_visible(t, i);
         move(y++, x);
         attron(COLOR_PAIR(6)); addstr("│"); attroff(COLOR_PAIR(6));
         if (use_gutter) {
@@ -230,14 +310,7 @@ void draw_table_grid(Table *t) {
         }
         for (int j = start; j < end; j++) {
             char buf[64] = "";
-            if (t->columns[j].type == TYPE_INT && t->rows[i].values[j])
-                snprintf(buf, sizeof(buf), "%d", *(int *)t->rows[i].values[j]);
-            else if (t->columns[j].type == TYPE_FLOAT && t->rows[i].values[j])
-                snprintf(buf, sizeof(buf), "%.2f", *(float *)t->rows[i].values[j]);
-            else if (t->columns[j].type == TYPE_BOOL && t->rows[i].values[j])
-                snprintf(buf, sizeof(buf), "%s", (*(int *)t->rows[i].values[j]) ? "true" : "false");
-            else if (t->rows[i].values[j])
-                snprintf(buf, sizeof(buf), "%s", (char *)t->rows[i].values[j]);
+            if (actual_row >= 0) ui_format_cell_value(t, actual_row, j, buf, sizeof(buf));
 
             extern int del_row_mode, del_col_mode;
             int highlight_cell = 0;
@@ -248,46 +321,9 @@ void draw_table_grid(Table *t) {
 
             // Draw cell with optional search substring highlight if selected in search mode
             if (search_mode && cursor_row == i && cursor_col == j) {
-                int totalw = col_widths[j];
-                // left space padding one: we print a leading space to match earlier layout
-                addch(' ');
-                // Recompute match on the fly using current query for robust highlighting
-                int qlen = (int)strlen(search_query);
-                int start = -1;
-                if (qlen > 0) {
-                    for (int p = 0; buf[p]; ++p) {
-                        int k = 0; while (buf[p + k] && k < qlen) {
-                            char a = buf[p + k]; if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
-                            char b = search_query[k]; if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
-                            if (a != b) break;
-                            k++;
-                        }
-                        if (k == qlen) { start = p; break; }
-                    }
-                }
-                if (start >= 0 && qlen > 0) {
-                    int pre_len = start; if (pre_len > (int)strlen(buf)) pre_len = (int)strlen(buf);
-                    int match_len = qlen; if (pre_len + match_len > (int)strlen(buf)) match_len = (int)strlen(buf) - pre_len; if (match_len < 0) match_len = 0;
-                    int post_len = (int)strlen(buf) - (pre_len + match_len); if (post_len < 0) post_len = 0;
-                    if (pre_len > 0) addnstr(buf, pre_len);
-                    if (match_len > 0) { attron(COLOR_PAIR(10) | A_BOLD); addnstr(buf + pre_len, match_len); attroff(COLOR_PAIR(10) | A_BOLD); }
-                    if (post_len > 0) addnstr(buf + pre_len + match_len, post_len);
-                    int used = 1 + (int)strlen(buf);
-                    for (int s = used; s < totalw; s++) addch(' ');
-                } else {
-                    // No match in this cell despite search mode; draw normally inside highlighted cell
-                    attron(COLOR_PAIR(t->columns[j].color_pair_id));
-                    printw(" %s", buf);
-                    int used = (int)strlen(buf) + 1;
-                    for (int s = used; s < col_widths[j]; s++) addch(' ');
-                    attroff(COLOR_PAIR(t->columns[j].color_pair_id));
-                }
+                draw_highlighted_cell_text(buf, col_widths[j], t->columns[j].color_pair_id, search_sel_start, search_sel_len);
             } else {
-                attron(COLOR_PAIR(t->columns[j].color_pair_id));
-                printw(" %s", buf);
-                int used = (int)strlen(buf) + 1;
-                for (int s = used; s < col_widths[j]; s++) addch(' ');
-                attroff(COLOR_PAIR(t->columns[j].color_pair_id));
+                draw_cell_text(buf, col_widths[j], t->columns[j].color_pair_id);
             }
 
             if (highlight_cell) attroff(A_REVERSE);
@@ -299,11 +335,11 @@ void draw_table_grid(Table *t) {
             attron(COLOR_PAIR(6));
             addstr("├");
             if (use_gutter) {
-                for (int i2 = 0; i2 < gutter_w; ++i2) addstr("─");
+                add_repeat("─", gutter_w);
                 addstr((start < end) ? "┼" : "┤");
             }
             for (int j = start; j < end; j++) {
-                for (int k = 0; k < col_widths[j]; k++) addstr("─");
+                add_repeat("─", col_widths[j]);
                 addstr((j < end - 1) ? "┼" : "┤");
             }
             attroff(COLOR_PAIR(6));
@@ -313,11 +349,11 @@ void draw_table_grid(Table *t) {
     attron(COLOR_PAIR(6));
     mvprintw(y++, x, "└");
     if (use_gutter) {
-        for (int i2 = 0; i2 < gutter_w; ++i2) addstr("─");
+        add_repeat("─", gutter_w);
         addstr((start < end) ? "┴" : "┘");
     }
     for (int j = start; j < end; j++) {
-        for (int i = 0; i < col_widths[j]; i++) addstr("─");
+        add_repeat("─", col_widths[j]);
         addstr((j < end - 1) ? "┴" : "┘");
     }
     attroff(COLOR_PAIR(6));
@@ -327,17 +363,21 @@ void draw_table_grid(Table *t) {
 }
 
 void draw_ui(Table *table) {
+    char view_buf[512];
+    int max_x = COLS - 3;
+
     erase();
 
-    int title_x = (COLS - (int)strlen(table->name)) / 2;
+    int title_x = (COLS - ui_text_width(table->name)) / 2;
+    if (title_x < 0) title_x = 0;
     attron(COLOR_PAIR(1) | A_BOLD);
-    mvprintw(0, title_x, "%s", table->name);
+    mvaddnstr(0, title_x, table->name, (int)ui_text_bytes_for_width(table->name, COLS - title_x));
     attroff(COLOR_PAIR(1) | A_BOLD);
 
     // Show cursor position at top-left when in edit or search mode
     if (editing_mode || search_mode) {
         int rcur = (cursor_row < 0) ? 0 : (cursor_row + 1);
-        int rtot = table->row_count;
+        int rtot = ui_visible_row_count(table);
         int ccur = (table->column_count > 0) ? (cursor_col + 1) : 0;
         int ctot = table->column_count;
         attron(COLOR_PAIR(4) | A_BOLD);
@@ -347,53 +387,66 @@ void draw_ui(Table *table) {
 
     draw_table_grid(table);
 
+    if (ui_table_view_is_active()) {
+        attron(COLOR_PAIR(4));
+        if (tableview_describe(table, &ui_table_view, view_buf, sizeof(view_buf)) != 0) {
+            snprintf(view_buf, sizeof(view_buf), "View: %d/%d rows", ui_visible_row_count(table), table->row_count);
+        }
+        mvaddnstr(1, 2, view_buf, (int)ui_text_bytes_for_width(view_buf, COLS - 4));
+        attroff(COLOR_PAIR(4));
+    }
+
     // Footer: general hints vs paging hints colored differently
     int fy = LINES - 2;
-    move(fy, 2);
-    attron(COLOR_PAIR(5));
+    int fx = 2;
     if (search_mode) {
-        printw("[←][→][↑][↓] Prev/Next Match   [Esc] Exit Search");
-        attroff(COLOR_PAIR(5));
-        // Show match index/total in paging color for grounding
-        attron(COLOR_PAIR(4));
+        draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), "[←][→][↑][↓] Prev/Next Match | [Esc] Exit Search");
         extern int search_hit_index; extern int search_hit_count;
-        printw("  |  Matches %d/%d", (search_hit_count > 0 ? (search_hit_index + 1) : 0), search_hit_count);
-        attroff(COLOR_PAIR(4));
-        // During search mode, we still want the table to scroll to the match; hints are simplified
+        {
+            char match_buf[64];
+            snprintf(match_buf, sizeof(match_buf), " | Matches %d/%d", (search_hit_count > 0 ? (search_hit_index + 1) : 0), search_hit_count);
+            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), match_buf);
+        }
     } else if (!editing_mode) {
-        printw("[C] Add Column  [R] Add Row  [F] Search  [E] Edit Mode  [M] Menu  [S] Save  [Q] Quit  [Ctrl+H] Top-Left");
-        attroff(COLOR_PAIR(5));
-        // Paging hints in a distinct color
+        draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), "[C] Add Column  [R] Add Row  [F] Search  [E] Edit Mode  [M] Menu  [S] Save  [Q] Quit  [Ctrl+H] Top-Left");
+        if (ui_visible_row_count(table) == 0 && ui_table_view_is_active()) {
+            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, " | 0 results");
+        }
         if (total_pages > 1 || total_row_pages > 1) {
-            attron(COLOR_PAIR(4));
             if (total_pages > 1) {
-                printw("  |  Cols Pg %d/%d  [←][→] Columns", col_page + 1, total_pages);
+                char buf[64];
+                snprintf(buf, sizeof(buf), " | Cols Pg %d/%d [←][→] Columns", col_page + 1, total_pages);
+                draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
             if (total_row_pages > 1) {
-                printw("  |  Rows Pg %d/%d  [↑][↓] Rows", row_page + 1, total_row_pages);
+                char buf[64];
+                snprintf(buf, sizeof(buf), " | Rows Pg %d/%d [↑][↓] Rows", row_page + 1, total_row_pages);
+                draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
-            attroff(COLOR_PAIR(4));
         }
     } else {
         extern int del_row_mode, del_col_mode;
         if (del_row_mode) {
-            printw("Delete Row: [↑][↓] Select  [Enter] Confirm  [Esc] Cancel");
+            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), "Del Row: [↑][↓] Select [Enter] Confirm [Esc] Cancel");
         } else if (del_col_mode) {
-            printw("Delete Column: [←][→] Select  [Enter] Confirm  [Esc] Cancel");
+            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), "Del Col: [←][→] Select [Enter] Confirm [Esc] Cancel");
         } else {
-            printw("[←][→][↑][↓] Navigate    [Enter] Edit Cell    [F] Search    [x] Del Row    [Shift+X] Del Col    [Backspace] Clear    [Ctrl+H] Top-Left    [Esc] Exit Edit Mode");
+            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), "[←][→][↑][↓] Nav [Enter] Edit [F] Search [x] Del Row [Shift+X] Del Col [Bksp] Clear [Ctrl+H] Home [Esc] Exit");
         }
-        attroff(COLOR_PAIR(5));
-        // Also show paging context in edit mode if applicable
+        if (ui_visible_row_count(table) == 0 && ui_table_view_is_active()) {
+            draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, " | 0 results");
+        }
         if (total_pages > 1 || total_row_pages > 1) {
-            attron(COLOR_PAIR(4));
             if (total_pages > 1) {
-                printw("  |  Cols Pg %d/%d", col_page + 1, total_pages);
+                char buf[32];
+                snprintf(buf, sizeof(buf), " | Cols Pg %d/%d", col_page + 1, total_pages);
+                draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
             if (total_row_pages > 1) {
-                printw("  |  Rows Pg %d/%d", row_page + 1, total_row_pages);
+                char buf[32];
+                snprintf(buf, sizeof(buf), " | Rows Pg %d/%d", row_page + 1, total_row_pages);
+                draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
             }
-            attroff(COLOR_PAIR(4));
         }
     }
 

@@ -395,15 +395,23 @@ int workspace_list_book_tables(char ***names_out, char ***ids_out, int *count_ou
 
 int workspace_autosave(const Table *table, char *err, size_t err_sz)
 {
+    Table *mutable_table = (Table *)table;
+
     if (!g_autosave_on) return 0;
-    workspace_set_active_table((Table *)table);
-    return save_project(table, err, err_sz);
+    workspace_set_active_table(mutable_table);
+    if (save_project(table, err, err_sz) != 0) return -1;
+    if (mutable_table) mutable_table->dirty = 0;
+    return 0;
 }
 
 int workspace_manual_save(const Table *table, char *err, size_t err_sz)
 {
-    workspace_set_active_table((Table *)table);
-    return save_project(table, err, err_sz);
+    Table *mutable_table = (Table *)table;
+
+    workspace_set_active_table(mutable_table);
+    if (save_project(table, err, err_sz) != 0) return -1;
+    if (mutable_table) mutable_table->dirty = 0;
+    return 0;
 }
 
 int workspace_init(Table **out_table, char *err, size_t err_sz)

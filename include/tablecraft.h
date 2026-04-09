@@ -29,6 +29,7 @@ typedef struct {
 
     int capacity_columns;
     int capacity_rows;
+    int dirty;
 } Table;
 
 Table *create_table(const char *name);

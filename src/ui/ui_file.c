@@ -69,6 +69,7 @@ static void replace_loaded_table(Table *table, Table *loaded)
     if (!table || !loaded) return;
     replace_table_contents(table, loaded);
     workspace_set_active_table(table);
+    ui_reset_table_view(table);
 }
 
 static int prepare_for_single_table_open(Table *table)
@@ -165,6 +166,7 @@ int ui_open_path(Table *table, const char *path, int preserve_current_table, int
         snprintf(err, sizeof(err), "Legacy .ttbx files are not supported. Open a .ttbx directory book.");
     } else if (workspace_open_book(table, path, err, sizeof(err)) == 0) {
         workspace_set_active_table(table);
+        ui_reset_table_view(table);
     }
 
     if (loading_modal) {

@@ -11,13 +11,14 @@
 #include "pdf.h"
 #include "ttb_io.h"
 #include "db_manager.h"
+#include "table_ops.h"
 #include "workspace.h"
 #include "errors.h"
 #include "panel_manager.h"
 
 #define MAX_INPUT 128
 
-static void draw_simple_list_modal(const char *title, const char **items, int count, int *io_selected);
+static int draw_simple_list_modal(const char *title, const char **items, int count, int initial_selected);
 static UiMenuResult prompt_rename_active_table(Table *table);
 static UiMenuResult prompt_rename_book(void);
 static UiMenuResult show_book_tables_page(Table *table);
@@ -57,7 +58,7 @@ static void free_string_list(char **list, int count) {
     free(list);
 }
 
-static void draw_simple_list_modal(const char *title, const char **items, int count, int *io_selected) {
+static int draw_simple_list_modal(const char *title, const char **items, int count, int initial_selected) {
     int prev_vis = curs_set(0);
     noecho();
 
@@ -77,7 +78,7 @@ static void draw_simple_list_modal(const char *title, const char **items, int co
     PmNode *modal  = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
     keypad(modal->win, TRUE);
 
-    int selected = (io_selected && *io_selected >= 0 && *io_selected < count) ? *io_selected : 0;
+    int selected = (initial_selected >= 0 && initial_selected < count) ? initial_selected : 0;
     if (count <= 0) {
         selected = -1;
     }
@@ -134,9 +135,9 @@ static void draw_simple_list_modal(const char *title, const char **items, int co
         else if (ch == '\n') break;
         else if (ch == 27) { selected = -1; break; }
     }
-    if (io_selected) *io_selected = selected;
     pm_remove(modal); pm_remove(shadow); pm_update();
     if (prev_vis != -1) curs_set(prev_vis);
+    return selected;
 }
 
 int show_text_input_modal(const char *title,
@@ -307,8 +308,8 @@ void prompt_add_column(Table *table) {
     }
 
     const char *type_items[] = { "int", "float", "str", "bool" };
-    int selected = 0;
-    draw_simple_list_modal("[2/2] Select column type", type_items, 4, &selected);
+    int selected = draw_simple_list_modal("[2/2] Select column type", type_items, 4, 0);
+    if (selected < 0) return;
 
     DataType type = TYPE_UNKNOWN;
     if (selected == 0) type = TYPE_INT;
@@ -316,9 +317,13 @@ void prompt_add_column(Table *table) {
     else if (selected == 2) type = TYPE_STR;
     else if (selected == 3) type = TYPE_BOOL;
     if (type != TYPE_UNKNOWN) {
-        add_column(table, name, type);
         char err[256] = {0};
-        db_autosave_table(table, err, sizeof(err));
+        if (tableop_insert_column(table, name, type, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to add column.");
+        } else {
+            ui_rebuild_table_view(table, NULL, 0);
+            db_autosave_table(table, err, sizeof(err));
+        }
     }
 }
 
@@ -377,9 +382,13 @@ void prompt_add_row(Table *table) {
     }
 
     if (!cancelled) {
-        add_row(table, (const char **)input_strings);
         char err[256] = {0};
-        db_autosave_table(table, err, sizeof(err));
+        if (tableop_insert_row(table, (const char **)input_strings, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to add row.");
+        } else {
+            ui_rebuild_table_view(table, NULL, 0);
+            db_autosave_table(table, err, sizeof(err));
+        }
     }
 
     for (int i = 0; i < table->column_count; ++i) {
@@ -442,10 +451,7 @@ static UiMenuResult prompt_rename_book(void) {
 
 static void reset_table_view_state(Table *table)
 {
-    cursor_row = (table && table->row_count > 0) ? 0 : -1;
-    cursor_col = 0;
-    col_page = 0;
-    row_page = 0;
+    ui_reset_table_view(table);
 }
 
 static UiMenuResult show_book_tables_page(Table *table)
@@ -561,11 +567,11 @@ static UiMenuResult show_book_tables_page(Table *table)
             } else if (ch == 'd' || ch == 'D') {
                 const char *opts[] = {"No", "Yes"};
                 char title[160];
-                int pick = 0;
+                int pick;
                 int was_active = workspace_active_table_id() && ids[sel] &&
                                  strcmp(workspace_active_table_id(), ids[sel]) == 0;
                 snprintf(title, sizeof(title), "Delete table '%s'?", names[sel] ? names[sel] : "");
-                draw_simple_list_modal(title, opts, 2, &pick);
+                pick = draw_simple_list_modal(title, opts, 2, 0);
                 if (pick == 1) {
                     if (workspace_delete_table(table, ids[sel], err, sizeof(err)) != 0) {
                         show_error_message(err[0] ? err : "Failed to delete table.");
@@ -595,6 +601,178 @@ static UiMenuResult show_book_tables_page(Table *table)
     }
 }
 
+void prompt_sort_rows(Table *table)
+{
+    if (!table || table->column_count <= 0) {
+        show_error_message("Add at least one column first.");
+        return;
+    }
+    if (low_ram_mode) {
+        show_error_message("Sort is disabled in low-RAM mode.");
+        return;
+    }
+
+    char **items = calloc((size_t)table->column_count, sizeof(char *));
+    const char **labels = calloc((size_t)table->column_count, sizeof(char *));
+    int selected_col = 0;
+    int selected_order = 0;
+
+    if (!items || !labels) {
+        free(items);
+        free(labels);
+        show_error_message("Out of memory");
+        return;
+    }
+
+    for (int i = 0; i < table->column_count; ++i) {
+        char buf[192];
+        snprintf(buf, sizeof(buf), "%s (%s)", table->columns[i].name, type_to_string(table->columns[i].type));
+        items[i] = strdup(buf);
+        labels[i] = items[i];
+        if (!items[i]) {
+            free_string_list(items, i);
+            free(labels);
+            show_error_message("Out of memory");
+            return;
+        }
+    }
+
+    while (1) {
+        const char *order_items[] = {"Ascending", "Descending"};
+
+        selected_col = draw_simple_list_modal("Sort Rows By Column", labels, table->column_count, selected_col);
+        if (selected_col < 0) break;
+
+        selected_order = draw_simple_list_modal("Sort Order", order_items, 2, selected_order);
+        if (selected_order < 0) continue;
+
+        char err[256] = {0};
+        if (tableview_sort(table, &ui_table_view, selected_col, selected_order == 1, err, sizeof(err)) != 0) {
+            show_error_message(err[0] ? err : "Failed to sort rows.");
+        } else {
+            cursor_row = (ui_visible_row_count(table) > 0) ? 0 : -1;
+            cursor_col = 0;
+            row_page = 0;
+            col_page = 0;
+        }
+        break;
+    }
+
+    free_string_list(items, table->column_count);
+    free(labels);
+}
+
+void prompt_filter_rows(Table *table)
+{
+    if (!table || table->column_count <= 0) {
+        show_error_message("Add at least one column first.");
+        return;
+    }
+    if (low_ram_mode) {
+        show_error_message("Filter is disabled in low-RAM mode.");
+        return;
+    }
+
+    char **items = calloc((size_t)table->column_count, sizeof(char *));
+    const char **labels = calloc((size_t)table->column_count, sizeof(char *));
+    int selected_col = 0;
+    int selected_op = 0;
+    char value[128] = {0};
+    FilterRule rule;
+
+    if (!items || !labels) {
+        free(items);
+        free(labels);
+        show_error_message("Out of memory");
+        return;
+    }
+
+    for (int i = 0; i < table->column_count; ++i) {
+        char buf[192];
+        snprintf(buf, sizeof(buf), "%s (%s)", table->columns[i].name, type_to_string(table->columns[i].type));
+        items[i] = strdup(buf);
+        labels[i] = items[i];
+        if (!items[i]) {
+            free_string_list(items, i);
+            free(labels);
+            show_error_message("Out of memory");
+            return;
+        }
+    }
+
+    while (1) {
+        const char *op_items[] = {"Contains", "Equals", ">", "<", ">=", "<="};
+        int restart_column = 0;
+
+        selected_col = draw_simple_list_modal("Filter Rows By Column", labels, table->column_count, selected_col);
+        if (selected_col < 0) break;
+
+        while (1) {
+            char err[256] = {0};
+
+            selected_op = draw_simple_list_modal("Filter Operator", op_items, 6, selected_op);
+            if (selected_op < 0) {
+                restart_column = 1;
+                break;
+            }
+
+            if (show_text_input_modal("Filter Rows",
+                                      "[Enter] Apply   [Esc] Back",
+                                      "Filter value:",
+                                      value,
+                                      sizeof(value),
+                                      false) < 0) {
+                continue;
+            }
+
+            memset(&rule, 0, sizeof(rule));
+            rule.col = selected_col;
+            rule.op = (FilterOp)selected_op;
+            strncpy(rule.value, value, sizeof(rule.value) - 1);
+
+            if (tableview_apply_filter(table, &ui_table_view, &rule, err, sizeof(err)) != 0) {
+                show_error_message(err[0] ? err : "Failed to apply filter.");
+                continue;
+            }
+
+            cursor_row = (ui_visible_row_count(table) > 0) ? 0 : -1;
+            cursor_col = 0;
+            row_page = 0;
+            col_page = 0;
+            restart_column = 0;
+            selected_col = -1;
+            break;
+        }
+
+        if (selected_col < 0) break;
+        if (restart_column) continue;
+    }
+
+    free_string_list(items, table->column_count);
+    free(labels);
+}
+
+void clear_table_view_prompt(Table *table)
+{
+    char err[256] = {0};
+
+    (void)table;
+    if (!ui_table_view_is_active()) {
+        show_error_message("No active sort or filter.");
+        return;
+    }
+    tableview_clear_filter(&ui_table_view);
+    tableview_clear_sort(&ui_table_view);
+    if (ui_rebuild_table_view(table, err, sizeof(err)) != 0) {
+        show_error_message(err[0] ? err : "Failed to clear view.");
+        return;
+    }
+    cursor_row = -1;
+    cursor_col = 0;
+    row_page = 0;
+    col_page = 0;
+}
+
 void show_table_menu(Table *table) {
     int keep_open = 1;
 
@@ -603,7 +781,7 @@ void show_table_menu(Table *table) {
         noecho();
         curs_set(0);
 
-        int options_count = 8;
+        int options_count = 11;
         int h = options_count + 4; /* title underline + options */
         if (h < 8) h = 8; /* minimum height for comfort */
         int w = COLS - 4;
@@ -614,7 +792,7 @@ void show_table_menu(Table *table) {
         PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
         keypad(modal->win, TRUE);
 
-        const char *labels[] = {"Rename Table", "Rename Book", "Export", "Open File", "Book Tables", "New Table", "Settings", "Back to Editor"};
+        const char *labels[] = {"Rename Table", "Rename Book", "Sort Rows", "Filter Rows", "Clear Sort/Filter", "Export", "Open File", "Book Tables", "New Table", "Settings", "Back to Editor"};
         int selected = 0;
         int ch;
 
@@ -667,15 +845,27 @@ void show_table_menu(Table *table) {
                 if (prompt_rename_book() == UI_MENU_DONE) keep_open = 0;
                 break;
             case 2:
-                if (show_export_menu(table) == UI_MENU_DONE) keep_open = 0;
+                prompt_sort_rows(table);
+                keep_open = 0;
                 break;
             case 3:
-                if (show_open_file(table) == UI_MENU_DONE) keep_open = 0;
+                prompt_filter_rows(table);
+                keep_open = 0;
                 break;
             case 4:
+                clear_table_view_prompt(table);
+                keep_open = 0;
+                break;
+            case 5:
+                if (show_export_menu(table) == UI_MENU_DONE) keep_open = 0;
+                break;
+            case 6:
+                if (show_open_file(table) == UI_MENU_DONE) keep_open = 0;
+                break;
+            case 7:
                 if (show_book_tables_page(table) == UI_MENU_DONE) keep_open = 0;
                 break;
-            case 5: {
+            case 8: {
                 if (table->column_count > 0 && !workspace_autosave_enabled()) {
                     int h = 5; int w = COLS - 4; int y = (LINES - h) / 2; int x = 2;
                     PmNode *sh = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
@@ -701,7 +891,7 @@ void show_table_menu(Table *table) {
                 keep_open = 0;
                 break;
             }
-            case 6:
+            case 9:
                 if (show_settings_menu() == UI_MENU_DONE) keep_open = 0;
                 break;
             default:
@@ -837,8 +1027,7 @@ UiMenuResult show_export_menu(Table *table) {
             }
         } else if (selected == 5) {
             const char *scope_labels[] = {"Single Table", "Whole Book"};
-            int scope_pick = 0;
-            draw_simple_list_modal("Export SQLite DB", scope_labels, 2, &scope_pick);
+            int scope_pick = draw_simple_list_modal("Export SQLite DB", scope_labels, 2, 0);
             if (scope_pick < 0) {
                 clear();
                 refresh();

@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include "tablecraft.h"
+#include "table_view.h"
 #include "settings.h"
 
 // Global UI state (defined in ui_loop.c)
@@ -29,6 +30,7 @@ extern int row_gutter_enabled; // show/hide row number gutter
 // Destructive selection modes inside edit mode
 extern int del_row_mode;  // when 1, highlight full row and navigate with ↑/↓, Enter confirms delete
 extern int del_col_mode;  // when 1, highlight full column and navigate with ←/→, Enter confirms delete
+extern TableView ui_table_view;
 
 typedef enum {
     UI_MENU_DONE = 0,
@@ -56,6 +58,9 @@ void confirm_delete_column_at(Table *table, int col);
 void prompt_add_column(Table *table);
 void prompt_add_row(Table *table);
 void show_table_menu(Table *table);
+void prompt_sort_rows(Table *table);
+void prompt_filter_rows(Table *table);
+void clear_table_view_prompt(Table *table);
 UiMenuResult show_export_menu(Table *table);
 void prompt_rename_table(Table *table);
 UiMenuResult show_settings_menu(void);
@@ -81,5 +86,11 @@ void seek_mode_close(void);
 
 // UI loop function
 void start_ui_loop(Table *table);
+void ui_reset_table_view(Table *table);
+int ui_visible_row_count(Table *table);
+int ui_actual_row_for_visible(Table *table, int visible_row);
+int ui_rebuild_table_view(Table *table, char *err, size_t err_sz);
+int ui_table_view_is_active(void);
+int ui_format_cell_value(const Table *table, int row, int col, char *buf, size_t buf_sz);
 
 #endif // UI_H
