@@ -281,13 +281,10 @@ static int save_table_file(const Table *table, const char *path, char *err, size
 
 static int ensure_directory(const char *path, char *err, size_t err_sz)
 {
-    struct stat st;
-    if (stat(path, &st) == 0) {
-        if (S_ISDIR(st.st_mode)) return 0;
-        set_err(err, err_sz, "Book path is not a directory");
-        return -1;
-    }
     if (mkdir(path, 0755) != 0) {
+        if (errno == EEXIST && is_directory(path)) {
+            return 0;
+        }
         set_err(err, err_sz, strerror(errno));
         return -1;
     }
@@ -517,7 +514,7 @@ static int update_entry_identity(TtbxManifest *manifest,
         strcmp(manifest->tables[idx].file, new_file) != 0) {
         join_path(old_path, sizeof(old_path), dir_path, manifest->tables[idx].file);
         join_path(new_path, sizeof(new_path), dir_path, new_file);
-        if (access(old_path, F_OK) == 0 && rename(old_path, new_path) != 0) {
+        if (rename(old_path, new_path) != 0 && errno != ENOENT) {
             free(new_id);
             free(new_name);
             free(new_file);
@@ -604,9 +601,12 @@ void ttbx_manifest_free(TtbxManifest *manifest)
 int ttbx_is_book_dir(const char *path)
 {
     char manifest_path[PATH_MAX];
+    struct stat st;
+
     if (!is_directory(path)) return 0;
     join_path(manifest_path, sizeof(manifest_path), path, TTBX_MANIFEST_FILE);
-    return access(manifest_path, F_OK) == 0 ? 1 : 0;
+    if (stat(manifest_path, &st) != 0) return 0;
+    return S_ISREG(st.st_mode) ? 1 : 0;
 }
 
 int ttbl_save(const Table *table, const char *path, char *err, size_t err_sz)
@@ -904,7 +904,7 @@ int ttbx_delete_table(const char *path, const char *table_id, char *next_active_
     }
 
     join_path(deleted_path, sizeof(deleted_path), path, manifest.tables[idx].file);
-    if (access(deleted_path, F_OK) == 0 && unlink(deleted_path) != 0) {
+    if (unlink(deleted_path) != 0 && errno != ENOENT) {
         free(next_id);
         ttbx_manifest_free(&manifest);
         set_err(err, err_sz, strerror(errno));

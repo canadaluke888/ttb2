@@ -8,6 +8,16 @@
 #define SETTINGS_DIR "settings"
 #define SETTINGS_FILE SETTINGS_DIR "/settings.json"
 
+static int path_is_directory(const char *path)
+{
+    struct stat st;
+
+    if (!path || stat(path, &st) != 0) {
+        return 0;
+    }
+    return S_ISDIR(st.st_mode) ? 1 : 0;
+}
+
 static int normalize_color(int color, int fallback)
 {
     return (color >= 0 && color <= 7) ? color : fallback;
@@ -20,17 +30,10 @@ const char *settings_default_path(void)
 
 int settings_ensure_directory(void)
 {
-    struct stat st;
-    if (stat(SETTINGS_DIR, &st) == 0) {
-        if (S_ISDIR(st.st_mode)) {
-            return 0;
-        }
-        return -1;
-    }
     if (mkdir(SETTINGS_DIR, 0755) == 0) {
         return 0;
     }
-    if (errno == EEXIST) {
+    if (errno == EEXIST && path_is_directory(SETTINGS_DIR)) {
         return 0;
     }
     return -1;

@@ -30,16 +30,20 @@ static void set_err(char *err, size_t err_sz, const char *msg)
     err[err_sz - 1] = '\0';
 }
 
-static int ensure_workspace_dir(char *err, size_t err_sz)
+static int path_is_directory(const char *path)
 {
     struct stat st;
-    if (stat(WORKSPACE_DIR, &st) == 0) {
-        if (S_ISDIR(st.st_mode)) return 0;
-        set_err(err, err_sz, "workspace path is not a directory");
-        return -1;
+
+    if (!path || stat(path, &st) != 0) {
+        return 0;
     }
+    return S_ISDIR(st.st_mode) ? 1 : 0;
+}
+
+static int ensure_workspace_dir(char *err, size_t err_sz)
+{
     if (mkdir(WORKSPACE_DIR, 0755) != 0) {
-        if (errno == EEXIST) return 0;
+        if (errno == EEXIST && path_is_directory(WORKSPACE_DIR)) return 0;
         set_err(err, err_sz, "failed to create workspace directory");
         return -1;
     }

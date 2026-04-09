@@ -32,8 +32,9 @@ static void set_err(char *err, size_t err_sz, const char *msg) {
     err[err_sz - 1] = '\0';
 }
 
-static int path_exists(const char *p) {
-    struct stat st; return stat(p, &st) == 0;
+static int path_is_directory(const char *p) {
+    struct stat st;
+    return (p && stat(p, &st) == 0 && S_ISDIR(st.st_mode)) ? 1 : 0;
 }
 
 static void join_path(char *out, size_t out_sz, const char *a, const char *b) {
@@ -61,8 +62,10 @@ int db_ensure_databases_dir(char *err, size_t err_sz) {
         return -1;
     }
     strcat(path, "/databases");
-    if (path_exists(path)) return 0;
     if (mkdir(path, 0755) != 0) {
+        if (errno == EEXIST && path_is_directory(path)) {
+            return 0;
+        }
         set_err(err, err_sz, "Failed to create databases directory");
         return -1;
     }
@@ -97,8 +100,14 @@ int db_create_database(const char *name, char *err, size_t err_sz) {
 int db_delete_database(const char *name, char *err, size_t err_sz) {
     char dir[512]; databases_dir(dir, sizeof(dir));
     char path[1024]; join_path(path, sizeof(path), dir, name);
-    if (!path_exists(path)) { set_err(err, err_sz, "Database does not exist"); return -1; }
-    if (remove(path) != 0) { set_err(err, err_sz, "Failed to delete database"); return -1; }
+    if (remove(path) != 0) {
+        if (errno == ENOENT) {
+            set_err(err, err_sz, "Database does not exist");
+            return -1;
+        }
+        set_err(err, err_sz, "Failed to delete database");
+        return -1;
+    }
     return 0;
 }
 
@@ -131,10 +140,13 @@ int db_list_databases(char ***names_out, int *count_out, char *err, size_t err_s
 
 DbManager *db_open(const char *path, char *err, size_t err_sz) {
     if (!path || !*path) { set_err(err, err_sz, "No path provided"); return NULL; }
-    if (!path_exists(path)) { set_err(err, err_sz, "Database does not exist"); return NULL; }
     sqlite3 *conn = NULL;
-    if (sqlite3_open(path, &conn) != SQLITE_OK) {
-        set_err(err, err_sz, "Failed to open database");
+    if (sqlite3_open_v2(path, &conn, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK) {
+        if (conn && sqlite3_errcode(conn) == SQLITE_CANTOPEN) {
+            set_err(err, err_sz, "Database does not exist");
+        } else {
+            set_err(err, err_sz, "Failed to open database");
+        }
         if (conn) sqlite3_close(conn);
         return NULL;
     }
