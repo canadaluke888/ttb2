@@ -225,7 +225,7 @@ static int deserialize_table(struct json_object *obj, Table **out_table, char *e
 
 static int save_json_to_file(struct json_object *root, const char *path, char *err, size_t err_sz)
 {
-    int rc = json_object_to_file_ext(path, root, JSON_C_TO_STRING_PRETTY);
+    int rc = json_object_to_file_ext(path, root, JSON_C_TO_STRING_PLAIN);
     if (rc != 0) {
         set_err(err, err_sz, strerror(errno));
         return -1;

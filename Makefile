@@ -13,7 +13,7 @@ DEB_STAGE := /tmp/ttb2-deb-stage
 DEB_CONTROL := $(DEB_STAGE)/DEBIAN/control
 DEB_PACKAGE := ttb2_$(VERSION)_$(DEB_ARCH).deb
 
-SRC_DIRS = src src/db src/parser src/ui
+SRC_DIRS = src src/db src/ui src/ui
 OBJ_DIR = build/obj
 BIN_DIR = build
 OUT = $(BIN_DIR)/ttb2
