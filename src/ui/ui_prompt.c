@@ -494,7 +494,7 @@ static UiMenuResult show_book_tables_page(Table *table)
             mvwaddch(modal->win, 2, 0, ACS_LTEE);
             mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
             wattron(modal->win, COLOR_PAIR(4));
-            mvwprintw(modal->win, h - 2, 2, "[S] Select   [R] Rename   [D] Delete   [Esc] Close");
+            mvwprintw(modal->win, h - 2, 2, "[S] Select   [R] Rename   [D] Delete   [Esc] Back");
             wattroff(modal->win, COLOR_PAIR(4));
 
             visible = h - 5;
@@ -586,7 +586,7 @@ static UiMenuResult show_book_tables_page(Table *table)
                 pm_update();
                 free_string_list(names, count);
                 free_string_list(ids, count);
-                return UI_MENU_DONE;
+                return UI_MENU_BACK;
             }
         }
 
