@@ -13,7 +13,7 @@ DEB_STAGE := /tmp/ttb2-deb-stage
 DEB_CONTROL := $(DEB_STAGE)/DEBIAN/control
 DEB_PACKAGE := ttb2_$(VERSION)_$(DEB_ARCH).deb
 
-SRC_DIRS = src src/db src/ui src/ui
+SRC_DIRS = src src/db src/io src/ui
 OBJ_DIR = build/obj
 BIN_DIR = build
 OUT = $(BIN_DIR)/ttb2
@@ -80,6 +80,6 @@ clean:
 	rm -rf $(OBJ_DIR)
 
 .PHONY: run install uninstall deb clean seekdb_bench
-seekdb_bench: tools/seekdb_bench.c src/seekdb.c include/seekdb.h
+seekdb_bench: tools/seekdb_bench.c src/db/seekdb.c include/seekdb.h
 	mkdir -p $(BIN_DIR)
-	$(CC) -O2 -Wall -Iinclude -o $(BIN_DIR)/seekdb_bench tools/seekdb_bench.c src/seekdb.c -lsqlite3
+	$(CC) -O2 -Wall -Iinclude -o $(BIN_DIR)/seekdb_bench tools/seekdb_bench.c src/db/seekdb.c -lsqlite3
