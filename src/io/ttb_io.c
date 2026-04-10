@@ -296,20 +296,23 @@ static int remove_path_if_exists(const char *path, char *err, size_t err_sz)
     DIR *dir;
     struct dirent *de;
     char child[PATH_MAX];
-    struct stat st;
 
     if (!path) return 0;
-    if (stat(path, &st) != 0) return 0;
-    if (!S_ISDIR(st.st_mode)) {
-        if (unlink(path) != 0) {
-            set_err(err, err_sz, strerror(errno));
-            return -1;
-        }
+
+    if (unlink(path) == 0) {
         return 0;
+    }
+    if (errno == ENOENT) {
+        return 0;
+    }
+    if (errno != EISDIR && errno != EPERM) {
+        set_err(err, err_sz, strerror(errno));
+        return -1;
     }
 
     dir = opendir(path);
     if (!dir) {
+        if (errno == ENOENT) return 0;
         set_err(err, err_sz, strerror(errno));
         return -1;
     }
@@ -323,6 +326,7 @@ static int remove_path_if_exists(const char *path, char *err, size_t err_sz)
     }
     closedir(dir);
     if (rmdir(path) != 0) {
+        if (errno == ENOENT) return 0;
         set_err(err, err_sz, strerror(errno));
         return -1;
     }
