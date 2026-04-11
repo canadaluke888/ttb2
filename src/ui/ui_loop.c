@@ -255,6 +255,132 @@ static void trim_ascii(char *s) {
     while (n > 0 && (s[n-1] == ' ' || s[n-1] == '\t' || s[n-1] == '\n' || s[n-1] == '\r')) { s[n-1] = '\0'; n--; }
 }
 
+static int current_page_last_col(const Table *table)
+{
+    int cmax;
+
+    if (!table || table->column_count <= 0) return 0;
+    cmax = (cols_visible > 0) ? (col_start + cols_visible - 1) : (table->column_count - 1);
+    if (cmax >= table->column_count) cmax = table->column_count - 1;
+    if (cmax < 0) cmax = 0;
+    return cmax;
+}
+
+static int current_page_last_row(Table *table)
+{
+    int visible_rows;
+    int rstart;
+    int rmax;
+
+    visible_rows = ui_visible_row_count(table);
+    if (visible_rows <= 0) return -1;
+    rstart = row_page * (rows_visible > 0 ? rows_visible : 1);
+    if (rstart < 0) rstart = 0;
+    rmax = rstart + (rows_visible > 0 ? rows_visible - 1 : 0);
+    if (rmax >= visible_rows) rmax = visible_rows - 1;
+    return rmax;
+}
+
+static void move_cursor_left_cross_page(const Table *table)
+{
+    if (!table || table->column_count <= 0) return;
+    if (cursor_col > col_start) {
+        cursor_col--;
+        return;
+    }
+    if (col_page > 0) {
+        col_page--;
+        ensure_cursor_column_visible(table);
+        cursor_col = current_page_last_col(table);
+    }
+}
+
+static void move_cursor_right_cross_page(const Table *table)
+{
+    int cmax;
+
+    if (!table || table->column_count <= 0) return;
+    cmax = current_page_last_col(table);
+    if (cursor_col < cmax) {
+        cursor_col++;
+        return;
+    }
+    if (col_page < total_pages - 1) {
+        col_page++;
+        ensure_cursor_column_visible(table);
+        cursor_col = col_start;
+    }
+}
+
+static void move_cursor_up_cross_page(Table *table)
+{
+    int visible_rows;
+    int rmin;
+
+    visible_rows = ui_visible_row_count(table);
+    if (visible_rows <= 0) {
+        cursor_row = -1;
+        row_page = 0;
+        return;
+    }
+
+    rmin = row_page * (rows_visible > 0 ? rows_visible : 1);
+    if (rmin < 0) rmin = 0;
+
+    if (cursor_row == -1) {
+        if (row_page > 0) {
+            row_page--;
+            cursor_row = current_page_last_row(table);
+        }
+        return;
+    }
+
+    if (cursor_row > rmin) {
+        cursor_row--;
+        return;
+    }
+
+    if (row_page > 0) {
+        row_page--;
+        cursor_row = current_page_last_row(table);
+    } else {
+        cursor_row = -1;
+    }
+}
+
+static void move_cursor_down_cross_page(Table *table)
+{
+    int visible_rows;
+    int rmax;
+
+    visible_rows = ui_visible_row_count(table);
+    if (visible_rows <= 0) {
+        cursor_row = -1;
+        row_page = 0;
+        return;
+    }
+
+    rmax = current_page_last_row(table);
+    if (cursor_row < 0) {
+        int rstart = row_page * (rows_visible > 0 ? rows_visible : 1);
+        if (rstart >= visible_rows) rstart = visible_rows - 1;
+        if (rstart < 0) rstart = 0;
+        cursor_row = rstart;
+        return;
+    }
+
+    if (cursor_row < rmax) {
+        cursor_row++;
+        return;
+    }
+
+    if (row_page < total_row_pages - 1) {
+        row_page++;
+        cursor_row = row_page * (rows_visible > 0 ? rows_visible : 1);
+        if (cursor_row >= visible_rows) cursor_row = visible_rows - 1;
+    }
+}
+
 // Clamp cursor indices to current viewport (visible page boundaries)
 static void clamp_cursor_viewport(const Table *table) {
     int visible_rows = tableview_visible_row_count(table, &ui_table_view);
@@ -761,16 +887,12 @@ void start_ui_loop(Table *table) {
                 case KEY_LEFT:
                 case 'a':
                 case 'A':
-                    // Do not page during edit; restrict to visible range
-                    if (cursor_col > col_start) cursor_col--;
+                    move_cursor_left_cross_page(table);
                     break;
                 case KEY_RIGHT:
                 case 'd':
                 case 'D':
-                    {
-                        int cmax = (cols_visible > 0) ? (col_start + cols_visible - 1) : (table->column_count - 1);
-                        if (cursor_col < cmax) cursor_col++;
-                    }
+                    move_cursor_right_cross_page(table);
                     break;
                 case KEY_UP:
                 case 'w':
@@ -791,15 +913,7 @@ void start_ui_loop(Table *table) {
                             cursor_row--;
                         }
                     } else {
-                        // Header allowed; restrict body to page
-                        if (cursor_row == -1) {
-                            // stay on header
-                        } else {
-                            int rmin = row_page * (rows_visible > 0 ? rows_visible : 1);
-                            if (rmin < 0) rmin = 0;
-                            if (cursor_row > rmin) cursor_row--;
-                            else cursor_row = -1; // move to header when at top of page
-                        }
+                        move_cursor_up_cross_page(table);
                     }
                     break;
                 case KEY_DOWN:
@@ -817,11 +931,7 @@ void start_ui_loop(Table *table) {
                             cursor_row++;
                         }
                     } else {
-                        // restrict to page bottom
-                        int rmin = row_page * (rows_visible > 0 ? rows_visible : 1);
-                        int rmax = rmin + (rows_visible > 0 ? rows_visible - 1 : 0);
-                        if (rmax >= ui_visible_row_count(table)) rmax = ui_visible_row_count(table) - 1;
-                        if (cursor_row < rmax) cursor_row++;
+                        move_cursor_down_cross_page(table);
                     }
                     break;
                 case 27: // ESC key
