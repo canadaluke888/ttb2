@@ -79,7 +79,11 @@ clean:
 	rm -rf $(BIN_DIR)
 	rm -rf $(OBJ_DIR)
 
-.PHONY: run install uninstall deb clean seekdb_bench
+.PHONY: run install uninstall deb clean seekdb_bench history_test
 seekdb_bench: tools/seekdb_bench.c src/db/seekdb.c include/seekdb.h
 	mkdir -p $(BIN_DIR)
 	$(CC) -O2 -Wall -Iinclude -o $(BIN_DIR)/seekdb_bench tools/seekdb_bench.c src/db/seekdb.c -lsqlite3
+
+history_test: tests/ui_history_test.c src/table.c src/table_ops.c src/ui/ui_history.c include/ui_history.h
+	mkdir -p $(BIN_DIR)
+	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/history_test tests/ui_history_test.c src/table.c src/table_ops.c src/ui/ui_history.c

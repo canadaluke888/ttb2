@@ -112,6 +112,8 @@ Supported startup inputs:
 - In Edit mode:
   - `Enter` Edit cell
   - `F` Search mode
+  - `Ctrl+U` Undo the latest table edit
+  - `Ctrl+R` Redo the latest undone table edit
   - `x` Delete row (interactive; Enter confirms)
   - `Shift+X` Delete column (interactive; Enter confirms)
   - `v` Move row or column (row when on a body row, column when on the header)

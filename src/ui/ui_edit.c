@@ -8,6 +8,7 @@
 #include "panel_manager.h"
 #include "db_manager.h"
 #include "table_ops.h"
+#include "ui_history.h"
 
 #define MAX_INPUT 128
 
@@ -71,11 +72,13 @@ void edit_header_cell(Table *t, int col) {
                                        false);
         if (rc >= 0 && strlen(name_buf) > 0) {
             char err[256] = {0};
-            if (tableop_rename_column(t, col, name_buf, err, sizeof(err)) != 0) {
+            UiHistoryApplyResult result = {0};
+            if (ui_history_rename_column(t, col, name_buf, &result, err, sizeof(err)) != 0) {
                 show_error_message(err[0] ? err : "Rename failed.");
             } else {
-                ui_rebuild_table_view(t, NULL, 0);
-                db_autosave_table(t, err, sizeof(err));
+                if (ui_history_refresh(t, &result, err, sizeof(err)) != 0 && err[0]) {
+                    show_error_message(err);
+                }
             }
         }
     } else {
@@ -176,20 +179,24 @@ void edit_header_cell(Table *t, int col) {
 
                 if (do_force) {
                     char err[256] = {0};
-                    if (tableop_change_column_type(t, col, new_type, err, sizeof(err)) != 0) {
+                    UiHistoryApplyResult result = {0};
+                    if (ui_history_change_column_type(t, col, new_type, &result, err, sizeof(err)) != 0) {
                         show_error_message(err[0] ? err : "Type change failed.");
                     } else {
-                        ui_rebuild_table_view(t, NULL, 0);
-                        db_autosave_table(t, err, sizeof(err));
+                        if (ui_history_refresh(t, &result, err, sizeof(err)) != 0 && err[0]) {
+                            show_error_message(err);
+                        }
                     }
                 }
             } else {
                 char err[256] = {0};
-                if (tableop_change_column_type(t, col, new_type, err, sizeof(err)) != 0) {
+                UiHistoryApplyResult result = {0};
+                if (ui_history_change_column_type(t, col, new_type, &result, err, sizeof(err)) != 0) {
                     show_error_message(err[0] ? err : "Type change failed.");
                 } else {
-                    ui_rebuild_table_view(t, NULL, 0);
-                    db_autosave_table(t, err, sizeof(err));
+                    if (ui_history_refresh(t, &result, err, sizeof(err)) != 0 && err[0]) {
+                        show_error_message(err);
+                    }
                 }
             }
         }
@@ -227,13 +234,15 @@ void edit_body_cell(Table *t, int row, int col) {
 
         {
             char err[256] = {0};
-            if (tableop_set_cell(t, row, col, value, err, sizeof(err)) != 0) {
+            UiHistoryApplyResult result = {0};
+            if (ui_history_set_cell(t, row, col, value, &result, err, sizeof(err)) != 0) {
                 show_error_message(err[0] ? err : "Failed to update cell.");
                 value[0] = '\0';
                 continue;
             }
-            ui_rebuild_table_view(t, NULL, 0);
-            db_autosave_table(t, err, sizeof(err));
+            if (ui_history_refresh(t, &result, err, sizeof(err)) != 0 && err[0]) {
+                show_error_message(err);
+            }
         }
         break;
     }
@@ -296,11 +305,13 @@ void confirm_delete_row_at(Table *t, int row) {
     int pick = list_confirm(title, opts, 2);
     if (pick != 0) return;
     char err[256] = {0};
-    if (tableop_delete_row(t, row, err, sizeof(err)) != 0) {
+    UiHistoryApplyResult result = {0};
+    if (ui_history_delete_row(t, row, &result, err, sizeof(err)) != 0) {
         show_error_message(err[0] ? err : "Failed to delete row.");
     } else {
-        ui_rebuild_table_view(t, NULL, 0);
-        db_autosave_table(t, err, sizeof(err));
+        if (ui_history_refresh(t, &result, err, sizeof(err)) != 0 && err[0]) {
+            show_error_message(err);
+        }
     }
 }
 
@@ -312,11 +323,13 @@ void confirm_delete_column_at(Table *t, int col) {
     int pick = list_confirm(title, opts, 2);
     if (pick != 0) return;
     char err[256] = {0};
-    if (tableop_delete_column(t, col, err, sizeof(err)) != 0) {
+    UiHistoryApplyResult result = {0};
+    if (ui_history_delete_column(t, col, &result, err, sizeof(err)) != 0) {
         show_error_message(err[0] ? err : "Failed to delete column.");
     } else {
-        ui_reset_table_view(t);
-        db_autosave_table(t, err, sizeof(err));
+        if (ui_history_refresh(t, &result, err, sizeof(err)) != 0 && err[0]) {
+            show_error_message(err);
+        }
     }
 }
 
@@ -336,11 +349,13 @@ void prompt_clear_cell(Table *t, int row, int col) {
 
     {
         char err[256] = {0};
-        if (tableop_clear_cell(t, row, col, err, sizeof(err)) != 0) {
+        UiHistoryApplyResult result = {0};
+        if (ui_history_clear_cell(t, row, col, &result, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to clear cell.");
             return;
         }
-        ui_rebuild_table_view(t, NULL, 0);
-        db_autosave_table(t, err, sizeof(err));
+        if (ui_history_refresh(t, &result, err, sizeof(err)) != 0 && err[0]) {
+            show_error_message(err);
+        }
     }
 }

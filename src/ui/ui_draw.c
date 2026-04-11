@@ -586,7 +586,7 @@ void draw_ui(Table *table) {
                 draw_footer_separator(fy, &fx, max_x);
                 draw_action_hint_segment(fy, &fx, max_x, "[x] Del Row  [Shift+X] Del Col  [Bksp] Clear");
                 draw_footer_separator(fy, &fx, max_x);
-                draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+H] Home  [Esc] Exit");
+                draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+U] Undo  [Ctrl+R] Redo  [Ctrl+H] Home  [Esc] Exit");
             } else {
                 draw_action_hint_segment(fy, &fx, max_x, "Insert: [Left Bracket] Above  [Right Bracket] Below");
                 draw_footer_separator(fy, &fx, max_x);

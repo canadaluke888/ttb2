@@ -104,6 +104,7 @@ void seek_mode_close(void);
 // UI loop function
 void start_ui_loop(Table *table);
 void ui_reset_table_view(Table *table);
+void ui_focus_location(Table *table, int actual_row, int col, int prefer_header);
 int ui_visible_row_count(Table *table);
 int ui_actual_row_for_visible(Table *table, int visible_row);
 int ui_rebuild_table_view(Table *table, char *err, size_t err_sz);

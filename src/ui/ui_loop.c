@@ -10,6 +10,7 @@
 #include "workspace.h"
 #include "db_manager.h"
 #include "table_ops.h"
+#include "ui_history.h"
 
 // Define global UI state variables
 int editing_mode = 0;
@@ -178,12 +179,70 @@ void ui_reset_table_view(Table *table)
     (void)table;
     exit_search();
     clear_reorder_mode();
+    ui_history_reset();
     footer_page = 0;
     tableview_free(&ui_table_view);
     cursor_row = -1;
     cursor_col = 0;
     col_page = 0;
     row_page = 0;
+}
+
+void ui_focus_location(Table *table, int actual_row, int col, int prefer_header)
+{
+    int visible_row;
+    int visible_rows;
+
+    if (!table) return;
+
+    if (table->column_count <= 0) {
+        cursor_col = 0;
+        cursor_row = -1;
+        col_page = 0;
+        row_page = 0;
+        return;
+    }
+
+    if (col < 0) col = 0;
+    if (col >= table->column_count) col = table->column_count - 1;
+    cursor_col = col;
+
+    if (prefer_header) {
+        cursor_row = -1;
+        ensure_cursor_column_visible(table);
+        return;
+    }
+
+    visible_rows = ui_visible_row_count(table);
+    if (visible_rows <= 0) {
+        cursor_row = -1;
+        row_page = 0;
+        ensure_cursor_column_visible(table);
+        return;
+    }
+
+    if (!ui_table_view_is_active()) {
+        visible_row = actual_row;
+    } else {
+        visible_row = -1;
+        for (int i = 0; i < visible_rows; ++i) {
+            if (ui_actual_row_for_visible(table, i) == actual_row) {
+                visible_row = i;
+                break;
+            }
+        }
+    }
+
+    if (visible_row < 0) {
+        visible_row = 0;
+    }
+    if (visible_row >= visible_rows) {
+        visible_row = visible_rows - 1;
+    }
+
+    cursor_row = visible_row;
+    ensure_cursor_row_visible(table);
+    ensure_cursor_column_visible(table);
 }
 
 static void trim_ascii(char *s) {
@@ -341,18 +400,6 @@ static void enter_search(Table *table) {
 static void exit_search(void) {
     search_mode = 0;
     clear_search_hits();
-}
-
-static void finish_reorder_action(Table *table, int keep_header_cursor)
-{
-    char err[256] = {0};
-
-    if (ui_rebuild_table_view(table, err, sizeof(err)) != 0) {
-        if (err[0]) show_error_message(err);
-    }
-    db_autosave_table(table, err, sizeof(err));
-    if (keep_header_cursor) cursor_row = -1;
-    clear_reorder_mode();
 }
 
 void start_ui_loop(Table *table) {
@@ -542,17 +589,25 @@ void start_ui_loop(Table *table) {
                             if (reorder_mode == UI_REORDER_MOVE_ROW) {
                                 int placement = prompt_move_row_placement(table, source_actual, dest_actual);
                                 if (placement == 0 || placement == 1) {
-                                    if (tableop_move_row(table, source_actual, dest_actual, placement == 1, err, sizeof(err)) != 0) {
+                                    UiHistoryApplyResult result = {0};
+                                    if (ui_history_move_row(table, source_actual, dest_actual, placement == 1, &result, err, sizeof(err)) != 0) {
                                         show_error_message(err[0] ? err : "Failed to move row.");
                                     } else {
-                                        finish_reorder_action(table, 0);
+                                        if (ui_history_refresh(table, &result, err, sizeof(err)) != 0 && err[0]) {
+                                            show_error_message(err);
+                                        }
+                                        clear_reorder_mode();
                                     }
                                 }
                             } else {
-                                if (tableop_swap_rows(table, source_actual, dest_actual, err, sizeof(err)) != 0) {
+                                UiHistoryApplyResult result = {0};
+                                if (ui_history_swap_rows(table, source_actual, dest_actual, &result, err, sizeof(err)) != 0) {
                                     show_error_message(err[0] ? err : "Failed to swap rows.");
                                 } else {
-                                    finish_reorder_action(table, 0);
+                                    if (ui_history_refresh(table, &result, err, sizeof(err)) != 0 && err[0]) {
+                                        show_error_message(err);
+                                    }
+                                    clear_reorder_mode();
                                 }
                             }
                         } else {
@@ -574,17 +629,25 @@ void start_ui_loop(Table *table) {
                             if (reorder_mode == UI_REORDER_MOVE_COL) {
                                 int placement = prompt_move_column_placement(table, source_col, dest_col);
                                 if (placement == 0 || placement == 1) {
-                                    if (tableop_move_column(table, source_col, dest_col, placement == 1, err, sizeof(err)) != 0) {
+                                    UiHistoryApplyResult result = {0};
+                                    if (ui_history_move_column(table, source_col, dest_col, placement == 1, &result, err, sizeof(err)) != 0) {
                                         show_error_message(err[0] ? err : "Failed to move column.");
                                     } else {
-                                        finish_reorder_action(table, 1);
+                                        if (ui_history_refresh(table, &result, err, sizeof(err)) != 0 && err[0]) {
+                                            show_error_message(err);
+                                        }
+                                        clear_reorder_mode();
                                     }
                                 }
                             } else {
-                                if (tableop_swap_columns(table, source_col, dest_col, err, sizeof(err)) != 0) {
+                                UiHistoryApplyResult result = {0};
+                                if (ui_history_swap_columns(table, source_col, dest_col, &result, err, sizeof(err)) != 0) {
                                     show_error_message(err[0] ? err : "Failed to swap columns.");
                                 } else {
-                                    finish_reorder_action(table, 1);
+                                    if (ui_history_refresh(table, &result, err, sizeof(err)) != 0 && err[0]) {
+                                        show_error_message(err);
+                                    }
+                                    clear_reorder_mode();
                                 }
                             }
                         }
@@ -755,6 +818,26 @@ void start_ui_loop(Table *table) {
                         seek_mode_fetch_first(table, page, err, sizeof err);
                     }
                     break;
+                case 21: {
+                    UiHistoryApplyResult result = {0};
+                    char err[256] = {0};
+                    if (ui_history_undo(table, &result, err, sizeof(err)) != 0) {
+                        show_error_message(err[0] ? err : "Nothing to undo.");
+                    } else if (ui_history_refresh(table, &result, err, sizeof(err)) != 0) {
+                        show_error_message(err[0] ? err : "Failed to refresh after undo.");
+                    }
+                    break;
+                }
+                case 18: {
+                    UiHistoryApplyResult result = {0};
+                    char err[256] = {0};
+                    if (ui_history_redo(table, &result, err, sizeof(err)) != 0) {
+                        show_error_message(err[0] ? err : "Nothing to redo.");
+                    } else if (ui_history_refresh(table, &result, err, sizeof(err)) != 0) {
+                        show_error_message(err[0] ? err : "Failed to refresh after redo.");
+                    }
+                    break;
+                }
                 case 'f':
                 case 'F':
                     enter_search(table);

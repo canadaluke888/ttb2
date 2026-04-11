@@ -15,6 +15,7 @@
 #include "workspace.h"
 #include "errors.h"
 #include "panel_manager.h"
+#include "ui_history.h"
 
 #define MAX_INPUT 128
 
@@ -385,14 +386,18 @@ static int prompt_add_column_at_internal(Table *table, int col_index, int focus_
     else if (selected == 3) type = TYPE_BOOL;
     if (type != TYPE_UNKNOWN) {
         char err[256] = {0};
-        if (tableop_insert_column_at(table, col_index, name, type, err, sizeof(err)) != 0) {
+        UiHistoryApplyResult result = {0};
+        if (ui_history_insert_column(table, col_index, name, type, &result, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to add column.");
         } else {
-            ui_rebuild_table_view(table, NULL, 0);
-            if (focus_inserted) {
-                cursor_col = col_index;
+            if (!focus_inserted) {
+                result.focus_header = (cursor_row < 0);
+                result.focus_actual_row = (cursor_row >= 0) ? ui_actual_row_for_visible(table, cursor_row) : -1;
+                result.focus_col = cursor_col;
             }
-            db_autosave_table(table, err, sizeof(err));
+            if (ui_history_refresh(table, &result, err, sizeof(err)) != 0 && err[0]) {
+                show_error_message(err);
+            }
             return 0;
         }
     }
@@ -410,21 +415,6 @@ int prompt_insert_row_at(Table *table, int row_index)
     if (cursor_row == -1 || row_index <= 0) title = "Add Row Above";
     else title = "Add Row Below";
     return prompt_add_row_at_internal(table, row_index, 1, title);
-}
-
-static int find_visible_row_for_actual(Table *table, int actual_row)
-{
-    int visible_rows;
-
-    if (!table || actual_row < 0) return -1;
-    visible_rows = ui_visible_row_count(table);
-    if (!ui_table_view_is_active()) {
-        return (actual_row < visible_rows) ? actual_row : -1;
-    }
-    for (int visible = 0; visible < visible_rows; ++visible) {
-        if (ui_actual_row_for_visible(table, visible) == actual_row) return visible;
-    }
-    return -1;
 }
 
 static int prompt_add_row_at_internal(Table *table, int row_index, int focus_inserted, const char *title)
@@ -484,21 +474,18 @@ static int prompt_add_row_at_internal(Table *table, int row_index, int focus_ins
 
     if (!cancelled) {
         char err[256] = {0};
-        if (tableop_insert_row_at(table, row_index, (const char **)input_strings, err, sizeof(err)) != 0) {
+        UiHistoryApplyResult result = {0};
+        if (ui_history_insert_row(table, row_index, (const char **)input_strings, &result, err, sizeof(err)) != 0) {
             show_error_message(err[0] ? err : "Failed to add row.");
         } else {
-            ui_rebuild_table_view(table, NULL, 0);
-            if (focus_inserted) {
-                int inserted_visible_row = find_visible_row_for_actual(table, row_index);
-                if (inserted_visible_row >= 0) {
-                    cursor_row = inserted_visible_row;
-                    if (rows_visible > 0) row_page = cursor_row / rows_visible;
-                } else {
-                    cursor_row = (ui_visible_row_count(table) > 0) ? 0 : -1;
-                    row_page = 0;
-                }
+            if (!focus_inserted) {
+                result.focus_header = (cursor_row < 0);
+                result.focus_actual_row = (cursor_row >= 0) ? ui_actual_row_for_visible(table, cursor_row) : row_index;
+                result.focus_col = cursor_col;
             }
-            db_autosave_table(table, err, sizeof(err));
+            if (ui_history_refresh(table, &result, err, sizeof(err)) != 0 && err[0]) {
+                show_error_message(err);
+            }
             for (int i = 0; i < table->column_count; ++i) {
                 free(input_strings[i]);
             }
