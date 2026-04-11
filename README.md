@@ -69,7 +69,8 @@ Supported startup inputs:
 - `.csv`
 - `.xlsx`
 - `.ttbl`
-- `.ttbx` directory books
+- SQLite-backed `.ttbx` books
+- legacy `.ttbx` directory books
 
 ## Highlights
 - Interactive table editing (add columns/rows; rename columns; change types; edit cells)
@@ -128,10 +129,10 @@ Supported startup inputs:
 - On Windows terminals, flicker is minimized by double‑buffered updates and scanning only visible rows for column widths.
 
 ## Workspace & Exports
-- A project workspace lives in `workspace/session.ttbx` by default. The file is created automatically and updated whenever autosave triggers or you press `S`.
+- A project workspace lives in `workspace/session.ttbx` by default. The file is a SQLite-backed `.ttbx` book created automatically and updated whenever autosave triggers or you press `S`.
 - Use the Export menu to write the current data as:
   - `.ttbl` – a single-table snapshot
-  - `.ttbx` – a project/workbook bundle
+  - `.ttbx` – a SQLite-backed project/workbook file
   - `.csv`, `.xlsx`, or `.pdf`
 - Export now lets you browse to a destination directory in-app before entering the output filename.
 

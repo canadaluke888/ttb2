@@ -1092,7 +1092,7 @@ UiMenuResult show_export_menu(Table *table) {
         curs_set(0);
 
         /* Modal selection styled like header edit */
-        const char *labels[] = {"Table (.ttbl)", "Book (.ttbx)", "CSV", "XLSX", "PDF", "SQLite DB (.db)", "Back"};
+        const char *labels[] = {"Table (.ttbl)", "Book (.ttbx SQLite)", "CSV", "XLSX", "PDF", "SQLite DB (.db)", "Back"};
         int options_count = 7;
         int h = options_count + 4;
         if (h < 8) h = 8;
