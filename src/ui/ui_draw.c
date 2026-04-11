@@ -531,7 +531,7 @@ void draw_ui(Table *table) {
         draw_footer_separator(fy, &fx, max_x);
         draw_action_hint_segment(fy, &fx, max_x, "[M] Menu  [S] Save  [Q] Quit");
         draw_footer_separator(fy, &fx, max_x);
-        draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+H] Top-Left");
+        draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+H] Home");
         if (ui_visible_row_count(table) == 0 && ui_table_view_is_active()) {
             draw_footer_separator(fy, &fx, max_x);
             draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, "0 results");
@@ -586,7 +586,9 @@ void draw_ui(Table *table) {
                 draw_footer_separator(fy, &fx, max_x);
                 draw_action_hint_segment(fy, &fx, max_x, "[X] Del Row  [Shift+X] Del Col");
                 draw_footer_separator(fy, &fx, max_x);
-                draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+U] Undo  [Ctrl+R] Redo  [Ctrl+H] Home  [M] Menu  [Esc] Exit");
+                draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+U] Undo  [Ctrl+R] Redo");
+                draw_footer_separator(fy, &fx, max_x);
+                draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+H] Home  [M] Menu  [Esc] Exit");
             } else {
                 draw_action_hint_segment(fy, &fx, max_x, "Insert: [Left Bracket] Above  [Right Bracket] Below");
                 draw_footer_separator(fy, &fx, max_x);
