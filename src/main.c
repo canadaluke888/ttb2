@@ -18,6 +18,7 @@ int main(int argc, char **argv) {
 
     setlocale(LC_ALL, "");
     initscr();
+    set_escdelay(25);
     pm_init();
     noecho();
     cbreak();

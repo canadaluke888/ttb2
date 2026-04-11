@@ -125,7 +125,7 @@ Supported startup inputs:
   - Move row prompts for `Above` or `Below` after you pick the destination row
   - Move column prompts for `Left` or `Right` after you pick the destination column
   - `Ctrl+H` Jump to top‑left (Home)
-  - `Esc` Back
+  - `Esc` Exit edit mode
 
 ## Performance / Low‑RAM Mode
 - Enable “Low‑RAM seek paging” in Settings to browse large datasets without loading everything into memory.
