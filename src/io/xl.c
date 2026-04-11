@@ -116,7 +116,10 @@ static char *build_sheet_xml(const char *sheet_name,
 static char *build_workbook_xml(const char *sheet_name);
 static const char *content_types_xml(void);
 static const char *rels_root_xml(void);
+static const char *docprops_app_xml(void);
+static const char *docprops_core_xml(void);
 static const char *workbook_rels_xml(void);
+static const char *theme_xml(void);
 static const char *styles_xml(void);
 
 static void report_progress(const ProgressReporter *progress,
@@ -797,22 +800,22 @@ static int zip_write_files(const char *archive_path,
         header[5] = 0x00;
         header[6] = 0x14;
         header[7] = 0x00;
-        header[10] = (unsigned char)(dos_time & 0xFF);
-        header[11] = (unsigned char)((dos_time >> 8) & 0xFF);
-        header[12] = (unsigned char)(dos_date & 0xFF);
-        header[13] = (unsigned char)((dos_date >> 8) & 0xFF);
-        header[14] = (unsigned char)(src->crc32 & 0xFF);
-        header[15] = (unsigned char)((src->crc32 >> 8) & 0xFF);
-        header[16] = (unsigned char)((src->crc32 >> 16) & 0xFF);
-        header[17] = (unsigned char)((src->crc32 >> 24) & 0xFF);
-        header[18] = (unsigned char)(src->size & 0xFF);
-        header[19] = (unsigned char)((src->size >> 8) & 0xFF);
-        header[20] = (unsigned char)((src->size >> 16) & 0xFF);
-        header[21] = (unsigned char)((src->size >> 24) & 0xFF);
-        header[22] = header[18];
-        header[23] = header[19];
+        header[12] = (unsigned char)(dos_time & 0xFF);
+        header[13] = (unsigned char)((dos_time >> 8) & 0xFF);
+        header[14] = (unsigned char)(dos_date & 0xFF);
+        header[15] = (unsigned char)((dos_date >> 8) & 0xFF);
+        header[16] = (unsigned char)(src->crc32 & 0xFF);
+        header[17] = (unsigned char)((src->crc32 >> 8) & 0xFF);
+        header[18] = (unsigned char)((src->crc32 >> 16) & 0xFF);
+        header[19] = (unsigned char)((src->crc32 >> 24) & 0xFF);
+        header[20] = (unsigned char)(src->size & 0xFF);
+        header[21] = (unsigned char)((src->size >> 8) & 0xFF);
+        header[22] = (unsigned char)((src->size >> 16) & 0xFF);
+        header[23] = (unsigned char)((src->size >> 24) & 0xFF);
         header[24] = header[20];
         header[25] = header[21];
+        header[26] = header[22];
+        header[27] = header[23];
         uint16_t name_len = (uint16_t)strlen(src->name);
         header[28] = (unsigned char)(name_len & 0xFF);
         header[29] = (unsigned char)((name_len >> 8) & 0xFF);
@@ -1375,9 +1378,12 @@ static const char *content_types_xml(void)
            "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\n"
            "  <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\n"
            "  <Default Extension=\"xml\" ContentType=\"application/xml\"/>\n"
+           "  <Override PartName=\"/docProps/app.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.extended-properties+xml\"/>\n"
+           "  <Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/>\n"
            "  <Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>\n"
            "  <Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>\n"
            "  <Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>\n"
+           "  <Override PartName=\"/xl/theme/theme1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\"/>\n"
            "</Types>";
 }
 
@@ -1385,8 +1391,52 @@ static const char *rels_root_xml(void)
 {
     return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n"
+           "  <Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties\" Target=\"docProps/core.xml\"/>\n"
+           "  <Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties\" Target=\"docProps/app.xml\"/>\n"
            "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>\n"
            "</Relationships>";
+}
+
+static const char *docprops_app_xml(void)
+{
+    return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+           "<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\"\n"
+           " xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\">\n"
+           "  <Application>TTB2</Application>\n"
+           "  <DocSecurity>0</DocSecurity>\n"
+           "  <ScaleCrop>false</ScaleCrop>\n"
+           "  <HeadingPairs>\n"
+           "    <vt:vector size=\"2\" baseType=\"variant\">\n"
+           "      <vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant>\n"
+           "      <vt:variant><vt:i4>1</vt:i4></vt:variant>\n"
+           "    </vt:vector>\n"
+           "  </HeadingPairs>\n"
+           "  <TitlesOfParts>\n"
+           "    <vt:vector size=\"1\" baseType=\"lpstr\">\n"
+           "      <vt:lpstr>Sheet1</vt:lpstr>\n"
+           "    </vt:vector>\n"
+           "  </TitlesOfParts>\n"
+           "  <Company></Company>\n"
+           "  <LinksUpToDate>false</LinksUpToDate>\n"
+           "  <SharedDoc>false</SharedDoc>\n"
+           "  <HyperlinksChanged>false</HyperlinksChanged>\n"
+           "  <AppVersion>1.0</AppVersion>\n"
+           "</Properties>";
+}
+
+static const char *docprops_core_xml(void)
+{
+    return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+           "<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\"\n"
+           " xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n"
+           " xmlns:dcterms=\"http://purl.org/dc/terms/\"\n"
+           " xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\"\n"
+           " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n"
+           "  <dc:creator>TTB2</dc:creator>\n"
+           "  <cp:lastModifiedBy>TTB2</cp:lastModifiedBy>\n"
+           "  <dcterms:created xsi:type=\"dcterms:W3CDTF\">2026-04-11T00:00:00Z</dcterms:created>\n"
+           "  <dcterms:modified xsi:type=\"dcterms:W3CDTF\">2026-04-11T00:00:00Z</dcterms:modified>\n"
+           "</cp:coreProperties>";
 }
 
 static const char *workbook_rels_xml(void)
@@ -1395,19 +1445,56 @@ static const char *workbook_rels_xml(void)
            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n"
            "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>\n"
            "  <Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>\n"
+           "  <Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/>\n"
            "</Relationships>";
+}
+
+static const char *theme_xml(void)
+{
+    return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+           "<a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" name=\"Office Theme\">\n"
+           "  <a:themeElements>\n"
+           "    <a:clrScheme name=\"Office\">\n"
+           "      <a:dk1><a:sysClr val=\"windowText\" lastClr=\"000000\"/></a:dk1>\n"
+           "      <a:lt1><a:sysClr val=\"window\" lastClr=\"FFFFFF\"/></a:lt1>\n"
+           "      <a:dk2><a:srgbClr val=\"1F497D\"/></a:dk2>\n"
+           "      <a:lt2><a:srgbClr val=\"EEECE1\"/></a:lt2>\n"
+           "      <a:accent1><a:srgbClr val=\"4F81BD\"/></a:accent1>\n"
+           "      <a:accent2><a:srgbClr val=\"C0504D\"/></a:accent2>\n"
+           "      <a:accent3><a:srgbClr val=\"9BBB59\"/></a:accent3>\n"
+           "      <a:accent4><a:srgbClr val=\"8064A2\"/></a:accent4>\n"
+           "      <a:accent5><a:srgbClr val=\"4BACC6\"/></a:accent5>\n"
+           "      <a:accent6><a:srgbClr val=\"F79646\"/></a:accent6>\n"
+           "      <a:hlink><a:srgbClr val=\"0000FF\"/></a:hlink>\n"
+           "      <a:folHlink><a:srgbClr val=\"800080\"/></a:folHlink>\n"
+           "    </a:clrScheme>\n"
+           "    <a:fontScheme name=\"Office\">\n"
+           "      <a:majorFont><a:latin typeface=\"Calibri\"/></a:majorFont>\n"
+           "      <a:minorFont><a:latin typeface=\"Calibri\"/></a:minorFont>\n"
+           "    </a:fontScheme>\n"
+           "    <a:fmtScheme name=\"Office\">\n"
+           "      <a:fillStyleLst><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill></a:fillStyleLst>\n"
+           "      <a:lnStyleLst><a:ln w=\"9525\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill></a:ln></a:lnStyleLst>\n"
+           "      <a:effectStyleLst><a:effectStyle/></a:effectStyleLst>\n"
+           "      <a:bgFillStyleLst><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill></a:bgFillStyleLst>\n"
+           "    </a:fmtScheme>\n"
+           "  </a:themeElements>\n"
+           "</a:theme>";
 }
 
 static const char *styles_xml(void)
 {
     return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
            "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">\n"
+           "  <numFmts count=\"0\"/>\n"
            "  <fonts count=\"1\"><font><sz val=\"11\"/><color theme=\"1\"/><name val=\"Calibri\"/><family val=\"2\"/><scheme val=\"minor\"/></font></fonts>\n"
-           "  <fills count=\"1\"><fill><patternFill patternType=\"none\"/></fill></fills>\n"
+           "  <fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill></fills>\n"
            "  <borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>\n"
-           "  <cellStyleXfs count=\"1\"><xf/></cellStyleXfs>\n"
-           "  <cellXfs count=\"1\"><xf xfId=\"0\"/></cellXfs>\n"
+           "  <cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>\n"
+           "  <cellXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/></cellXfs>\n"
            "  <cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>\n"
+           "  <dxfs count=\"0\"/>\n"
+           "  <tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium2\" defaultPivotStyle=\"PivotStyleLight16\"/>\n"
            "</styleSheet>";
 }
 
@@ -1606,9 +1693,12 @@ static int write_xlsx(const char *path,
     struct zip_source sources[] = {
         {.name = "[Content_Types].xml", .data = (const unsigned char *)content_types_xml()},
         {.name = "_rels/.rels", .data = (const unsigned char *)rels_root_xml()},
+        {.name = "docProps/app.xml", .data = (const unsigned char *)docprops_app_xml()},
+        {.name = "docProps/core.xml", .data = (const unsigned char *)docprops_core_xml()},
         {.name = "xl/workbook.xml", .data = (const unsigned char *)workbook_xml},
         {.name = "xl/_rels/workbook.xml.rels", .data = (const unsigned char *)workbook_rels_xml()},
         {.name = "xl/worksheets/sheet1.xml", .data = (const unsigned char *)sheet_xml},
+        {.name = "xl/theme/theme1.xml", .data = (const unsigned char *)theme_xml()},
         {.name = "xl/styles.xml", .data = (const unsigned char *)styles_xml()},
     };
 
