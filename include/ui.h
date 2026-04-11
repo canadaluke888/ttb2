@@ -2,7 +2,7 @@
 #define UI_H
 
 #include <stdbool.h>
-#include "tablecraft.h"
+#include "table.h"
 #include "table_view.h"
 #include "settings.h"
 

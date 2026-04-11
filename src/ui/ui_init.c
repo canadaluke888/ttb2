@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include "tablecraft.h"
+#include "table.h"
 #include "ui.h"
 #include "settings.h"
 

@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
-#include "tablecraft.h"
+#include "table.h"
 #include "ui.h"
 #include "errors.h"  // Added to provide declaration for show_error_message
 #include "panel_manager.h"

@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
-#include "tablecraft.h"
+#include "table.h"
 #include "progress.h"
 
 Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz);

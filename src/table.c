@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../include/tablecraft.h"
+#include "table.h"
 
 Table *create_table(const char *name) {
     Table *t = malloc(sizeof(Table));

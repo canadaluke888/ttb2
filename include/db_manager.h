@@ -2,7 +2,7 @@
 #define DB_MANAGER_H
 
 #include <stddef.h>
-#include "tablecraft.h"
+#include "table.h"
 
 // Opaque manager for SQLite database connections
 typedef struct DbManager DbManager;

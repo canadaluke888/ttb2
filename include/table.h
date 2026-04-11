@@ -1,5 +1,5 @@
-#ifndef TABLECRAFT_H
-#define TABLECRAFT_H
+#ifndef TTB2_TABLE_H
+#define TTB2_TABLE_H
 
 typedef enum {
     TYPE_INT,

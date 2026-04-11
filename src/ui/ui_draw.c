@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "tablecraft.h"
+#include "table.h"
 #include "ui.h"
 #include "ui_text.h"
 
@@ -124,7 +124,7 @@ static void draw_action_hint_segment(int y, int *x, int max_x, const char *text)
                     snprintf(display_buf, sizeof(display_buf), "%s", keybuf);
                     key_attr = COLOR_PAIR(10) | A_BOLD;
                 } else if (strcmp(keybuf, "v") == 0 || strcmp(keybuf, "V") == 0) {
-                    snprintf(display_buf, sizeof(display_buf), "[%s]", keybuf);
+                    snprintf(display_buf, sizeof(display_buf), "[%.253s]", keybuf);
                 } else {
                     snprintf(display_buf, sizeof(display_buf), "%s", keybuf);
                 }

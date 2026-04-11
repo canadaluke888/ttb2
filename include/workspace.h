@@ -2,7 +2,7 @@
 #define WORKSPACE_H
 
 #include <stddef.h>
-#include "tablecraft.h"
+#include "table.h"
 
 int workspace_init(Table **out_table, char *err, size_t err_sz);
 int workspace_autosave(const Table *table, char *err, size_t err_sz);

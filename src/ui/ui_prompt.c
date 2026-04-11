@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <stdbool.h>
-#include "tablecraft.h"
+#include "table.h"
 #include "ui.h"
 #include "csv.h"
 #include "xl.h"

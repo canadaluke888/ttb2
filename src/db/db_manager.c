@@ -1,6 +1,6 @@
 #include "db_manager.h"
 #include "errors.h"
-#include "tablecraft.h"
+#include "table.h"
 #include "ttb_io.h"
 #include "workspace.h"
 

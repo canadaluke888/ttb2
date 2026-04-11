@@ -2,7 +2,7 @@
 #define TABLE_OPS_H
 
 #include <stddef.h>
-#include "tablecraft.h"
+#include "table.h"
 
 int tableop_set_cell(Table *table, int row, int col, const char *input, char *err, size_t err_sz);
 int tableop_clear_cell(Table *table, int row, int col, char *err, size_t err_sz);

@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
-#include "tablecraft.h"
+#include "table.h"
 #include "progress.h"
 
 // Load a CSV file into a new Table.
@@ -20,4 +20,3 @@ Table *csv_load_with_progress(const char *path,
 int csv_save(const Table *table, const char *path, char *err, size_t err_sz);
 
 #endif // CSV_H
-

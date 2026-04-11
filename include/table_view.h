@@ -2,7 +2,7 @@
 #define TABLE_VIEW_H
 
 #include <stddef.h>
-#include "tablecraft.h"
+#include "table.h"
 
 typedef enum {
     FILTER_CONTAINS,

@@ -2,7 +2,7 @@
 #define TTB_IO_H
 
 #include <stddef.h>
-#include "tablecraft.h"
+#include "table.h"
 
 typedef struct {
     char *id;
