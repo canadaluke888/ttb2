@@ -226,6 +226,19 @@ void edit_body_cell(Table *t, int row, int col) {
             return;
         }
 
+        if (value[0] == '\0') {
+            char err[256] = {0};
+            UiHistoryApplyResult result = {0};
+            if (ui_history_clear_cell(t, row, col, &result, err, sizeof(err)) != 0) {
+                show_error_message(err[0] ? err : "Failed to clear cell.");
+                continue;
+            }
+            if (ui_history_refresh(t, &result, err, sizeof(err)) != 0 && err[0]) {
+                show_error_message(err);
+            }
+            break;
+        }
+
         if (!validate_input(value, t->columns[col].type)) {
             show_error_message("Invalid input.");
             value[0] = '\0';

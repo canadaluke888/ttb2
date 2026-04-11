@@ -453,7 +453,7 @@ void start_ui_loop(Table *table) {
                     seek_mode_fetch_first(table, page, err, sizeof err);
                 }
             }
-            else if (ch == 's' || ch == 'S') {
+            else if (ch == 'S') {
                 char serr[256] = {0};
                 if (workspace_manual_save(table, serr, sizeof(serr)) != 0) {
                     if (serr[0]) show_error_message(serr);
@@ -486,11 +486,11 @@ void start_ui_loop(Table *table) {
             }
             else if (ch == 'm' || ch == 'M') {
                 show_table_menu(table);
-            } else if (ch == KEY_LEFT) {
+            } else if (ch == KEY_LEFT || ch == 'a' || ch == 'A') {
                 if (col_page > 0) col_page--; // page index
-            } else if (ch == KEY_RIGHT) {
+            } else if (ch == KEY_RIGHT || ch == 'd' || ch == 'D') {
                 if (col_page < total_pages - 1) col_page++; // page index
-            } else if (ch == KEY_UP) {
+            } else if (ch == KEY_UP || ch == 'w' || ch == 'W') {
                 final_vdir = -1;
                 vcount++;
                 if (low_ram_mode && seek_mode_active()) {
@@ -508,7 +508,7 @@ void start_ui_loop(Table *table) {
                 } else {
                     if (row_page > 0) row_page--;
                 }
-            } else if (ch == KEY_DOWN) {
+            } else if (ch == KEY_DOWN || ch == 's') {
                 final_vdir = +1;
                 vcount++;
                 if (low_ram_mode && seek_mode_active()) {
@@ -529,7 +529,7 @@ void start_ui_loop(Table *table) {
             }
         } else {
             // If in interactive delete modes, override edit controls for navigation + confirm
-            if (ch == 's' || ch == 'S') {
+            if (ch == 'S') {
                 char serr[256] = {0};
                 if (workspace_manual_save(table, serr, sizeof(serr)) != 0) {
                     if (serr[0]) show_error_message(serr);
@@ -547,12 +547,18 @@ void start_ui_loop(Table *table) {
             if (ui_reorder_active()) {
                 switch (ch) {
                     case KEY_LEFT:
+                    case 'a':
+                    case 'A':
                         move_cursor_left_paged(table);
                         break;
                     case KEY_RIGHT:
+                    case 'd':
+                    case 'D':
                         move_cursor_right_paged(table);
                         break;
                     case KEY_UP:
+                    case 'w':
+                    case 'W':
                         if (reorder_mode == UI_REORDER_MOVE_COL || reorder_mode == UI_REORDER_SWAP_COL) {
                             if (cursor_row > -1) cursor_row--;
                         } else {
@@ -560,6 +566,7 @@ void start_ui_loop(Table *table) {
                         }
                         break;
                     case KEY_DOWN:
+                    case 's':
                         if (reorder_mode == UI_REORDER_MOVE_COL || reorder_mode == UI_REORDER_SWAP_COL) {
                             int visible_rows = ui_visible_row_count(table);
                             if (cursor_row < visible_rows - 1) cursor_row++;
@@ -664,6 +671,8 @@ void start_ui_loop(Table *table) {
                 if (ui_visible_row_count(table) <= 0) { del_row_mode = 0; }
                 switch (ch) {
                     case KEY_UP:
+                    case 'w':
+                    case 'W':
                         {
                             int rmin = row_page * (rows_visible > 0 ? rows_visible : 1);
                             if (rmin < 0) rmin = 0;
@@ -671,6 +680,7 @@ void start_ui_loop(Table *table) {
                         }
                         break;
                     case KEY_DOWN:
+                    case 's':
                         {
                             int rmin = row_page * (rows_visible > 0 ? rows_visible : 1);
                             int rmax = rmin + (rows_visible > 0 ? rows_visible - 1 : 0);
@@ -706,9 +716,13 @@ void start_ui_loop(Table *table) {
                 if (table->column_count <= 0) { del_col_mode = 0; }
                 switch (ch) {
                     case KEY_LEFT:
+                    case 'a':
+                    case 'A':
                         if (cursor_col > col_start) cursor_col--;
                         break;
                     case KEY_RIGHT:
+                    case 'd':
+                    case 'D':
                         {
                             int cmax = (cols_visible > 0) ? (col_start + cols_visible - 1) : (table->column_count - 1);
                             if (cursor_col < cmax) cursor_col++;
@@ -745,16 +759,22 @@ void start_ui_loop(Table *table) {
             }
             switch (ch) {
                 case KEY_LEFT:
+                case 'a':
+                case 'A':
                     // Do not page during edit; restrict to visible range
                     if (cursor_col > col_start) cursor_col--;
                     break;
                 case KEY_RIGHT:
+                case 'd':
+                case 'D':
                     {
                         int cmax = (cols_visible > 0) ? (col_start + cols_visible - 1) : (table->column_count - 1);
                         if (cursor_col < cmax) cursor_col++;
                     }
                     break;
                 case KEY_UP:
+                case 'w':
+                case 'W':
                     if (ch == 8 /* Ctrl+H */) { /* already handled */ }
                     final_vdir = -1;
                     vcount++;
@@ -783,6 +803,7 @@ void start_ui_loop(Table *table) {
                     }
                     break;
                 case KEY_DOWN:
+                case 's':
                     final_vdir = +1;
                     vcount++;
                     if (low_ram_mode && seek_mode_active()) {
@@ -951,14 +972,6 @@ void start_ui_loop(Table *table) {
                     prompt_insert_column_at(table, insert_col);
                     break;
                 }
-                case KEY_BACKSPACE:
-                case 127: // some terms send DEL for backspace
-                    if (cursor_row < 0) {
-                        show_error_message("Move to a cell to clear.");
-                    } else {
-                        prompt_clear_cell(table, ui_actual_row_for_visible(table, cursor_row), cursor_col);
-                    }
-                    break;
             }
         }
         }

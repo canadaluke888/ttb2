@@ -582,9 +582,9 @@ void draw_ui(Table *table) {
             }
         } else {
             if (footer_page == 0) {
-                draw_action_hint_segment(fy, &fx, max_x, "[←][→][↑][↓] Nav  [Enter] Edit  [F] Search");
+                draw_action_hint_segment(fy, &fx, max_x, "[Enter] Edit  [F] Search");
                 draw_footer_separator(fy, &fx, max_x);
-                draw_action_hint_segment(fy, &fx, max_x, "[x] Del Row  [Shift+X] Del Col  [Bksp] Clear");
+                draw_action_hint_segment(fy, &fx, max_x, "[X] Del Row  [Shift+X] Del Col");
                 draw_footer_separator(fy, &fx, max_x);
                 draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+U] Undo  [Ctrl+R] Redo  [Ctrl+H] Home  [Esc] Exit");
             } else {
@@ -592,7 +592,9 @@ void draw_ui(Table *table) {
                 draw_footer_separator(fy, &fx, max_x);
                 draw_action_hint_segment(fy, &fx, max_x, "[{] Left  [}] Right");
                 draw_footer_separator(fy, &fx, max_x);
-                draw_action_hint_segment(fy, &fx, max_x, "[v] Move  [V] Swap");
+                draw_status_segment(fy, &fx, max_x, COLOR_PAIR(7) | A_BOLD, "V");
+                draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), " Move  ");
+                draw_action_hint_segment(fy, &fx, max_x, "[Shift+V] Swap");
             }
         }
         draw_footer_separator(fy, &fx, max_x);

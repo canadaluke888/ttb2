@@ -102,7 +102,7 @@ Supported startup inputs:
 ## Editor Keybindings
 - `c` Add column
 - `r` Add row
-- `e` Edit mode (arrows to navigate, Enter to edit, Esc to exit)
+- `e` Edit mode (`W/A/S/D` or arrows to navigate, Enter to edit, Esc to exit)
 - `f` Search mode (arrows to jump matches, Esc to exit)
 - `S` Save workspace project
 - `Ctrl+H` Jump to top‑left (Home)
@@ -111,15 +111,16 @@ Supported startup inputs:
 
 - In Edit mode:
   - `Enter` Edit cell
+  - `W/A/S/D` Navigate the visible grid/page
   - `F` Search mode
   - `Ctrl+U` Undo the latest table edit
   - `Ctrl+R` Redo the latest undone table edit
-  - `x` Delete row (interactive; Enter confirms)
+  - `x` Delete row (shown as `X` in the footer; Enter confirms)
   - `Shift+X` Delete column (interactive; Enter confirms)
-  - `v` Move row or column (row when on a body row, column when on the header)
-  - `V` Swap row or column (row when on a body row, column when on the header)
+  - `v` Move row or column (shown as `V` in the insert footer; row when on a body row, column when on the header)
+  - `V` Swap row or column (shown as `Shift+V` in the insert footer; row when on a body row, column when on the header)
   - `Tab` Cycle footer hint pages
-  - `Backspace` Clear cell (with confirmation)
+  - Saving a blank value while editing a cell clears that cell
   - Move row prompts for `Above` or `Below` after you pick the destination row
   - Move column prompts for `Left` or `Right` after you pick the destination column
   - `Ctrl+H` Jump to top‑left (Home)
