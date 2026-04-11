@@ -859,6 +859,10 @@ void start_ui_loop(Table *table) {
                     }
                     break;
                 }
+                case 'm':
+                case 'M':
+                    show_table_menu(table);
+                    break;
                 case 'f':
                 case 'F':
                     enter_search(table);

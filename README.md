@@ -119,6 +119,7 @@ Supported startup inputs:
   - `Shift+X` Delete column (interactive; Enter confirms)
   - `v` Move row or column (shown as `V` in the insert footer; row when on a body row, column when on the header)
   - `V` Swap row or column (shown as `Shift+V` in the insert footer; row when on a body row, column when on the header)
+  - `M` Open the table menu without leaving edit mode
   - `Tab` Cycle footer hint pages
   - Saving a blank value while editing a cell clears that cell
   - Move row prompts for `Above` or `Below` after you pick the destination row
