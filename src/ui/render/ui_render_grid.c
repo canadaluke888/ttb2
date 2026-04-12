@@ -12,49 +12,31 @@
 #include "ui/internal.h"
 #include "ui/ui_text.h"
 
-void draw_table_grid(Table *table)
+/* Draw top border of grid. */
+static void ui_draw_grid_top_border(const UiGridLayout *layout, const int *col_widths, int x, int *y)
 {
-    UiGridLayout layout;
-    int visible_row_count = ui_visible_row_count(table);
-    int *col_widths;
-    int x = 2;
-    int y = 2;
-
-    if (!table || table->column_count == 0) {
-        total_pages = 1;
-        cols_visible = 0;
-        col_page = 0;
-        col_start = 0;
-        total_row_pages = 1;
-        rows_visible = 0;
-        row_page = 0;
-        return;
-    }
-
-    if (ui_alloc_column_widths(table, &col_widths) != 0) return;
-
-    ui_update_column_paging(table, col_widths);
-    ui_update_row_paging(table);
-    ui_fill_grid_layout(table, &layout);
-
     attron(COLOR_PAIR(6));
-    mvprintw(y++, x, "┏");
-    if (layout.use_gutter) {
-        ui_add_repeat("━", layout.gutter_width);
-        addstr((layout.start_col < layout.end_col) ? "┳" : "┓");
+    mvprintw((*y)++, x, "┏");
+    if (layout->use_gutter) {
+        ui_add_repeat("━", layout->gutter_width);
+        addstr((layout->start_col < layout->end_col) ? "┳" : "┓");
     }
-    for (int j = layout.start_col; j < layout.end_col; ++j) {
+    for (int j = layout->start_col; j < layout->end_col; ++j) {
         ui_add_repeat("━", col_widths[j]);
-        addstr((j < layout.end_col - 1) ? "┳" : "┓");
+        addstr((j < layout->end_col - 1) ? "┳" : "┓");
     }
     attroff(COLOR_PAIR(6));
+}
 
-    move(y++, x);
+/* Draw header row with column names and types. */
+static void ui_draw_grid_header_row(const Table *table, const UiGridLayout *layout, const int *col_widths, int x, int *y)
+{
+    move((*y)++, x);
     attron(COLOR_PAIR(6));
     addstr("┃");
     attroff(COLOR_PAIR(6));
-    if (layout.use_gutter) {
-        int pad = layout.gutter_width - 1;
+    if (layout->use_gutter) {
+        int pad = layout->gutter_width - 1;
         int lp = pad / 2;
         int rp = pad - lp;
 
@@ -67,7 +49,7 @@ void draw_table_grid(Table *table)
         addstr("┃");
         attroff(COLOR_PAIR(6));
     }
-    for (int j = layout.start_col; j < layout.end_col; ++j) {
+    for (int j = layout->start_col; j < layout->end_col; ++j) {
         const char *name = table->columns[j].name;
         const char *type = type_to_string(table->columns[j].type);
         int remaining;
@@ -110,29 +92,37 @@ void draw_table_grid(Table *table)
         addstr("┃");
         attroff(COLOR_PAIR(6));
     }
+}
 
+/* Draw header separator under column labels. */
+static void ui_draw_grid_header_separator(const UiGridLayout *layout, const int *col_widths, int x, int *y)
+{
     attron(COLOR_PAIR(6));
-    mvprintw(y++, x, "┡");
-    if (layout.use_gutter) {
-        ui_add_repeat("━", layout.gutter_width);
-        addstr((layout.start_col < layout.end_col) ? "╇" : "┩");
+    mvprintw((*y)++, x, "┡");
+    if (layout->use_gutter) {
+        ui_add_repeat("━", layout->gutter_width);
+        addstr((layout->start_col < layout->end_col) ? "╇" : "┩");
     }
-    for (int j = layout.start_col; j < layout.end_col; ++j) {
+    for (int j = layout->start_col; j < layout->end_col; ++j) {
         ui_add_repeat("━", col_widths[j]);
-        addstr((j < layout.end_col - 1) ? "╇" : "┩");
+        addstr((j < layout->end_col - 1) ? "╇" : "┩");
     }
     attroff(COLOR_PAIR(6));
+}
 
+/* Draw visible rows for current page. */
+static void ui_draw_grid_body_rows(Table *table, const UiGridLayout *layout, const int *col_widths, int visible_row_count, int x, int *y)
+{
     for (int i = row_page * rows_visible, row_end = row_page * rows_visible + rows_visible;
          i < row_end && i < visible_row_count; ++i) {
         int actual_row = ui_actual_row_for_visible(table, i);
 
-        move(y++, x);
+        move((*y)++, x);
         attron(COLOR_PAIR(6));
         addstr("│");
         attroff(COLOR_PAIR(6));
-        if (layout.use_gutter) {
-            long long rn = seek_mode_active() ? (layout.row_number_base + (i - row_page * rows_visible)) : (long long)(i + 1);
+        if (layout->use_gutter) {
+            long long rn = seek_mode_active() ? (layout->row_number_base + (i - row_page * rows_visible)) : (long long)(i + 1);
             char buf[32];
             int numlen;
             int pad;
@@ -141,8 +131,8 @@ void draw_table_grid(Table *table)
 
             snprintf(buf, sizeof(buf), "%lld", rn);
             numlen = (int)strlen(buf);
-            if (numlen > layout.gutter_width) numlen = layout.gutter_width;
-            pad = layout.gutter_width - numlen;
+            if (numlen > layout->gutter_width) numlen = layout->gutter_width;
+            pad = layout->gutter_width - numlen;
             lp = pad / 2;
             rp = pad - lp;
             for (int p = 0; p < lp; ++p) addch(' ');
@@ -155,7 +145,7 @@ void draw_table_grid(Table *table)
             attroff(COLOR_PAIR(6));
         }
 
-        for (int j = layout.start_col; j < layout.end_col; ++j) {
+        for (int j = layout->start_col; j < layout->end_col; ++j) {
             char buf[64] = "";
             int highlight_cell = 0;
             int highlight_source = 0;
@@ -191,32 +181,68 @@ void draw_table_grid(Table *table)
         }
 
         if (i < visible_row_count - 1 && i < row_page * rows_visible + rows_visible - 1) {
-            move(y++, x);
+            move((*y)++, x);
             attron(COLOR_PAIR(6));
             addstr("├");
-            if (layout.use_gutter) {
-                ui_add_repeat("─", layout.gutter_width);
-                addstr((layout.start_col < layout.end_col) ? "┼" : "┤");
+            if (layout->use_gutter) {
+                ui_add_repeat("─", layout->gutter_width);
+                addstr((layout->start_col < layout->end_col) ? "┼" : "┤");
             }
-            for (int j = layout.start_col; j < layout.end_col; ++j) {
+            for (int j = layout->start_col; j < layout->end_col; ++j) {
                 ui_add_repeat("─", col_widths[j]);
-                addstr((j < layout.end_col - 1) ? "┼" : "┤");
+                addstr((j < layout->end_col - 1) ? "┼" : "┤");
             }
             attroff(COLOR_PAIR(6));
         }
     }
+}
 
+/* Draw bottom border of grid. */
+static void ui_draw_grid_bottom_border(const UiGridLayout *layout, const int *col_widths, int x, int *y)
+{
     attron(COLOR_PAIR(6));
-    mvprintw(y++, x, "└");
-    if (layout.use_gutter) {
-        ui_add_repeat("─", layout.gutter_width);
-        addstr((layout.start_col < layout.end_col) ? "┴" : "┘");
+    mvprintw((*y)++, x, "└");
+    if (layout->use_gutter) {
+        ui_add_repeat("─", layout->gutter_width);
+        addstr((layout->start_col < layout->end_col) ? "┴" : "┘");
     }
-    for (int j = layout.start_col; j < layout.end_col; ++j) {
+    for (int j = layout->start_col; j < layout->end_col; ++j) {
         ui_add_repeat("─", col_widths[j]);
-        addstr((j < layout.end_col - 1) ? "┴" : "┘");
+        addstr((j < layout->end_col - 1) ? "┴" : "┘");
     }
     attroff(COLOR_PAIR(6));
+}
+
+void draw_table_grid(Table *table)
+{
+    UiGridLayout layout;
+    int visible_row_count = ui_visible_row_count(table);
+    int *col_widths;
+    int x = 2;
+    int y = 2;
+
+    if (!table || table->column_count == 0) {
+        total_pages = 1;
+        cols_visible = 0;
+        col_page = 0;
+        col_start = 0;
+        total_row_pages = 1;
+        rows_visible = 0;
+        row_page = 0;
+        return;
+    }
+
+    if (ui_alloc_column_widths(table, &col_widths) != 0) return;
+
+    ui_update_column_paging(table, col_widths);
+    ui_update_row_paging(table);
+    ui_fill_grid_layout(table, &layout);
+
+    ui_draw_grid_top_border(&layout, col_widths, x, &y);
+    ui_draw_grid_header_row(table, &layout, col_widths, x, &y);
+    ui_draw_grid_header_separator(&layout, col_widths, x, &y);
+    ui_draw_grid_body_rows(table, &layout, col_widths, visible_row_count, x, &y);
+    ui_draw_grid_bottom_border(&layout, col_widths, x, &y);
 
     free(col_widths);
 }
