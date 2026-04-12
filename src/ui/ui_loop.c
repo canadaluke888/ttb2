@@ -530,6 +530,8 @@ static void exit_search(void) {
 
 void start_ui_loop(Table *table) {
     keypad(stdscr, TRUE);  // Enable arrow keys
+    mousemask(ALL_MOUSE_EVENTS, NULL);
+    mouseinterval(0);
     nodelay(stdscr, TRUE); // Non-blocking input to coalesce repeats
     int ch;
     tableview_init(&ui_table_view);
@@ -544,6 +546,18 @@ void start_ui_loop(Table *table) {
         int quit = 0;
         while ((ch = getch()) != ERR) {
             if (ch == KEY_RESIZE) { pm_on_resize(); continue; }
+            if (ch == KEY_MOUSE) {
+                MEVENT event;
+
+                if (getmouse(&event) != OK) continue;
+                if (event.bstate & BUTTON4_PRESSED) {
+                    ch = (event.bstate & BUTTON_SHIFT) ? KEY_LEFT : KEY_UP;
+                } else if (event.bstate & BUTTON5_PRESSED) {
+                    ch = (event.bstate & BUTTON_SHIFT) ? KEY_RIGHT : KEY_DOWN;
+                } else {
+                    continue;
+                }
+            }
 
             if (search_mode) {
             // In search mode, arrow keys navigate matches, ESC exits
