@@ -43,7 +43,7 @@ static SearchHit *hits = NULL;
 char search_query[128];
 int search_sel_start = -1;
 int search_sel_len = 0;
-static int pending_body_edit = 0;
+static int pending_grid_edit = 0;
 
 static void exit_search(void);
 static int ui_reorder_active(void);
@@ -112,9 +112,10 @@ static int ui_compute_column_widths(Table *table, int *col_widths)
 static int ui_handle_cell_click(Table *table, int mouse_x, int mouse_y, int activate_editor)
 {
     int visible_rows;
+    int header_y = 3;
     int body_top_y = 5;
     int x = 2;
-    int clicked_row;
+    int clicked_row = -2;
     int *col_widths;
     int use_gutter;
     int gutter_w = 0;
@@ -123,11 +124,16 @@ static int ui_handle_cell_click(Table *table, int mouse_x, int mouse_y, int acti
 
     if (!table || table->column_count <= 0) return 0;
     if (search_mode || ui_reorder_active() || del_row_mode || del_col_mode) return 0;
-    if (mouse_y < body_top_y || ((mouse_y - body_top_y) % 2) != 0) return 0;
 
     visible_rows = ui_visible_row_count(table);
-    clicked_row = row_page * (rows_visible > 0 ? rows_visible : 1) + ((mouse_y - body_top_y) / 2);
-    if (clicked_row < 0 || clicked_row >= visible_rows) return 0;
+    if (mouse_y == header_y) {
+        clicked_row = -1;
+    } else if (mouse_y >= body_top_y && ((mouse_y - body_top_y) % 2) == 0) {
+        clicked_row = row_page * (rows_visible > 0 ? rows_visible : 1) + ((mouse_y - body_top_y) / 2);
+        if (clicked_row < 0 || clicked_row >= visible_rows) return 0;
+    } else {
+        return 0;
+    }
 
     col_widths = malloc(sizeof(int) * table->column_count);
     if (!col_widths) return 0;
@@ -181,10 +187,10 @@ static int ui_handle_cell_click(Table *table, int mouse_x, int mouse_y, int acti
     }
     editing_mode = 1;
     footer_page = 0;
-    ensure_cursor_row_visible(table);
+    if (cursor_row >= 0) ensure_cursor_row_visible(table);
     ensure_cursor_column_visible(table);
 
-    if (activate_editor) pending_body_edit = 1;
+    if (activate_editor) pending_grid_edit = 1;
 
     return 1;
 }
@@ -684,11 +690,17 @@ void start_ui_loop(Table *table) {
         draw_ui(table);
         wnoutrefresh(stdscr); // stage stdscr changes
         pm_update(); // update panels and flush
-        if (pending_body_edit) {
-            int actual_row = ui_actual_row_for_visible(table, cursor_row);
-            pending_body_edit = 0;
-            if (editing_mode && actual_row >= 0) {
-                edit_body_cell(table, actual_row, cursor_col);
+        if (pending_grid_edit) {
+            pending_grid_edit = 0;
+            if (editing_mode) {
+                if (cursor_row == -1) {
+                    edit_header_cell(table, cursor_col);
+                } else {
+                    int actual_row = ui_actual_row_for_visible(table, cursor_row);
+                    if (actual_row >= 0) {
+                        edit_body_cell(table, actual_row, cursor_col);
+                    }
+                }
             }
             continue;
         }
