@@ -29,6 +29,50 @@ static int draw_cell_text(const char *text, int width, int color_pair)
     return width;
 }
 
+static int numeric_column_uses_sign_slot(const Table *t, int col)
+{
+    if (!t || col < 0 || col >= t->column_count) return 0;
+    return t->columns[col].type == TYPE_INT || t->columns[col].type == TYPE_FLOAT;
+}
+
+static int numeric_text_width_for_grid(const char *text)
+{
+    int width = 0;
+
+    if (!text || !*text) return 0;
+    width = 2; /* sign slot plus gap before digits */
+    width += ui_text_width((*text == '-') ? text + 1 : text);
+    return width;
+}
+
+static int draw_numeric_cell_text(const char *text, int width, int color_pair)
+{
+    int used = 0;
+    int is_negative = text && text[0] == '-';
+    const char *digits = is_negative ? text + 1 : (text ? text : "");
+    int digits_width = ui_text_width(digits);
+    int remaining;
+
+    addch(' ');
+    used++;
+
+    remaining = width - used - digits_width - 2;
+    if (remaining > 0) {
+        add_spaces(remaining);
+        used += remaining;
+    }
+
+    attron(COLOR_PAIR(color_pair));
+    addch(is_negative ? '-' : ' ');
+    addch(' ');
+    used += 2;
+    used += ui_text_addstr_width(stdscr, digits, width - used);
+    attroff(COLOR_PAIR(color_pair));
+
+    if (used < width) add_spaces(width - used);
+    return width;
+}
+
 static void draw_highlighted_cell_text(const char *text, int width, int color_pair, int match_start, int match_len)
 {
     size_t text_len;
@@ -63,6 +107,16 @@ static void draw_highlighted_cell_text(const char *text, int width, int color_pa
     }
 
     if (used < width) add_spaces(width - used);
+}
+
+static void draw_cell_value(const Table *t, int col, const char *text, int width, int color_pair)
+{
+    if (numeric_column_uses_sign_slot(t, col)) {
+        draw_numeric_cell_text(text, width, color_pair);
+        return;
+    }
+
+    draw_cell_text(text, width, color_pair);
 }
 
 static void draw_status_segment(int y, int *x, int max_x, int color_attr, const char *text)
@@ -204,7 +258,9 @@ void draw_table_grid(Table *t) {
             char buf[64];
             if (actual_row < 0) continue;
             ui_format_cell_value(t, actual_row, j, buf, sizeof(buf));
-            int len = ui_text_width(buf) + 2;
+            int len = numeric_column_uses_sign_slot(t, j)
+                        ? (numeric_text_width_for_grid(buf) + 2)
+                        : (ui_text_width(buf) + 2);
             if (len > max) max = len;
         }
         col_widths[j] = max;
@@ -432,9 +488,13 @@ void draw_table_grid(Table *t) {
 
             // Draw cell with optional search substring highlight if selected in search mode
             if (search_mode && cursor_row == i && cursor_col == j) {
-                draw_highlighted_cell_text(buf, col_widths[j], t->columns[j].color_pair_id, search_sel_start, search_sel_len);
+                if (numeric_column_uses_sign_slot(t, j)) {
+                    draw_numeric_cell_text(buf, col_widths[j], t->columns[j].color_pair_id);
+                } else {
+                    draw_highlighted_cell_text(buf, col_widths[j], t->columns[j].color_pair_id, search_sel_start, search_sel_len);
+                }
             } else {
-                draw_cell_text(buf, col_widths[j], t->columns[j].color_pair_id);
+                draw_cell_value(t, j, buf, col_widths[j], t->columns[j].color_pair_id);
             }
 
             if (highlight_cell) attroff(A_REVERSE);
