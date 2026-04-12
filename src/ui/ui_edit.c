@@ -209,13 +209,18 @@ void edit_body_cell(Table *t, int row, int col) {
     if (!t) return;
 
     const char *col_name = t->columns[col].name;
-    const char *type_str = type_to_string(t->columns[col].type);
-    char prompt_label[160];
-    snprintf(prompt_label, sizeof(prompt_label), "Edit value for '%s (%s)':", col_name, type_str);
-
     char value[MAX_INPUT] = {0};
+    char prompt_label[256];
 
     while (1) {
+        char current_value[MAX_INPUT] = {0};
+        if (ui_format_cell_value(t, row, col, current_value, sizeof(current_value)) != 0) {
+            current_value[0] = '\0';
+        }
+        snprintf(prompt_label, sizeof(prompt_label), "Edit '%s' in \"%s\":",
+                 current_value[0] ? current_value : "",
+                 col_name);
+
         int rc = show_text_input_modal("Edit Cell",
                                        "[Enter] Save   [Esc] Cancel",
                                        prompt_label,

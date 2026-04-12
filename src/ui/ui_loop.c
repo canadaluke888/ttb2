@@ -43,6 +43,7 @@ static SearchHit *hits = NULL;
 char search_query[128];
 int search_sel_start = -1;
 int search_sel_len = 0;
+static int pending_body_edit = 0;
 
 static void exit_search(void);
 static int ui_reorder_active(void);
@@ -108,7 +109,7 @@ static int ui_compute_column_widths(Table *table, int *col_widths)
     return 0;
 }
 
-static int ui_handle_cell_click(Table *table, int mouse_x, int mouse_y)
+static int ui_handle_cell_click(Table *table, int mouse_x, int mouse_y, int activate_editor)
 {
     int visible_rows;
     int body_top_y = 5;
@@ -176,12 +177,15 @@ static int ui_handle_cell_click(Table *table, int mouse_x, int mouse_y)
     cursor_row = clicked_row;
     cursor_col = clicked_col;
     if (!editing_mode) {
-        editing_mode = 1;
-        footer_page = 0;
         clear_reorder_mode();
     }
+    editing_mode = 1;
+    footer_page = 0;
     ensure_cursor_row_visible(table);
     ensure_cursor_column_visible(table);
+
+    if (activate_editor) pending_body_edit = 1;
+
     return 1;
 }
 
@@ -671,7 +675,7 @@ static void exit_search(void) {
 void start_ui_loop(Table *table) {
     keypad(stdscr, TRUE);  // Enable arrow keys
     mousemask(ALL_MOUSE_EVENTS, NULL);
-    mouseinterval(0);
+    mouseinterval(250);
     nodelay(stdscr, TRUE); // Non-blocking input to coalesce repeats
     int ch;
     tableview_init(&ui_table_view);
@@ -680,6 +684,14 @@ void start_ui_loop(Table *table) {
         draw_ui(table);
         wnoutrefresh(stdscr); // stage stdscr changes
         pm_update(); // update panels and flush
+        if (pending_body_edit) {
+            int actual_row = ui_actual_row_for_visible(table, cursor_row);
+            pending_body_edit = 0;
+            if (editing_mode && actual_row >= 0) {
+                edit_body_cell(table, actual_row, cursor_col);
+            }
+            continue;
+        }
         int fetched = 0; // limit DB window fetches to once per frame
         int final_vdir = 0; // -1 up, +1 down
         int vcount = 0;     // count of vertical keypresses this frame
@@ -694,8 +706,11 @@ void start_ui_loop(Table *table) {
                     ch = (event.bstate & BUTTON_SHIFT) ? KEY_LEFT : KEY_UP;
                 } else if (event.bstate & BUTTON5_PRESSED) {
                     ch = (event.bstate & BUTTON_SHIFT) ? KEY_RIGHT : KEY_DOWN;
+                } else if (event.bstate & BUTTON1_DOUBLE_CLICKED) {
+                    if (ui_handle_cell_click(table, event.x, event.y, 1)) continue;
+                    continue;
                 } else if (event.bstate & (BUTTON1_CLICKED | BUTTON1_RELEASED | BUTTON1_PRESSED)) {
-                    if (ui_handle_cell_click(table, event.x, event.y)) continue;
+                    if (ui_handle_cell_click(table, event.x, event.y, 0)) continue;
                     continue;
                 } else {
                     continue;
