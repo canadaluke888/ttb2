@@ -4,7 +4,7 @@
 #include <wchar.h>
 #include <stdlib.h>
 
-#include "ui_text.h"
+#include "ui/ui_text.h"
 
 static int decode_width(const char *text, size_t bytes, size_t *consumed)
 {

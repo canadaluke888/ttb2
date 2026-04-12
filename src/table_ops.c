@@ -3,7 +3,7 @@
 #include <strings.h>
 #include <stdio.h>
 
-#include "table_ops.h"
+#include "data/table_ops.h"
 
 static void set_err(char *err, size_t err_sz, const char *msg)
 {

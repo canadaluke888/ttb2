@@ -1,4 +1,4 @@
-#include "seekdb.h"
+#include "db/seekdb.h"
 
 #include <sqlite3.h>
 #include <stdio.h>

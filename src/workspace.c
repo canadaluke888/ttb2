@@ -1,6 +1,6 @@
-#include "workspace.h"
-#include "book_db.h"
-#include "ttb_io.h"
+#include "core/workspace.h"
+#include "db/book_db.h"
+#include "io/ttb_io.h"
 
 #include <dirent.h>
 #include <errno.h>

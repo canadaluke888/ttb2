@@ -1,5 +1,5 @@
-#include "ui_loading.h"
-#include "panel_manager.h"
+#include "ui/ui_loading.h"
+#include "ui/panel_manager.h"
 
 #include <ncurses.h>
 #include <stdlib.h>

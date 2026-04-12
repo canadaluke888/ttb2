@@ -3,9 +3,9 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include "table.h"
-#include "ui.h"
-#include "settings.h"
+#include "data/table.h"
+#include "ui/internal.h"
+#include "core/settings.h"
 
 void apply_ui_color_settings(const AppSettings *settings)
 {

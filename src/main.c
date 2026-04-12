@@ -2,13 +2,13 @@
 #include <ncurses.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "table.h"
-#include "ui.h"
-#include "panel_manager.h"
-#include "settings.h"
-#include "db_manager.h"
-#include "workspace.h"
-#include "errors.h"
+#include "data/table.h"
+#include "ui/ui.h"
+#include "ui/panel_manager.h"
+#include "core/settings.h"
+#include "db/db_manager.h"
+#include "core/workspace.h"
+#include "core/errors.h"
 
 int main(int argc, char **argv) {
     if (argc > 2) {
@@ -33,8 +33,8 @@ int main(int argc, char **argv) {
     settings_ensure_directory();
     settings_load(settings_default_path(), &s);
     workspace_set_autosave_enabled(s.autosave_enabled);
-    low_ram_mode = s.low_ram_enabled ? 1 : 0;
-    row_gutter_enabled = s.show_row_gutter ? 1 : 0;
+    ui_set_low_ram_mode(s.low_ram_enabled);
+    ui_set_row_gutter_enabled(s.show_row_gutter);
 
     Table *table = NULL;
     char werr[256] = {0};
@@ -61,8 +61,8 @@ int main(int argc, char **argv) {
     settings_init_defaults(&s);
     settings_load(settings_default_path(), &s);
     s.autosave_enabled = workspace_autosave_enabled();
-    s.low_ram_enabled = (low_ram_mode != 0);
-    s.show_row_gutter = (row_gutter_enabled != 0);
+    s.low_ram_enabled = ui_low_ram_mode_enabled();
+    s.show_row_gutter = ui_row_gutter_enabled();
     settings_save(settings_default_path(), &s);
     return 0;
 }

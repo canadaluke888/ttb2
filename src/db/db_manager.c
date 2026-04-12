@@ -1,8 +1,8 @@
-#include "db_manager.h"
-#include "errors.h"
-#include "table.h"
-#include "ttb_io.h"
-#include "workspace.h"
+#include "db/db_manager.h"
+#include "core/errors.h"
+#include "data/table.h"
+#include "io/ttb_io.h"
+#include "core/workspace.h"
 
 #include <sqlite3.h>
 #include <stdlib.h>

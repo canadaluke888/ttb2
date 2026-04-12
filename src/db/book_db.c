@@ -1,5 +1,5 @@
-#include "book_db.h"
-#include "ttb_io.h"
+#include "db/book_db.h"
+#include "io/ttb_io.h"
 
 #include <sqlite3.h>
 #include <errno.h>

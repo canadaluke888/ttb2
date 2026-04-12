@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "table.h"
-#include "table_ops.h"
-#include "ui.h"
-#include "ui_history.h"
+#include "data/table.h"
+#include "data/table_ops.h"
+#include "ui/internal.h"
+#include "ui/ui_history.h"
 
 int cursor_row = -1;
 int cursor_col = 0;

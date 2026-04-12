@@ -3,7 +3,7 @@
 #include <strings.h>
 #include <stdio.h>
 
-#include "table_view.h"
+#include "data/table_view.h"
 
 typedef struct {
     const Table *table;

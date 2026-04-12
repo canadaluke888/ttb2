@@ -1,11 +1,9 @@
-
-# OBJ files
-*.o
-
 # Build artifacts
 build/
 
 *.deb
+
+*.o
 
 # Export file types
 *.pdf
@@ -14,13 +12,10 @@ build/
 *.ttbl
 *.ttbx
 
+# Dev Artifacts
 .codex
 
-# Update file for developmnet 
-ttb2_updates.md
-
-# Generated databases directory from app
-databases/
+chatify_export/
 
 # Generated workspace directory
 workspace/
@@ -31,5 +26,5 @@ workspace/
 # Test files
 test_files/
 
-# Generated settings.json file from app
-settings/settings.json
+# Generated settings file from app
+settings/

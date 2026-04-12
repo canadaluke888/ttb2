@@ -1,4 +1,4 @@
-#include "settings.h"
+#include "core/settings.h"
 #include <json-c/json.h>
 #include <string.h>
 #include <sys/stat.h>

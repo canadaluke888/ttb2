@@ -13,12 +13,11 @@ DEB_STAGE := /tmp/ttb2-deb-stage
 DEB_CONTROL := $(DEB_STAGE)/DEBIAN/control
 DEB_PACKAGE := ttb2_$(VERSION)_$(DEB_ARCH).deb
 
-SRC_DIRS = src src/db src/io src/ui
 OBJ_DIR = build/obj
 BIN_DIR = build
 OUT = $(BIN_DIR)/ttb2
 
-SRC = $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.c))
+SRC = $(shell find src -name '*.c' | sort)
 OBJ = $(patsubst %.c,$(OBJ_DIR)/%.o,$(SRC))
 
 all: $(OUT)
@@ -86,6 +85,6 @@ seekdb_bench: tools/seekdb_bench.c src/db/seekdb.c include/seekdb.h
 	mkdir -p $(BIN_DIR)
 	$(CC) -O2 -Wall -Iinclude -o $(BIN_DIR)/seekdb_bench tools/seekdb_bench.c src/db/seekdb.c -lsqlite3
 
-history_test: tests/ui_history_test.c src/table.c src/table_ops.c src/ui/ui_history.c include/ui_history.h
+history_test: tests/ui_history_test.c src/table.c src/table_ops.c src/ui/data/ui_history.c include/ui/ui_history.h
 	mkdir -p $(BIN_DIR)
-	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/history_test tests/ui_history_test.c src/table.c src/table_ops.c src/ui/ui_history.c
+	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/history_test tests/ui_history_test.c src/table.c src/table_ops.c src/ui/data/ui_history.c

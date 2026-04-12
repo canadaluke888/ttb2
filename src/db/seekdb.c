@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#include "seekdb.h"
+#include "db/seekdb.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
