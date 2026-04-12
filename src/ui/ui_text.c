@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* UTF-8-aware text measurement and drawing helpers. */
+
 #define _XOPEN_SOURCE 700
 
 #include <string.h>

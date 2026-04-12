@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Validated table mutation helpers with user-facing error reporting. */
+
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>

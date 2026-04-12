@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Modal progress indicator implementation for long operations. */
+
 #include "ui/ui_loading.h"
 #include "ui/panel_manager.h"
 

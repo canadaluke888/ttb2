@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Core UI state transitions shared by the event loop and dialogs. */
+
 #include "ui/internal.h"
 
 int ui_handle_pending_grid_edit(Table *table)

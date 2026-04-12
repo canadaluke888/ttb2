@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Width-aware text rendering helpers for the UI. */
+
 #include <ncurses.h>
 #include <string.h>
 #include "ui/internal.h"

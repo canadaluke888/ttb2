@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Layered panel and window management helpers for the ncurses UI. */
+
 #pragma once
 #include <ncurses.h>
 #include <panel.h>
@@ -7,6 +14,7 @@
 extern "C" {
 #endif
 
+/* Stable z-order roles used by panel-managed windows. */
 typedef enum {
     PM_LAYER_MAIN     = 10,
     PM_LAYER_SIDEBAR  = 20,
@@ -16,6 +24,7 @@ typedef enum {
     PM_LAYER_MODAL    = 1000
 } PmLayerRole;
 
+/* Panel-managed window wrapper tracked by the rendering system. */
 typedef struct {
     PANEL   *panel;
     WINDOW  *win;        // owned by us
@@ -25,9 +34,11 @@ typedef struct {
     bool     visible;
 } PmNode;
 
+/* Lifecycle helpers for the panel stack. */
 void pm_init(void);                       // call after initscr()
 void pm_teardown(void);                   // deletes all panels/windows
 
+/* Create, remove, and mutate panel-managed windows. */
 PmNode *pm_add(int y, int x, int h, int w, int z_index, PmLayerRole role);
 void    pm_remove(PmNode *n);
 
@@ -38,6 +49,7 @@ void    pm_set_role(PmNode *n, PmLayerRole role);
 void    pm_move(PmNode *n, int y, int x);
 void    pm_resize(PmNode *n, int h, int w);
 
+/* Refresh helpers used during batched drawing. */
 void    pm_wnoutrefresh(PmNode *n);
 void    pm_update(void);
 void    pm_center(PmNode *n);

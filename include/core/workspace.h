@@ -1,10 +1,19 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Workspace lifecycle and autosave state management APIs. */
+
 #ifndef WORKSPACE_H
 #define WORKSPACE_H
 
 #include <stddef.h>
 #include "data/table.h"
 
+/* Initialize the workspace and return the active table if one is available. */
 int workspace_init(Table **out_table, char *err, size_t err_sz);
+/* Save or export the current workspace state. */
 int workspace_autosave(const Table *table, char *err, size_t err_sz);
 int workspace_manual_save(const Table *table, char *err, size_t err_sz);
 int workspace_open_book(Table *table, const char *path, char *err, size_t err_sz);
@@ -14,12 +23,14 @@ int workspace_rename_table(Table *table, const char *table_id, const char *name,
 int workspace_delete_table(Table *table, const char *table_id, char *err, size_t err_sz);
 int workspace_export_book(const char *path, char *err, size_t err_sz);
 int workspace_export_book_db(const char *path, char *err, size_t err_sz);
+/* Query metadata about the active workspace book. */
 int workspace_list_book_tables(char ***names_out, char ***ids_out, int *count_out, char *err, size_t err_sz);
 int workspace_book_is_active(void);
 const char *workspace_book_name(void);
 int workspace_rename_book(const char *name, char *err, size_t err_sz);
 const char *workspace_active_table_id(void);
 void workspace_clear_book(void);
+/* Runtime toggles and active-project bookkeeping. */
 void workspace_set_autosave_enabled(int enabled);
 int workspace_autosave_enabled(void);
 const char *workspace_project_path(void);

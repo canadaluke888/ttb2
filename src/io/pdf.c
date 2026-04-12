@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Minimal PDF writer used to export formatted table snapshots. */
+
 #include "io/pdf.h"
 
 #include <stdarg.h>

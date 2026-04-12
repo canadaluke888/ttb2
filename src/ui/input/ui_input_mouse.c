@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Mouse handling for grid selection and interaction. */
+
 #include <stdlib.h>
 #include "ui/internal.h"
 

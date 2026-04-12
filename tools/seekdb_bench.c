@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Micro-benchmark for seek-based SQLite paging throughput. */
+
 #include "db/seekdb.h"
 
 #include <sqlite3.h>

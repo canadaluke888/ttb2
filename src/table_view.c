@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Sort and filter support for the visible table view. */
+
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>

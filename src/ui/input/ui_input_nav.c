@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Keyboard navigation helpers for moving through the grid. */
+
 #include "ui/internal.h"
 
 void ui_ensure_cursor_column_visible(const Table *table)

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* CSV parsing and serialization helpers for table data. */
+
 #include "io/csv.h"
 #include "core/settings.h"
 #include <stdio.h>

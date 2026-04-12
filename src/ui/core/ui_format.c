@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Cell formatting helpers for the grid and status displays. */
+
 #include <stdio.h>
 #include "ui/internal.h"
 #include "ui/ui_text.h"

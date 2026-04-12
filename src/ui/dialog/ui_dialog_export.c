@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Export dialogs for CSV, XLSX, PDF, and workspace outputs. */
+
 #include <ncurses.h>
 #include "ui/internal.h"
 #include "io/csv.h"

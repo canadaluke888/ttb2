@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Shared drawing primitives used by the UI renderers. */
+
 #include <ncurses.h>
 #include <stdio.h>
 #include "ui/internal.h"

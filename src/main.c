@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Application entry point and high-level runtime initialization. */
+
 #include <locale.h>
 #include <ncurses.h>
 #include <stdio.h>

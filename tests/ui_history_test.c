@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Regression checks for undo and redo behavior. */
+
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>

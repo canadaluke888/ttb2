@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Table-management dialogs for multi-table workspace actions. */
+
 #include <ncurses.h>
 #include <string.h>
 #include <strings.h>

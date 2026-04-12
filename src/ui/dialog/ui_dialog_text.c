@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Reusable text-input dialogs for prompts and renaming flows. */
+
 #include <ncurses.h>
 #include <ctype.h>
 #include <stdbool.h>

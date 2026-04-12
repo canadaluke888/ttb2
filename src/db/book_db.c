@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* SQLite-backed book storage for multi-table workspace files. */
+
 #include "db/book_db.h"
 #include "io/ttb_io.h"
 

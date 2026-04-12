@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Settings dialog logic for runtime toggles and themes. */
+
 #include <ncurses.h>
 #include <string.h>
 #include <stdbool.h>

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Grid rendering for table headers, rows, and selection state. */
+
 #include <ncurses.h>
 #include <stdlib.h>
 #include <stdio.h>

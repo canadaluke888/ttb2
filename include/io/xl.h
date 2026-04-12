@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* XLSX import and export entry points. */
+
 #ifndef XL_H
 #define XL_H
 
@@ -6,6 +13,7 @@
 #include "data/table.h"
 #include "core/progress.h"
 
+/* Load or save XLSX data for a single worksheet-backed table. */
 Table *xl_load(const char *path, bool infer_types, char *err, size_t err_sz);
 Table *xl_load_with_progress(const char *path,
                              bool infer_types,

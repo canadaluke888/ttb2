@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Database management dialogs for opening and exporting tables. */
+
 #include <ncurses.h>
 #include <string.h>
 #include <stdlib.h>

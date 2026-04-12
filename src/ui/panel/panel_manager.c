@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Panel stack implementation for layered ncurses windows. */
+
 #include "ui/panel_manager.h"
 #include <stdlib.h>
 #include <string.h>

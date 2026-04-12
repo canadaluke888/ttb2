@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Settings persistence, defaults, and theme palette lookups. */
+
 #include "core/settings.h"
 #include <json-c/json.h>
 #include <string.h>

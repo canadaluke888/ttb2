@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Editing dialogs for structural table changes. */
+
 #include <ncurses.h>
 #include <string.h>
 #include <stdio.h>

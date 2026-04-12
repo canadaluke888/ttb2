@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* UI startup helpers including color-pair initialization. */
+
 #include <ncurses.h>
 #include <locale.h>
 #include <string.h>

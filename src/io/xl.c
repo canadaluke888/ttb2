@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* XLSX parsing and serialization helpers for workbook data. */
+
 #include "io/xl.h"
 
 #include <ctype.h>

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Shared modal dialog primitives used across UI flows. */
+
 #include <ncurses.h>
 #include <stdio.h>
 #include <string.h>

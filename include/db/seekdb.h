@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Seek-based SQLite paging APIs for large-table browsing. */
+
 #ifndef SEEKDB_H
 #define SEEKDB_H
 

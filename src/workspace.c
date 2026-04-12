@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Workspace lifecycle, autosave, and book coordination helpers. */
+
 #include "core/workspace.h"
 #include "db/book_db.h"
 #include "io/ttb_io.h"

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Seek-mode data loading for low-memory table browsing. */
+
 #include <sqlite3.h>
 #include <stdlib.h>
 #include <string.h>

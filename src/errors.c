@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Modal error presentation helpers for interactive UI flows. */
+
 #include <ncurses.h>
 #include <string.h>
 #include "core/errors.h"

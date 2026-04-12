@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Main ncurses event loop for the interactive editor. */
+
 #include <ncurses.h>
 #include "ui/internal.h"
 #include "core/errors.h"

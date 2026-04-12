@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Core table allocation, teardown, and basic mutation helpers. */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

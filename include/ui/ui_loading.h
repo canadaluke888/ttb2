@@ -1,10 +1,19 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Loading modal helpers for long-running UI operations. */
+
 #ifndef UI_LOADING_H
 #define UI_LOADING_H
 
 #include "core/progress.h"
 
+/* Opaque modal used to display progress during long-running tasks. */
 typedef struct UiLoadingModal UiLoadingModal;
 
+/* Open, update, and close the shared loading modal. */
 UiLoadingModal *ui_loading_modal_start(const char *title,
                                        const char *initial_message,
                                        ProgressReporter *out_reporter);

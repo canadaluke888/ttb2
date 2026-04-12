@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Footer and status-line rendering helpers. */
+
 #include <ncurses.h>
 #include <stdio.h>
 #include <string.h>

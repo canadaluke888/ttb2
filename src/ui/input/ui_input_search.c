@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Search-mode navigation and query handling. */
+
 #include <ncurses.h>
 #include <stdlib.h>
 #include <string.h>

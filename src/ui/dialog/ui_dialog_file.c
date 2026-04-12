@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* File-picker and path-selection dialogs for opening and saving data. */
+
 #include <ncurses.h>
 #include <dirent.h>
 #include <string.h>

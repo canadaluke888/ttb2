@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Native TTBL and legacy TTBX persistence implementation. */
+
 #include "io/ttb_io.h"
 
 #include <json-c/json.h>

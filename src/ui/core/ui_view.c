@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Viewport, paging, and visible-row coordination for the grid. */
+
 #include "ui/internal.h"
 #include "ui/ui_history.h"
 

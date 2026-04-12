@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Shared UI state storage and view-management helpers. */
+
 #include "ui/internal.h"
 
 int editing_mode = 0;

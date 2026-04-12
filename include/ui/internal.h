@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Shared internal UI state, layout data, and helper declarations. */
+
 #ifndef UI_INTERNAL_H
 #define UI_INTERNAL_H
 
@@ -8,6 +15,7 @@
 #include "core/settings.h"
 #include "ui/ui.h"
 
+/* Shared UI state exported across rendering, input, and dialog modules. */
 extern int editing_mode;
 extern int cursor_row;
 extern int cursor_col;
@@ -31,6 +39,7 @@ extern int del_row_mode;
 extern int del_col_mode;
 extern TableView ui_table_view;
 
+/* Active row or column reorder operation owned by the editor state. */
 typedef enum {
     UI_REORDER_NONE = 0,
     UI_REORDER_MOVE_ROW,
@@ -43,11 +52,13 @@ extern UiReorderMode reorder_mode;
 extern int reorder_source_row;
 extern int reorder_source_col;
 
+/* Generic dialog/menu completion result. */
 typedef enum {
     UI_MENU_DONE = 0,
     UI_MENU_BACK = 1
 } UiMenuResult;
 
+/* Visible grid layout for the current render pass. */
 typedef struct {
     int start_col;
     int end_col;
@@ -56,6 +67,7 @@ typedef struct {
     long long row_number_base;
 } UiGridLayout;
 
+/* Formatting, validation, and core draw helpers. */
 int ui_numeric_column_uses_sign_slot(const Table *table, int col);
 int ui_numeric_text_width_for_grid(const char *text);
 void apply_ui_color_settings(const AppSettings *settings);
@@ -109,6 +121,7 @@ void ui_update_column_paging(Table *table, const int *col_widths);
 void ui_update_row_paging(Table *table);
 void ui_fill_grid_layout(Table *table, UiGridLayout *layout);
 
+/* Editing-mode helpers and cursor movement utilities. */
 int ui_reorder_active(void);
 void ui_clear_reorder_mode(void);
 void ui_advance_footer_page(void);
@@ -130,6 +143,7 @@ void ui_clamp_cursor_viewport(const Table *table);
 int ui_current_page_last_col(const Table *table);
 int ui_current_page_last_row(Table *table);
 
+/* Mouse and search-mode handlers. */
 int ui_handle_cell_click(Table *table, int mouse_x, int mouse_y, int activate_editor);
 
 void ui_search_enter(Table *table);
@@ -138,6 +152,7 @@ int ui_search_handle_key(Table *table, int ch);
 
 int ui_handle_pending_grid_edit(Table *table);
 
+/* Footer and cell text rendering helpers. */
 void ui_draw_footer(Table *table);
 void ui_draw_footer_box(void);
 void ui_draw_table_title(const Table *table);

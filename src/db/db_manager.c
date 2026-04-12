@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Database manager implementation for external SQLite sources and exports. */
+
 #include "db/db_manager.h"
 #include "core/errors.h"
 #include "data/table.h"

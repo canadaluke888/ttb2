@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Seek-based SQLite paging implementation for low-memory browsing. */
+
 #define _GNU_SOURCE
 #include "db/seekdb.h"
 #include <stdio.h>

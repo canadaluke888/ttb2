@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Undo and redo implementation for table edits. */
+
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>

@@ -1,9 +1,17 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Filtered and sorted table view state for the visible grid. */
+
 #ifndef TABLE_VIEW_H
 #define TABLE_VIEW_H
 
 #include <stddef.h>
 #include "data/table.h"
 
+/* Supported comparison operators for the active row filter. */
 typedef enum {
     FILTER_CONTAINS,
     FILTER_EQUALS,
@@ -13,12 +21,14 @@ typedef enum {
     FILTER_LTE
 } FilterOp;
 
+/* Describes a single column filter applied to the view. */
 typedef struct {
     int col;
     FilterOp op;
     char value[128];
 } FilterRule;
 
+/* Tracks filtered row order and sort state for the visible table. */
 typedef struct {
     int *row_map;
     int row_map_count;
@@ -31,15 +41,18 @@ typedef struct {
     FilterRule filter_rule;
 } TableView;
 
+/* Table-view lifecycle helpers. */
 void tableview_init(TableView *view);
 void tableview_free(TableView *view);
 
+/* Apply or clear sort and filter state. */
 int tableview_sort(Table *table, TableView *view, int col, int descending, char *err, size_t err_sz);
 void tableview_clear_sort(TableView *view);
 
 int tableview_apply_filter(Table *table, TableView *view, const FilterRule *rule, char *err, size_t err_sz);
 void tableview_clear_filter(TableView *view);
 
+/* Rebuild mappings and describe the active view state. */
 int tableview_rebuild(Table *table, TableView *view, char *err, size_t err_sz);
 int tableview_row_to_actual(const Table *table, const TableView *view, int visible_row);
 int tableview_visible_row_count(const Table *table, const TableView *view);

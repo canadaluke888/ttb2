@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Luke Canada
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Layout calculations for visible columns, rows, and gutters. */
+
 #include <ncurses.h>
 #include <stdlib.h>
 #include <stdio.h>
