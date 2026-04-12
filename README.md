@@ -92,11 +92,15 @@ Supported startup inputs:
 
 ### Main UI
 
-![main_table](assets/main_ui.png)
+![main_ui_view](assets/screenshots/main_ui.png)
+
+### Edit Mode
+
+![edit_mode_view](assets/screenshots/edit_mode.png)
 
 ### Table Menu
 
-![table_menu](assets/menu.png)
+![table_menu](assets/screenshots/menu.png)
 
 
 ## Editor Keybindings

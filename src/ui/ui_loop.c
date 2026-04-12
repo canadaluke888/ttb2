@@ -681,7 +681,7 @@ static void exit_search(void) {
 void start_ui_loop(Table *table) {
     keypad(stdscr, TRUE);  // Enable arrow keys
     mousemask(ALL_MOUSE_EVENTS, NULL);
-    mouseinterval(250);
+    mouseinterval(150);
     nodelay(stdscr, TRUE); // Non-blocking input to coalesce repeats
     int ch;
     tableview_init(&ui_table_view);
