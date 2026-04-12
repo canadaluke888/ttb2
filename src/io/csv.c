@@ -23,6 +23,7 @@ static char *trim(char *s) {
     return s;
 }
 
+/* Return non-zero when the string ends with the requested suffix. */
 static int ends_with(const char *s, const char *suf) {
     if (!s || !suf) return 0;
     size_t ls = strlen(s), lsf = strlen(suf);
@@ -128,6 +129,7 @@ static char **split_csv_line(const char *line, int *out_count) {
     return arr;
 }
 
+/* Return non-zero when the full string is a valid signed integer. */
 static int is_int_str(const char *s) {
     if (!s || !*s) return 0;
     const char *p = s;
@@ -137,6 +139,7 @@ static int is_int_str(const char *s) {
     return 1;
 }
 
+/* Return non-zero when the full string is a valid floating-point value. */
 static int is_float_str(const char *s) {
     if (!s || !*s) return 0;
     char *end = NULL;
@@ -144,11 +147,13 @@ static int is_float_str(const char *s) {
     return end && *end == '\0';
 }
 
+/* Return non-zero when the string matches the supported boolean literals. */
 static int is_bool_str(const char *s) {
     if (!s) return 0;
     return strcmp(s, "true") == 0 || strcmp(s, "false") == 0;
 }
 
+/* Infer the narrowest shared column type from a column's cell strings. */
 static DataType infer_type_for_column(char **cells, int rows) {
     int all_int = 1, all_float = 1, all_bool = 1;
     for (int i = 0; i < rows; ++i) {
@@ -165,6 +170,7 @@ static DataType infer_type_for_column(char **cells, int rows) {
     return TYPE_STR;
 }
 
+/* Parse a header cell into a display name and optional explicit type suffix. */
 static void parse_header(const char *cell, char **out_name, DataType *out_type) {
     // Accept either "name" or "name (type)"
     *out_type = TYPE_UNKNOWN;
@@ -350,6 +356,7 @@ Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz)
     return csv_load_with_progress(path, infer_types, err, err_sz, NULL);
 }
 
+/* Serialize the current in-memory table to a plain CSV file. */
 int csv_save(const Table *table, const char *path, char *err, size_t err_sz) {
     if (err && err_sz) err[0] = '\0';
     if (!table || !path) { if (err) snprintf(err, err_sz, "Invalid args"); return -1; }

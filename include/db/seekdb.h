@@ -16,6 +16,7 @@
 extern "C" {
 #endif
 
+/* Runtime mode selection for seek-based browsing behavior. */
 typedef enum {
     SEEKDB_MODE_AUTO = 0,
     SEEKDB_MODE_LOW_RAM,
@@ -55,6 +56,7 @@ int      seekdb_set_view(seekdb *s, const char *base_table, const char *where_sq
 int      seekdb_seek_first (seekdb *s, int limit, seekdb_row_cb cb, void *user, char *err, size_t errlen);
 int      seekdb_seek_after (seekdb *s, long long last_id, int limit, seekdb_row_cb cb, void *user, char *err, size_t errlen);
 int      seekdb_seek_before(seekdb *s, long long first_id, int limit, seekdb_row_cb cb, void *user, char *err, size_t errlen);
+/* Fetch a window centered around the provided stable row identifier. */
 int      seekdb_seek_by_id (seekdb *s, long long target_id, int limit, seekdb_row_cb cb, void *user, char *err, size_t errlen);
 
 /* Utility: count rows in current view (may be slow on very large tables). */

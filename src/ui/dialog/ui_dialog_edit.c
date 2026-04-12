@@ -212,6 +212,7 @@ void edit_header_cell(Table *t, int col) {
     }
 }
 
+/* Open the cell editor for a body row and persist the result through history. */
 void edit_body_cell(Table *t, int row, int col) {
     if (!t) return;
 
@@ -323,6 +324,7 @@ int prompt_move_column_placement(Table *t, int source_col, int target_col)
     return list_confirm(title, opts, 3);
 }
 
+/* Confirm and delete the selected row through the undoable history layer. */
 void confirm_delete_row_at(Table *t, int row) {
     if (!t || t->row_count <= 0 || row < 0 || row >= t->row_count) { show_error_message("No row to delete."); return; }
     const char *opts[] = { "Yes", "No" };
@@ -340,6 +342,7 @@ void confirm_delete_row_at(Table *t, int row) {
     }
 }
 
+/* Confirm and delete the selected column through the undoable history layer. */
 void confirm_delete_column_at(Table *t, int col) {
     if (!t || t->column_count <= 0 || col < 0 || col >= t->column_count) { show_error_message("No column to delete."); return; }
     if (t->column_count == 1) { show_error_message("Cannot delete the last column."); return; }
@@ -358,6 +361,7 @@ void confirm_delete_column_at(Table *t, int col) {
     }
 }
 
+/* Confirm clearing a single cell and route the change through history. */
 void prompt_clear_cell(Table *t, int row, int col) {
     if (!t || row < 0 || row >= t->row_count || col < 0 || col >= t->column_count) { show_error_message("No cell to clear."); return; }
     int h = 5; int w = COLS - 8; int y = (LINES - h) / 2; int x = 4;

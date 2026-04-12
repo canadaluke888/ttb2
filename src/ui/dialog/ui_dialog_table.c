@@ -80,12 +80,14 @@ static int table_menu_find_first_selectable(const TableMenuEntry *entries, int c
     return -1;
 }
 
+/* Free a list of heap-allocated strings returned by workspace helpers. */
 static void free_string_list(char **list, int count) {
     if (!list) return;
     for (int i = 0; i < count; ++i) free(list[i]);
     free(list);
 }
 
+/* Prompt for a new column and append it to the active table. */
 void prompt_add_column(Table *table) {
     (void)prompt_add_column_at_internal(table, table ? table->column_count : 0, 0, "Add Column");
 }
@@ -142,6 +144,7 @@ static int prompt_add_column_at_internal(Table *table, int col_index, int focus_
     return -1;
 }
 
+/* Prompt for a new row and append it to the active table. */
 void prompt_add_row(Table *table) {
     (void)prompt_add_row_at_internal(table, table ? table->row_count : 0, 0, "Add Row");
 }
@@ -239,6 +242,7 @@ static int prompt_add_row_at_internal(Table *table, int row_index, int focus_ins
     return -1;
 }
 
+/* Rename the active table inside the current workspace book. */
 static UiMenuResult prompt_rename_active_table(Table *table) {
     if (!table) {
         return UI_MENU_BACK;
@@ -273,6 +277,7 @@ void prompt_rename_table(Table *table)
     (void)prompt_rename_active_table(table);
 }
 
+/* Rename the current workspace book. */
 static UiMenuResult prompt_rename_book(void) {
     char prompt_label[192];
     char name[128];
@@ -615,6 +620,7 @@ void clear_table_view_prompt(Table *table)
     col_page = 0;
 }
 
+/* Show the top-level table menu for workspace, view, and file actions. */
 void show_table_menu(Table *table) {
     int keep_open = 1;
 

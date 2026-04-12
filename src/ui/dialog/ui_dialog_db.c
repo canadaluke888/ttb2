@@ -26,6 +26,7 @@ static bool table_has_schema(const Table *table)
     return table && table->column_count > 0;
 }
 
+/* Reuse the shared text-input modal for database-oriented prompts. */
 static int prompt_text_input(const char *title, const char *prompt, char *out, size_t out_sz) {
     return show_text_input_modal(title,
                                  "[Enter] Confirm   [Esc] Cancel",
@@ -35,12 +36,14 @@ static int prompt_text_input(const char *title, const char *prompt, char *out, s
                                  false);
 }
 
+/* Free a null-free string array returned by DB helper APIs. */
 static void free_string_list(char **list, int count) {
     if (!list) return;
     for (int i = 0; i < count; ++i) free(list[i]);
     free(list);
 }
 
+/* Show the database manager menu for connecting, loading, and exporting tables. */
 void show_db_manager(Table *table) {
     noecho(); curs_set(0);
 

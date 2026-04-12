@@ -28,22 +28,26 @@ struct DbManager {
 // Active connection (legacy DB support)
 static DbManager *ACTIVE_DB = NULL;
 
+/* Store the process-global active DB handle used by older UI flows. */
 void db_set_active(DbManager *db) { ACTIVE_DB = db; }
 DbManager *db_get_active(void) { return ACTIVE_DB; }
 int db_autosave_enabled(void) { return workspace_autosave_enabled(); }
 void db_set_autosave_enabled(int enabled) { workspace_set_autosave_enabled(enabled); }
 
+/* Copy a short error message into the caller buffer when one is available. */
 static void set_err(char *err, size_t err_sz, const char *msg) {
     if (!err || err_sz == 0) return;
     strncpy(err, msg, err_sz - 1);
     err[err_sz - 1] = '\0';
 }
 
+/* Return non-zero when the given path exists and is a directory. */
 static int path_is_directory(const char *p) {
     struct stat st;
     return (p && stat(p, &st) == 0 && S_ISDIR(st.st_mode)) ? 1 : 0;
 }
 
+/* Join two path components while inserting a slash only when needed. */
 static void join_path(char *out, size_t out_sz, const char *a, const char *b) {
     size_t la = strlen(a);
     int needs_sep = (la > 0 && a[la - 1] != '/');
@@ -56,6 +60,7 @@ static void join_path(char *out, size_t out_sz, const char *a, const char *b) {
 static void quote_ident(char *out, size_t out_sz, const char *name);
 static int fetch_columns(DbManager *db, const char *table, char ***names, char ***types, int *count);
 
+/* Ensure the local databases directory exists under the current working tree. */
 int db_ensure_databases_dir(char *err, size_t err_sz) {
     char path[512];
     // cwd + "/databases"
@@ -79,12 +84,14 @@ int db_ensure_databases_dir(char *err, size_t err_sz) {
     return 0;
 }
 
+/* Build the absolute path to the repo-local databases directory. */
 static void databases_dir(char *out, size_t out_sz) {
     char cwd[512];
     getcwd(cwd, sizeof(cwd));
     join_path(out, out_sz, cwd, "databases");
 }
 
+/* Create an empty SQLite database file inside the local databases directory. */
 int db_create_database(const char *name, char *err, size_t err_sz) {
     char dir[512]; databases_dir(dir, sizeof(dir));
     if (db_ensure_databases_dir(err, err_sz) != 0) return -1;
@@ -104,6 +111,7 @@ int db_create_database(const char *name, char *err, size_t err_sz) {
     return 0;
 }
 
+/* Remove a database file from the local databases directory. */
 int db_delete_database(const char *name, char *err, size_t err_sz) {
     char dir[512]; databases_dir(dir, sizeof(dir));
     char path[1024]; join_path(path, sizeof(path), dir, name);
@@ -118,6 +126,7 @@ int db_delete_database(const char *name, char *err, size_t err_sz) {
     return 0;
 }
 
+/* Enumerate available .db files from the local databases directory. */
 int db_list_databases(char ***names_out, int *count_out, char *err, size_t err_sz) {
     if (!names_out || !count_out) { set_err(err, err_sz, "Invalid args"); return -1; }
     *names_out = NULL; *count_out = 0;
@@ -163,6 +172,7 @@ DbManager *db_open(const char *path, char *err, size_t err_sz) {
     return db;
 }
 
+/* Close an opened SQLite connection and release the manager wrapper. */
 void db_close(DbManager *db) {
     if (!db) return;
     if (db->conn) sqlite3_close(db->conn);
@@ -172,6 +182,7 @@ void db_close(DbManager *db) {
 int db_is_connected(DbManager *db) { return db && db->conn; }
 const char *db_current_path(DbManager *db) { return db ? db->path : NULL; }
 
+/* Enumerate table names from the connected SQLite database. */
 int db_list_tables(DbManager *db, char ***names_out, int *count_out, char *err, size_t err_sz) {
     if (!db || !db->conn) { set_err(err, err_sz, "Not connected"); return -1; }
     if (!names_out || !count_out) { set_err(err, err_sz, "Invalid args"); return -1; }
@@ -195,6 +206,7 @@ int db_list_tables(DbManager *db, char ***names_out, int *count_out, char *err, 
     return 0;
 }
 
+/* Check whether the connected database already contains the named table. */
 int db_table_exists(DbManager *db, const char *name) {
     if (!db || !db->conn || !name || !*name) return 0;
     char **names = NULL; int count = 0; char err[64] = {0};
@@ -208,6 +220,7 @@ int db_table_exists(DbManager *db, const char *name) {
     return found;
 }
 
+/* Drop the named table from the connected SQLite database. */
 int db_delete_table(DbManager *db, const char *name, char *err, size_t err_sz) {
     if (!db || !db->conn) { set_err(err, err_sz, "Not connected"); return -1; }
     if (!name || !*name) { set_err(err, err_sz, "No table name"); return -1; }
@@ -223,6 +236,7 @@ int db_delete_table(DbManager *db, const char *name, char *err, size_t err_sz) {
     return 0;
 }
 
+/* Load a SQLite table into the shared in-memory table representation. */
 Table* db_load_table(DbManager *db, const char *name, char *err, size_t err_sz) {
     if (!db || !db->conn) { set_err(err, err_sz, "Not connected"); return NULL; }
     if (!name || !*name) { set_err(err, err_sz, "No table name"); return NULL; }
@@ -271,6 +285,7 @@ Table* db_load_table(DbManager *db, const char *name, char *err, size_t err_sz) 
     return t;
 }
 
+/* Read column names and declared SQLite types for the given table. */
 static int fetch_columns(DbManager *db, const char *table, char ***names, char ***types, int *count) {
     *names = NULL; *types = NULL; *count = 0;
     char sql[512]; snprintf(sql, sizeof(sql), "PRAGMA table_info(\"%s\");", table);
@@ -302,6 +317,7 @@ static const char *map_dtype(DataType t) {
     }
 }
 
+/* Escape a SQLite identifier by doubling quotes and wrapping in quotes. */
 static void quote_ident(char *out, size_t out_sz, const char *name) {
     // Double any quotes and wrap with quotes
     size_t n = 0; out[n++] = '"';
@@ -313,6 +329,7 @@ static void quote_ident(char *out, size_t out_sz, const char *name) {
     out[n++] = '"'; out[n] = '\0';
 }
 
+/* Replace or create a SQLite table so it mirrors the in-memory table state. */
 int db_save_table(DbManager *db, const Table *t, char *err, size_t err_sz) {
     if (!db || !db->conn) { set_err(err, err_sz, "Not connected"); return -1; }
     if (!t) { set_err(err, err_sz, "No table"); return -1; }
@@ -405,11 +422,13 @@ after_insert:
     return rc;
 }
 
+/* Forward autosave through the workspace layer instead of a live DB handle. */
 int db_autosave_table(const Table *t, char *err, size_t err_sz) {
     (void)ACTIVE_DB; // autosave now handled via workspace files
     return workspace_autosave(t, err, err_sz);
 }
 
+/* Export the active in-memory table to a standalone SQLite database file. */
 int db_export_table_path(const Table *t, const char *path, char *err, size_t err_sz) {
     sqlite3 *conn = NULL;
     DbManager db = {0};
@@ -435,6 +454,7 @@ int db_export_table_path(const Table *t, const char *path, char *err, size_t err
     return rc;
 }
 
+/* Export every table in a legacy book into a new SQLite database file. */
 int db_export_book_path(const char *book_path, const char *path, char *err, size_t err_sz) {
     sqlite3 *conn = NULL;
     DbManager db = {0};

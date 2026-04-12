@@ -10,6 +10,7 @@
 #include "core/errors.h"
 #include "ui/panel_manager.h"
 
+/* Show a centered blocking modal with the supplied error message text. */
 void show_error_message(const char *msg) {
     int h = 4;
     int w = COLS - 4;

@@ -17,6 +17,7 @@
 #include "core/workspace.h"
 #include "core/errors.h"
 
+/* Initialize ncurses, restore workspace state, and run the main editor loop. */
 int main(int argc, char **argv) {
     if (argc > 2) {
         fprintf(stderr, "Usage: %s [file-or-book]\n", argv[0]);

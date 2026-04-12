@@ -23,6 +23,7 @@ Table *create_table(const char *name) {
     return t;
 }
 
+/* Free the table object together with all owned columns, rows, and cells. */
 void free_table(Table *t) {
     if (!t) return;
 
@@ -47,6 +48,7 @@ void free_table(Table *t) {
     free(t);
 }
 
+/* Reset a reusable table to an empty state with a fresh display name. */
 void clear_table(Table *t, const char *name) {
     if (!t) return;
 
@@ -79,6 +81,7 @@ void clear_table(Table *t, const char *name) {
     t->dirty = 0;
 }
 
+/* Move all owned storage from src into dest, freeing the old dest contents. */
 int replace_table_contents(Table *dest, Table *src) {
     if (!dest || !src) return -1;
 
@@ -105,6 +108,7 @@ int replace_table_contents(Table *dest, Table *src) {
     return 0;
 }
 
+/* Append a new column and extend all existing rows with an empty cell slot. */
 int add_column(Table *t, const char *name, DataType type) {
     if (t->column_count == t->capacity_columns) {
         t->capacity_columns += 4;
@@ -130,6 +134,7 @@ int add_column(Table *t, const char *name, DataType type) {
 }
 
 
+/* Append a new row by converting each input string to the column's data type. */
 int add_row(Table *t, const char **input_strings) {
     if (t->row_count == t->capacity_rows) {
         t->capacity_rows += 4;
@@ -172,6 +177,7 @@ const char *type_to_string(DataType type) {
     }
 }
 
+/* Parse a persisted or user-entered type name into the internal enum. */
 DataType parse_type_from_string(const char *str) {
     if (strcmp(str, "int") == 0) return TYPE_INT;
     if (strcmp(str, "float") == 0) return TYPE_FLOAT;

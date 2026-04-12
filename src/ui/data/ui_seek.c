@@ -29,6 +29,7 @@ static SeekSession G = {0};
 
 // low_ram_mode declared and defined in ui_loop.c
 
+/* Clear only the row storage so seek-mode can refill the visible window. */
 static void clear_table_rows(Table *t) {
     if (!t) return;
     for (int i = 0; i < t->row_count; ++i) {
@@ -43,12 +44,14 @@ static void clear_table_rows(Table *t) {
     t->rows = NULL; t->row_count = 0; t->capacity_rows = 0;
 }
 
+/* Clear all visible columns before rebuilding them from the seek-mode view. */
 static void clear_table_columns(Table *t) {
     if (!t) return;
     for (int j = 0; j < t->column_count; ++j) if (t->columns[j].name) free(t->columns[j].name);
     free(t->columns); t->columns = NULL; t->column_count = 0; t->capacity_columns = 0;
 }
 
+/* Locate the stable key column inside the current seek-mode view schema. */
 static void ensure_key_col(const char *const*names, int n) {
     G.key_col = -1;
     for (int i = 0; i < n; ++i) {
@@ -56,6 +59,7 @@ static void ensure_key_col(const char *const*names, int n) {
     }
 }
 
+/* Rebuild the visible table columns using string-typed display cells. */
 static int fill_columns(Table *view, char **names, int count) {
     // All columns are displayed as strings for the view; types can be refined later
     clear_table_columns(view);
@@ -67,6 +71,7 @@ static int fill_columns(Table *view, char **names, int count) {
 
 typedef struct { Table *t; int reverse; long long first; long long last; } FillCtx;
 
+/* Stream one SQLite row into the visible table window. */
 static bool stream_row(void *user, sqlite3_stmt *row) {
     FillCtx *fc = (FillCtx*)user;
     int cols = sqlite3_column_count(row);
@@ -93,6 +98,7 @@ static bool stream_row(void *user, sqlite3_stmt *row) {
 typedef struct { int cols; int cap; int n; char ***rows; long long *ids; } Buf;
 
 static void buf_init(Buf *b, int cols) { b->cols = cols; b->cap = 0; b->n = 0; b->rows = NULL; b->ids = NULL; }
+/* Append a raw SQLite row to the temporary reverse-order buffer. */
 static void buf_push(Buf *b, sqlite3_stmt *row, int key_idx) {
     if (b->n == b->cap) {
         b->cap = b->cap ? b->cap * 2 : 16;
@@ -108,22 +114,26 @@ static void buf_push(Buf *b, sqlite3_stmt *row, int key_idx) {
     b->ids[b->n] = (key_idx >= 0) ? sqlite3_column_int64(row, key_idx) : 0;
     b->n++;
 }
+/* Free all rows captured in the temporary reverse-order buffer. */
 static void buf_free(Buf *b) {
     for (int i = 0; i < b->n; ++i) { for (int j = 0; j < b->cols; ++j) free(b->rows[i][j]); free(b->rows[i]); }
     free(b->rows); free(b->ids);
 }
 
+/* Collect one row into the temporary buffer used for backwards paging. */
 static bool collect_row(void *user, sqlite3_stmt *row) {
     Buf *b = (Buf*)user; buf_push(b, row, G.key_col); return true;
 }
 
 int seek_mode_active(void) { return G.active; }
 
+/* Close any active seek-mode session and clear its cached paging state. */
 void seek_mode_close(void) {
     if (G.s) { seekdb_close(G.s); G.s = NULL; }
     G.active = 0; G.key_col = -1; G.first_id = 0; G.last_id = 0;
 }
 
+/* Open seek mode over a database table and prime the first visible page. */
 int seek_mode_open_for_table(const char *db_path, const char *table_name, Table *view, int page_size, char *err, size_t err_sz) {
     seek_mode_close();
     G.s = seekdb_open(db_path, SEEKDB_MODE_LOW_RAM, err, err_sz);
@@ -145,6 +155,7 @@ int seek_mode_open_for_table(const char *db_path, const char *table_name, Table 
     return seek_mode_fetch_first(view, page_size, err, err_sz);
 }
 
+/* Load the first page of rows into the visible seek-mode table. */
 int seek_mode_fetch_first(Table *view, int page_size, char *err, size_t err_sz) {
     clear_table_rows(view);
     FillCtx ctx = { .t = view, .reverse = 0, .first = 0, .last = 0 };
@@ -155,6 +166,7 @@ int seek_mode_fetch_first(Table *view, int page_size, char *err, size_t err_sz) 
     return got;
 }
 
+/* Advance seek mode to the next page of rows. */
 int seek_mode_fetch_next(Table *view, int page_size, char *err, size_t err_sz) {
     clear_table_rows(view);
     FillCtx ctx = { .t = view, .reverse = 0, .first = 0, .last = 0 };
@@ -168,6 +180,7 @@ int seek_mode_fetch_next(Table *view, int page_size, char *err, size_t err_sz) {
     return got;
 }
 
+/* Move seek mode back to the previous page of rows. */
 int seek_mode_fetch_prev(Table *view, int page_size, char *err, size_t err_sz) {
     // Collect in buffer (descending), then reverse into table
     clear_table_rows(view);

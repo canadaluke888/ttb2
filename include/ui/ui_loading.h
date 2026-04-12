@@ -18,10 +18,12 @@ UiLoadingModal *ui_loading_modal_start(const char *title,
                                        const char *initial_message,
                                        ProgressReporter *out_reporter);
 
+/* Push a new progress value and status message into the active modal. */
 void ui_loading_modal_update(UiLoadingModal *modal,
                              double progress,
                              const char *message);
 
+/* Close the loading modal and release its window resources. */
 void ui_loading_modal_finish(UiLoadingModal *modal);
 
 #endif /* UI_LOADING_H */

@@ -17,6 +17,7 @@
 static AppSettings g_settings;
 static int g_loaded = 0;
 
+/* Lazily load settings once and apply their runtime side effects. */
 static void ensure_loaded(void) {
     if (g_loaded) return;
     settings_init_defaults(&g_settings);
@@ -43,6 +44,7 @@ static int next_selectable_row(int row, int dir, int count)
     return row;
 }
 
+/* Show the settings dialog for runtime toggles and theme selection. */
 UiMenuResult show_settings_menu(void) {
     ensure_loaded();
     noecho(); curs_set(0);

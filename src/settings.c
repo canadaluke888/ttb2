@@ -56,6 +56,7 @@ int settings_ensure_directory(void)
     return -1;
 }
 
+/* Seed the settings structure with the built-in defaults. */
 void settings_init_defaults(AppSettings *s) {
     if (!s) return;
     s->autosave_enabled = true;
@@ -65,6 +66,7 @@ void settings_init_defaults(AppSettings *s) {
     s->theme_id = 0;
 }
 
+/* Load settings from disk, falling back to defaults on missing values. */
 int settings_load(const char *path, AppSettings *out) {
     if (!out) return -1;
     settings_init_defaults(out);
@@ -96,6 +98,7 @@ int settings_load(const char *path, AppSettings *out) {
     return 0;
 }
 
+/* Write the current settings structure to the JSON settings file. */
 int settings_save(const char *path, const AppSettings *s) {
     if (!s) return -1;
     if (!path || !path[0]) path = settings_default_path();

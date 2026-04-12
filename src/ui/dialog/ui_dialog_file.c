@@ -28,6 +28,7 @@ typedef struct {
     int is_dir;
 } Entry;
 
+/* Sort directory entries with folders first and names in lexical order. */
 static int entry_cmp(const void *a, const void *b) {
     const Entry *ea = (const Entry*)a, *eb = (const Entry*)b;
     if (ea->is_dir != eb->is_dir) return eb->is_dir - ea->is_dir; // dirs first
@@ -57,6 +58,7 @@ static Entry *list_dir(const char *path, int *out_count) {
     return arr;
 }
 
+/* Free the directory listing used by the file and directory pickers. */
 static void free_entries(Entry *arr, int n) {
     if (!arr) return;
     for (int i = 0; i < n; ++i) free(arr[i].name);
@@ -314,6 +316,7 @@ int ui_pick_directory(char *out, size_t out_sz, const char *title)
     }
 }
 
+/* Show the file picker used to open CSV, XLSX, TTBL, and TTBX inputs. */
 UiMenuResult show_open_file(Table *table) {
     char cwd[1024]; getcwd(cwd, sizeof(cwd));
     int sel = 0;

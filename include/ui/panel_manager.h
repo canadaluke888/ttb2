@@ -40,8 +40,10 @@ void pm_teardown(void);                   // deletes all panels/windows
 
 /* Create, remove, and mutate panel-managed windows. */
 PmNode *pm_add(int y, int x, int h, int w, int z_index, PmLayerRole role);
+/* Destroy a panel-managed window and unlink it from the stack. */
 void    pm_remove(PmNode *n);
 
+/* Toggle visibility and geometry of tracked panel windows. */
 void    pm_show(PmNode *n);
 void    pm_hide(PmNode *n);
 void    pm_set_z(PmNode *n, int z_index);
@@ -52,10 +54,10 @@ void    pm_resize(PmNode *n, int h, int w);
 /* Refresh helpers used during batched drawing. */
 void    pm_wnoutrefresh(PmNode *n);
 void    pm_update(void);
+/* Center a tracked panel and recompute geometry after terminal resize. */
 void    pm_center(PmNode *n);
 void    pm_on_resize(void);
 
 #ifdef __cplusplus
 }
 #endif
-

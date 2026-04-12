@@ -21,7 +21,9 @@ typedef struct {
 
 /* History lifecycle helpers. */
 void ui_history_reset(void);
+/* Return non-zero when an undo operation is currently available. */
 int ui_history_can_undo(void);
+/* Return non-zero when a redo operation is currently available. */
 int ui_history_can_redo(void);
 
 /* Undoable cell and row operations. */
@@ -44,6 +46,7 @@ int ui_history_change_column_type(Table *table, int col, DataType type, UiHistor
 int ui_history_undo(Table *table, UiHistoryApplyResult *result, char *err, size_t err_sz);
 int ui_history_redo(Table *table, UiHistoryApplyResult *result, char *err, size_t err_sz);
 
+/* Rebuild UI-facing focus metadata after a history mutation. */
 int ui_history_refresh(Table *table, const UiHistoryApplyResult *result, char *err, size_t err_sz);
 
 #endif

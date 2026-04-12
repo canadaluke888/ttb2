@@ -15,6 +15,7 @@
 
 /* Load CSV data into a new table, optionally inferring column types. */
 Table *csv_load(const char *path, bool infer_types, char *err, size_t err_sz);
+/* Load CSV data while reporting incremental progress to the UI. */
 Table *csv_load_with_progress(const char *path,
                               bool infer_types,
                               char *err,

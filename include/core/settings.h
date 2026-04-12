@@ -32,13 +32,15 @@ typedef struct {
 /* Reset settings to their built-in defaults. */
 void settings_init_defaults(AppSettings *s);
 
-/* Load or save the JSON settings file at the given path. */
+/* Load settings from the JSON settings file at the given path. */
 int settings_load(const char *path, AppSettings *out);
+/* Save settings to the JSON settings file at the given path. */
 int settings_save(const char *path, const AppSettings *s);
 /* Ensure the settings directory exists before reading or writing files. */
 int settings_ensure_directory(void);
-/* Theme metadata helpers used by the settings UI and renderer. */
+/* Return the default JSON settings path used by the application. */
 const char *settings_default_path(void);
+/* Theme metadata helpers used by the settings UI and renderer. */
 int settings_theme_count(void);
 int settings_normalize_theme(int theme_id);
 const char *settings_theme_name(int theme_id);

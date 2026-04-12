@@ -13,6 +13,7 @@
 
 /* Cell editing helpers with bounds and type validation. */
 int tableop_set_cell(Table *table, int row, int col, const char *input, char *err, size_t err_sz);
+/* Clear a single cell while preserving row and column structure. */
 int tableop_clear_cell(Table *table, int row, int col, char *err, size_t err_sz);
 
 /* Row and column removal or reordering helpers. */
@@ -26,11 +27,13 @@ int tableop_swap_columns(Table *table, int col_a, int col_b, char *err, size_t e
 /* Insert helpers used by dialogs and undoable operations. */
 int tableop_insert_row_at(Table *table, int row_index, const char **values, char *err, size_t err_sz);
 int tableop_insert_column_at(Table *table, int col_index, const char *name, DataType type, char *err, size_t err_sz);
+/* Append a row or column to the current table bounds. */
 int tableop_insert_row(Table *table, const char **values, char *err, size_t err_sz);
 int tableop_insert_column(Table *table, const char *name, DataType type, char *err, size_t err_sz);
 
 /* Column metadata updates. */
 int tableop_rename_column(Table *table, int col, const char *name, char *err, size_t err_sz);
+/* Re-type an existing column and convert any stored cell values in place. */
 int tableop_change_column_type(Table *table, int col, DataType type, char *err, size_t err_sz);
 
 #endif /* TABLE_OPS_H */

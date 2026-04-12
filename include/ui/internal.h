@@ -72,10 +72,13 @@ int ui_numeric_column_uses_sign_slot(const Table *table, int col);
 int ui_numeric_text_width_for_grid(const char *text);
 void apply_ui_color_settings(const AppSettings *settings);
 bool validate_input(const char *input, DataType type);
+/* Redraw the full UI or just the visible grid contents. */
 void draw_ui(Table *table);
 void draw_table_grid(Table *table);
+/* Open cell-edit dialogs for header or body cells. */
 void edit_header_cell(Table *table, int col);
 void edit_body_cell(Table *table, int row, int col);
+/* Prompt-driven edit, delete, and insertion helpers. */
 void prompt_clear_cell(Table *table, int row, int col);
 void confirm_delete_row_at(Table *table, int row);
 void confirm_delete_column_at(Table *table, int col);
@@ -94,12 +97,14 @@ void prompt_rename_table(Table *table);
 UiMenuResult show_settings_menu(void);
 UiMenuResult show_open_file(Table *table);
 int ui_pick_directory(char *out, size_t out_sz, const char *title);
+/* Show a general-purpose text input modal. */
 int show_text_input_modal(const char *title,
                           const char *hint,
                           const char *prompt,
                           char *out,
                           size_t out_sz,
                           bool allow_empty);
+/* Seek-mode controls for low-memory browsing of large tables. */
 int seek_mode_active(void);
 int seek_mode_open_for_table(const char *db_path, const char *table_name, Table *view, int page_size, char *err, size_t err_sz);
 int seek_mode_fetch_first(Table *view, int page_size, char *err, size_t err_sz);
@@ -146,10 +151,12 @@ int ui_current_page_last_row(Table *table);
 /* Mouse and search-mode handlers. */
 int ui_handle_cell_click(Table *table, int mouse_x, int mouse_y, int activate_editor);
 
+/* Enter, leave, or advance interactive search state. */
 void ui_search_enter(Table *table);
 void ui_search_exit(void);
 int ui_search_handle_key(Table *table, int ch);
 
+/* Consume deferred edit requests queued by input handlers. */
 int ui_handle_pending_grid_edit(Table *table);
 
 /* Footer and cell text rendering helpers. */
@@ -162,6 +169,7 @@ void ui_draw_action_hint_segment(int y, int *x, int max_x, const char *text);
 void ui_draw_footer_separator(int y, int *x, int max_x);
 void ui_draw_footer_page_indicator(int y, int *x, int max_x);
 
+/* Small text drawing primitives used by the footer and grid renderers. */
 void ui_add_repeat(const char *text, int count);
 void ui_add_spaces(int count);
 int ui_draw_cell_text(const char *text, int width, int color_pair);

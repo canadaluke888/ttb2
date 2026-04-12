@@ -28,6 +28,7 @@ void apply_ui_color_settings(const AppSettings *settings)
     init_pair(8, palette.separator_color, -1);     // Footer separators
 }
 
+/* Initialize the ncurses color pairs used throughout the application UI. */
 void init_colors(void) {
     AppSettings settings;
 
@@ -49,6 +50,7 @@ void init_colors(void) {
     apply_ui_color_settings(&settings);
 }
 
+/* Validate typed text against the target column data type. */
 bool validate_input(const char *input, DataType type) {
     if (!input || strlen(input) == 0)
         return false;

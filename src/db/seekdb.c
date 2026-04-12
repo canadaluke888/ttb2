@@ -24,12 +24,14 @@ struct seekdb {
     char    *key_name;   /* defaults to _ttb_id */
 };
 
+/* Copy a SQLite or internal error message into the caller buffer. */
 static void set_err(char *err, size_t errlen, const char *msg) {
     if (err && errlen) {
         snprintf(err, errlen, "%s", msg ? msg : "error");
     }
 }
 
+/* Detect whether the supplied path already points at a SQLite database file. */
 static int is_sqlite_file(const char *path) {
     if (!path) return 0;
     FILE *f = fopen(path, "rb");
@@ -40,6 +42,7 @@ static int is_sqlite_file(const char *path) {
     return n == 16 && memcmp(hdr, "SQLite format 3\000", 16) == 0;
 }
 
+/* Execute a SQLite statement and surface any engine error text. */
 static int exec_sql(sqlite3 *db, const char *sql, char *err, size_t errlen) {
     char *emsg = NULL;
     int rc = sqlite3_exec(db, sql, NULL, NULL, &emsg);
@@ -50,6 +53,7 @@ static int exec_sql(sqlite3 *db, const char *sql, char *err, size_t errlen) {
     return rc;
 }
 
+/* Apply runtime pragmas tuned for seek-based browsing workloads. */
 static int apply_pragmas(sqlite3 *db, seekdb_mode_t mode) {
     /* Low-RAM friendly defaults; can be tuned later via a settings screen. */
     int cache_kib = 16384; /* ~16 MiB */
@@ -67,6 +71,7 @@ static int apply_pragmas(sqlite3 *db, seekdb_mode_t mode) {
     return sqlite3_exec(db, sql, NULL, NULL, NULL);
 }
 
+/* Ensure the stable key is always present in the ORDER BY clause. */
 static int append_key_if_missing(char *dst, size_t dstlen, const char *order_sql, const char *key) {
     if (order_sql && strstr(order_sql, key)) {
         snprintf(dst, dstlen, "%s", order_sql);
@@ -82,6 +87,7 @@ static int append_key_if_missing(char *dst, size_t dstlen, const char *order_sql
    Public API (scaffold)
    -------------------------- */
 
+/* Open an existing SQLite DB or create a temporary spill DB for seek mode. */
 seekdb* seekdb_open(const char *path_or_null, seekdb_mode_t mode, char *err, size_t errlen) {
     seekdb *s = calloc(1, sizeof(*s));
     if (!s) { set_err(err, errlen, "oom"); return NULL; }
@@ -114,12 +120,14 @@ seekdb* seekdb_open(const char *path_or_null, seekdb_mode_t mode, char *err, siz
     return s;
 }
 
+/* Create the backing table used by seek-mode paging if it is missing. */
 int seekdb_ensure_table(seekdb *s, const char *table, const char *columns_sql, char *err, size_t errlen) {
     char sql[2048];
     snprintf(sql, sizeof(sql), "CREATE TABLE IF NOT EXISTS \"%s\" (%s);", table, columns_sql);
     return exec_sql(s->db, sql, err, errlen) == SQLITE_OK ? 0 : -1;
 }
 
+/* Add and index the stable integer key used for keyset pagination. */
 int seekdb_ensure_stable_key(seekdb *s, const char *table, const char *key, char *err, size_t errlen) {
     free(s->key_name); s->key_name = strdup(key);
 
@@ -170,6 +178,7 @@ int seekdb_set_view(seekdb *s, const char *base_table, const char *where_sql, co
     return exec_sql(s->db, sql, err, errlen) == SQLITE_OK ? 0 : -1;
 }
 
+/* Run a window query and stream each row through the caller callback. */
 static int run_window(seekdb *s, const char *sql, seekdb_row_cb cb, void *user, char *err, size_t errlen) {
     sqlite3_stmt *st = NULL;
     if (sqlite3_prepare_v2(s->db, sql, -1, &st, NULL) != SQLITE_OK) {
@@ -192,12 +201,14 @@ static int run_window(seekdb *s, const char *sql, seekdb_row_cb cb, void *user, 
     return delivered;
 }
 
+/* Fetch the first visible window from the active seek-mode view. */
 int seekdb_seek_first(seekdb *s, int limit, seekdb_row_cb cb, void *user, char *err, size_t errlen) {
     char sql[512];
     snprintf(sql, sizeof(sql), "SELECT * FROM \"%s\" LIMIT %d;", s->view_name, limit);
     return run_window(s, sql, cb, user, err, errlen);
 }
 
+/* Fetch the next window after the last stable row identifier. */
 int seekdb_seek_after(seekdb *s, long long last_id, int limit, seekdb_row_cb cb, void *user, char *err, size_t errlen) {
     char sql[1024];
     snprintf(sql, sizeof(sql),
@@ -206,6 +217,7 @@ int seekdb_seek_after(seekdb *s, long long last_id, int limit, seekdb_row_cb cb,
     return run_window(s, sql, cb, user, err, errlen);
 }
 
+/* Fetch the previous window before the first stable row identifier. */
 int seekdb_seek_before(seekdb *s, long long first_id, int limit, seekdb_row_cb cb, void *user, char *err, size_t errlen) {
     char sql[1024];
     snprintf(sql, sizeof(sql),
@@ -214,6 +226,7 @@ int seekdb_seek_before(seekdb *s, long long first_id, int limit, seekdb_row_cb c
     return run_window(s, sql, cb, user, err, errlen);
 }
 
+/* Fetch a window beginning at or after a specific stable row identifier. */
 int seekdb_seek_by_id(seekdb *s, long long target_id, int limit, seekdb_row_cb cb, void *user, char *err, size_t errlen) {
     char sql[1024];
     snprintf(sql, sizeof(sql),
@@ -222,6 +235,7 @@ int seekdb_seek_by_id(seekdb *s, long long target_id, int limit, seekdb_row_cb c
     return run_window(s, sql, cb, user, err, errlen);
 }
 
+/* Count rows in the current seek-mode view. */
 long long seekdb_count(seekdb *s, char *err, size_t errlen) {
     char sql[256];
     snprintf(sql, sizeof(sql), "SELECT COUNT(*) FROM \"%s\";", s->view_name);
@@ -235,6 +249,7 @@ long long seekdb_count(seekdb *s, char *err, size_t errlen) {
     return n;
 }
 
+/* Persist the current seek-mode database to a caller-provided destination. */
 int seekdb_save_as(seekdb *s, const char *dest_path, char *err, size_t errlen) {
     char esc[1024]; size_t j=0;
     for (size_t i=0; dest_path[i] && j<sizeof(esc)-2; ++i) {
@@ -248,6 +263,7 @@ int seekdb_save_as(seekdb *s, const char *dest_path, char *err, size_t errlen) {
     return exec_sql(s->db, sql, err, errlen) == SQLITE_OK ? 0 : -1;
 }
 
+/* Close the seek-mode database and clean up any temporary spill directory. */
 void seekdb_close(seekdb *s) {
     if (!s) return;
     if (s->db) sqlite3_close(s->db);
@@ -263,6 +279,7 @@ void seekdb_close(seekdb *s) {
     free(s);
 }
 
+/* Return the visible column names for the current seek-mode view. */
 int seekdb_get_view_columns(seekdb *s, char ***names_out, char *err, size_t errlen) {
     if (!s || !s->db || !names_out) { set_err(err, errlen, "bad args"); return -1; }
     *names_out = NULL;
