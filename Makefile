@@ -37,25 +37,27 @@ run:
 install: $(OUT)
 	mkdir -p $(DESTDIR)$(BINDIR)
 	mkdir -p $(DESTDIR)$(DOCDIR)
-	mkdir -p $(DESTDIR)$(DOCDIR)/assets
 	mkdir -p $(DESTDIR)$(ICONDIR)
 	install -m 755 $(OUT) $(DESTDIR)$(BINDIR)/ttb2
 	install -m 644 README.md $(DESTDIR)$(DOCDIR)/README.md
 	install -m 644 LICENSE $(DESTDIR)$(DOCDIR)/LICENSE
-	install -m 644 assets/ttb2_img.png $(DESTDIR)$(ICONDIR)/ttb2.png
-	install -m 644 assets/main_ui.png $(DESTDIR)$(DOCDIR)/assets/main_ui.png
-	install -m 644 assets/menu.png $(DESTDIR)$(DOCDIR)/assets/menu.png
-	install -m 644 assets/ttb2_img.png $(DESTDIR)$(DOCDIR)/assets/ttb2_img.png
+	install -m 644 assets/icons/ttb2_icon_16.png $(DESTDIR)$(ICONDIR)/ttb2_icon_16.png
+	install -m 644 assets/icons/ttb2_icon_32.png $(DESTDIR)$(ICONDIR)/ttb2_icon_32.png
+	install -m 644 assets/icons/ttb2_icon_48.png $(DESTDIR)$(ICONDIR)/ttb2_icon_48.png
+	install -m 644 assets/icons/ttb2_icon_64.png $(DESTDIR)$(ICONDIR)/ttb2_icon_64.png
+	install -m 644 assets/icons/ttb2_icon_128.png $(DESTDIR)$(ICONDIR)/ttb2_icon_128.png
+	install -m 644 assets/icons/ttb2_icon_256.png $(DESTDIR)$(ICONDIR)/ttb2_icon_256.png
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/ttb2
 	rm -f $(DESTDIR)$(DOCDIR)/README.md
 	rm -f $(DESTDIR)$(DOCDIR)/LICENSE
-	rm -f $(DESTDIR)$(DOCDIR)/assets/main_ui.png
-	rm -f $(DESTDIR)$(DOCDIR)/assets/menu.png
-	rm -f $(DESTDIR)$(DOCDIR)/assets/ttb2_img.png
-	rm -f $(DESTDIR)$(ICONDIR)/ttb2.png
-	rmdir $(DESTDIR)$(DOCDIR)/assets 2>/dev/null || true
+	rm -f $(DESTDIR)$(ICONDIR)/ttb2_icon_16.png
+	rm -f $(DESTDIR)$(ICONDIR)/ttb2_icon_32.png
+	rm -f $(DESTDIR)$(ICONDIR)/ttb2_icon_48.png
+	rm -f $(DESTDIR)$(ICONDIR)/ttb2_icon_64.png
+	rm -f $(DESTDIR)$(ICONDIR)/ttb2_icon_128.png
+	rm -f $(DESTDIR)$(ICONDIR)/ttb2_icon_256.png
 	rmdir $(DESTDIR)$(DOCDIR) 2>/dev/null || true
 
 deb: $(OUT)
