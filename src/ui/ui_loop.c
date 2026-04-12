@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include "table.h"
 #include "ui.h"
+#include "ui_text.h"
 #include "errors.h"  // Added to provide declaration for show_error_message
 #include "panel_manager.h"
 #include "workspace.h"
@@ -44,6 +45,145 @@ int search_sel_start = -1;
 int search_sel_len = 0;
 
 static void exit_search(void);
+static int ui_reorder_active(void);
+static void clear_reorder_mode(void);
+static void ensure_cursor_column_visible(const Table *table);
+static void ensure_cursor_row_visible(Table *table);
+
+static int ui_numeric_column_uses_sign_slot(const Table *table, int col)
+{
+    if (!table || col < 0 || col >= table->column_count) return 0;
+    return table->columns[col].type == TYPE_INT || table->columns[col].type == TYPE_FLOAT;
+}
+
+static int ui_numeric_text_width_for_grid(const char *text)
+{
+    if (!text || !*text) return 0;
+    return 2 + ui_text_width((*text == '-') ? text + 1 : text);
+}
+
+static int ui_compute_column_widths(Table *table, int *col_widths)
+{
+    int visible_row_count;
+    int rows_vis_est;
+    int rstart_est;
+    int rend_est;
+
+    if (!table || !col_widths || table->column_count <= 0) return -1;
+
+    visible_row_count = ui_visible_row_count(table);
+    rows_vis_est = (LINES - 5 - 3) / 2;
+    if (rows_vis_est < 1) rows_vis_est = 1;
+
+    rstart_est = row_page * rows_vis_est;
+    if (rstart_est < 0) rstart_est = 0;
+    if (rstart_est > visible_row_count) rstart_est = visible_row_count;
+
+    rend_est = rstart_est + rows_vis_est;
+    if (rend_est > visible_row_count) rend_est = visible_row_count;
+
+    for (int j = 0; j < table->column_count; ++j) {
+        char header_buf[128];
+        int max_width;
+
+        snprintf(header_buf, sizeof(header_buf), "%s (%s)", table->columns[j].name, type_to_string(table->columns[j].type));
+        max_width = ui_text_width(header_buf) + 2;
+
+        for (int i = rstart_est; i < rend_est; ++i) {
+            int actual_row = ui_actual_row_for_visible(table, i);
+            char buf[64];
+            int width;
+
+            if (actual_row < 0) continue;
+            ui_format_cell_value(table, actual_row, j, buf, sizeof(buf));
+            width = ui_numeric_column_uses_sign_slot(table, j)
+                        ? (ui_numeric_text_width_for_grid(buf) + 2)
+                        : (ui_text_width(buf) + 2);
+            if (width > max_width) max_width = width;
+        }
+
+        col_widths[j] = max_width;
+    }
+
+    return 0;
+}
+
+static int ui_handle_cell_click(Table *table, int mouse_x, int mouse_y)
+{
+    int visible_rows;
+    int body_top_y = 5;
+    int x = 2;
+    int clicked_row;
+    int *col_widths;
+    int use_gutter;
+    int gutter_w = 0;
+    int cell_left;
+    int clicked_col = -1;
+
+    if (!table || table->column_count <= 0) return 0;
+    if (search_mode || ui_reorder_active() || del_row_mode || del_col_mode) return 0;
+    if (mouse_y < body_top_y || ((mouse_y - body_top_y) % 2) != 0) return 0;
+
+    visible_rows = ui_visible_row_count(table);
+    clicked_row = row_page * (rows_visible > 0 ? rows_visible : 1) + ((mouse_y - body_top_y) / 2);
+    if (clicked_row < 0 || clicked_row >= visible_rows) return 0;
+
+    col_widths = malloc(sizeof(int) * table->column_count);
+    if (!col_widths) return 0;
+    if (ui_compute_column_widths(table, col_widths) != 0) {
+        free(col_widths);
+        return 0;
+    }
+
+    use_gutter = row_gutter_enabled ? 1 : 0;
+    if (use_gutter) {
+        long long base = 1;
+        long long max_row_num;
+        long long tmpn;
+        int rows_vis_est = rows_visible > 0 ? rows_visible : 1;
+
+        if (seek_mode_active()) base = seek_mode_row_base();
+        max_row_num = seek_mode_active()
+                        ? (base + rows_vis_est - 1)
+                        : (long long)(row_page * rows_vis_est + rows_vis_est);
+        if (max_row_num < 1) max_row_num = 1;
+        tmpn = max_row_num;
+        gutter_w = 1;
+        while (tmpn >= 10) {
+            gutter_w++;
+            tmpn /= 10;
+        }
+        gutter_w += 2;
+    }
+
+    cell_left = x + 1;
+    if (use_gutter) cell_left += gutter_w + 1;
+
+    for (int j = col_start; j < table->column_count && j < col_start + cols_visible; ++j) {
+        int cell_right = cell_left + col_widths[j] - 1;
+
+        if (mouse_x >= cell_left && mouse_x <= cell_right) {
+            clicked_col = j;
+            break;
+        }
+        cell_left = cell_right + 2; /* separator + next cell start */
+    }
+
+    free(col_widths);
+
+    if (clicked_col < 0) return 0;
+
+    cursor_row = clicked_row;
+    cursor_col = clicked_col;
+    if (!editing_mode) {
+        editing_mode = 1;
+        footer_page = 0;
+        clear_reorder_mode();
+    }
+    ensure_cursor_row_visible(table);
+    ensure_cursor_column_visible(table);
+    return 1;
+}
 
 static int ui_reorder_active(void)
 {
@@ -554,6 +694,9 @@ void start_ui_loop(Table *table) {
                     ch = (event.bstate & BUTTON_SHIFT) ? KEY_LEFT : KEY_UP;
                 } else if (event.bstate & BUTTON5_PRESSED) {
                     ch = (event.bstate & BUTTON_SHIFT) ? KEY_RIGHT : KEY_DOWN;
+                } else if (event.bstate & (BUTTON1_CLICKED | BUTTON1_RELEASED | BUTTON1_PRESSED)) {
+                    if (ui_handle_cell_click(table, event.x, event.y)) continue;
+                    continue;
                 } else {
                     continue;
                 }
