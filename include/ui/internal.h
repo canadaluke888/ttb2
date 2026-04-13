@@ -67,6 +67,28 @@ typedef struct {
     long long row_number_base;
 } UiGridLayout;
 
+/* Named box-drawing glyphs used by UTF-8 grid renderers. */
+typedef enum {
+    UI_BOX_TOP_LEFT = 0,
+    UI_BOX_TOP_RIGHT,
+    UI_BOX_TOP_TEE,
+    UI_BOX_HEAVY_HORIZONTAL,
+    UI_BOX_HEAVY_VERTICAL,
+    UI_BOX_HEADER_LEFT_TEE,
+    UI_BOX_HEADER_RIGHT_TEE,
+    UI_BOX_HEADER_CROSS,
+    UI_BOX_LIGHT_VERTICAL,
+    UI_BOX_ROW_LEFT_TEE,
+    UI_BOX_ROW_RIGHT_TEE,
+    UI_BOX_LIGHT_HORIZONTAL,
+    UI_BOX_ROW_CROSS,
+    UI_BOX_BOTTOM_LEFT,
+    UI_BOX_BOTTOM_RIGHT,
+    UI_BOX_BOTTOM_TEE
+} UiBoxChar;
+
+const char *ui_box_char(UiBoxChar ch);
+
 /* Formatting, validation, and core draw helpers. */
 int ui_numeric_column_uses_sign_slot(const Table *table, int col);
 int ui_numeric_text_width_for_grid(const char *text);

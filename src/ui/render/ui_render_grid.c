@@ -12,18 +12,42 @@
 #include "ui/internal.h"
 #include "ui/ui_text.h"
 
+const char *ui_box_char(UiBoxChar ch)
+{
+    switch (ch) {
+        case UI_BOX_TOP_LEFT: return "┏";
+        case UI_BOX_TOP_RIGHT: return "┓";
+        case UI_BOX_TOP_TEE: return "┳";
+        case UI_BOX_HEAVY_HORIZONTAL: return "━";
+        case UI_BOX_HEAVY_VERTICAL: return "┃";
+        case UI_BOX_HEADER_LEFT_TEE: return "┡";
+        case UI_BOX_HEADER_RIGHT_TEE: return "┩";
+        case UI_BOX_HEADER_CROSS: return "╇";
+        case UI_BOX_LIGHT_VERTICAL: return "│";
+        case UI_BOX_ROW_LEFT_TEE: return "├";
+        case UI_BOX_ROW_RIGHT_TEE: return "┤";
+        case UI_BOX_LIGHT_HORIZONTAL: return "─";
+        case UI_BOX_ROW_CROSS: return "┼";
+        case UI_BOX_BOTTOM_LEFT: return "└";
+        case UI_BOX_BOTTOM_RIGHT: return "┘";
+        case UI_BOX_BOTTOM_TEE: return "┴";
+    }
+
+    return "";
+}
+
 /* Draw top border of grid. */
 static void ui_draw_grid_top_border(const UiGridLayout *layout, const int *col_widths, int x, int *y)
 {
     attron(COLOR_PAIR(6));
-    mvprintw((*y)++, x, "┏");
+    mvprintw((*y)++, x, "%s", ui_box_char(UI_BOX_TOP_LEFT));
     if (layout->use_gutter) {
-        ui_add_repeat("━", layout->gutter_width);
-        addstr((layout->start_col < layout->end_col) ? "┳" : "┓");
+        ui_add_repeat(ui_box_char(UI_BOX_HEAVY_HORIZONTAL), layout->gutter_width);
+        addstr(ui_box_char((layout->start_col < layout->end_col) ? UI_BOX_TOP_TEE : UI_BOX_TOP_RIGHT));
     }
     for (int j = layout->start_col; j < layout->end_col; ++j) {
-        ui_add_repeat("━", col_widths[j]);
-        addstr((j < layout->end_col - 1) ? "┳" : "┓");
+        ui_add_repeat(ui_box_char(UI_BOX_HEAVY_HORIZONTAL), col_widths[j]);
+        addstr(ui_box_char((j < layout->end_col - 1) ? UI_BOX_TOP_TEE : UI_BOX_TOP_RIGHT));
     }
     attroff(COLOR_PAIR(6));
 }
@@ -33,7 +57,7 @@ static void ui_draw_grid_header_row(const Table *table, const UiGridLayout *layo
 {
     move((*y)++, x);
     attron(COLOR_PAIR(6));
-    addstr("┃");
+    addstr(ui_box_char(UI_BOX_HEAVY_VERTICAL));
     attroff(COLOR_PAIR(6));
     if (layout->use_gutter) {
         int pad = layout->gutter_width - 1;
@@ -46,7 +70,7 @@ static void ui_draw_grid_header_row(const Table *table, const UiGridLayout *layo
         attroff(COLOR_PAIR(3) | A_BOLD);
         for (int i = 0; i < rp; ++i) addch(' ');
         attron(COLOR_PAIR(6));
-        addstr("┃");
+        addstr(ui_box_char(UI_BOX_HEAVY_VERTICAL));
         attroff(COLOR_PAIR(6));
     }
     for (int j = layout->start_col; j < layout->end_col; ++j) {
@@ -89,7 +113,7 @@ static void ui_draw_grid_header_row(const Table *table, const UiGridLayout *layo
         for (int s = used; s < col_widths[j]; ++s) addch(' ');
 
         attron(COLOR_PAIR(6));
-        addstr("┃");
+        addstr(ui_box_char(UI_BOX_HEAVY_VERTICAL));
         attroff(COLOR_PAIR(6));
     }
 }
@@ -98,14 +122,14 @@ static void ui_draw_grid_header_row(const Table *table, const UiGridLayout *layo
 static void ui_draw_grid_header_separator(const UiGridLayout *layout, const int *col_widths, int x, int *y)
 {
     attron(COLOR_PAIR(6));
-    mvprintw((*y)++, x, "┡");
+    mvprintw((*y)++, x, "%s", ui_box_char(UI_BOX_HEADER_LEFT_TEE));
     if (layout->use_gutter) {
-        ui_add_repeat("━", layout->gutter_width);
-        addstr((layout->start_col < layout->end_col) ? "╇" : "┩");
+        ui_add_repeat(ui_box_char(UI_BOX_HEAVY_HORIZONTAL), layout->gutter_width);
+        addstr(ui_box_char((layout->start_col < layout->end_col) ? UI_BOX_HEADER_CROSS : UI_BOX_HEADER_RIGHT_TEE));
     }
     for (int j = layout->start_col; j < layout->end_col; ++j) {
-        ui_add_repeat("━", col_widths[j]);
-        addstr((j < layout->end_col - 1) ? "╇" : "┩");
+        ui_add_repeat(ui_box_char(UI_BOX_HEAVY_HORIZONTAL), col_widths[j]);
+        addstr(ui_box_char((j < layout->end_col - 1) ? UI_BOX_HEADER_CROSS : UI_BOX_HEADER_RIGHT_TEE));
     }
     attroff(COLOR_PAIR(6));
 }
@@ -119,7 +143,7 @@ static void ui_draw_grid_body_rows(Table *table, const UiGridLayout *layout, con
 
         move((*y)++, x);
         attron(COLOR_PAIR(6));
-        addstr("│");
+        addstr(ui_box_char(UI_BOX_LIGHT_VERTICAL));
         attroff(COLOR_PAIR(6));
         if (layout->use_gutter) {
             long long rn = seek_mode_active() ? (layout->row_number_base + (i - row_page * rows_visible)) : (long long)(i + 1);
@@ -141,7 +165,7 @@ static void ui_draw_grid_body_rows(Table *table, const UiGridLayout *layout, con
             attroff(COLOR_PAIR(4));
             for (int p = 0; p < rp; ++p) addch(' ');
             attron(COLOR_PAIR(6));
-            addstr("│");
+            addstr(ui_box_char(UI_BOX_LIGHT_VERTICAL));
             attroff(COLOR_PAIR(6));
         }
 
@@ -176,21 +200,21 @@ static void ui_draw_grid_body_rows(Table *table, const UiGridLayout *layout, con
             if (highlight_source) attroff(A_REVERSE);
 
             attron(COLOR_PAIR(6));
-            addstr("│");
+            addstr(ui_box_char(UI_BOX_LIGHT_VERTICAL));
             attroff(COLOR_PAIR(6));
         }
 
         if (i < visible_row_count - 1 && i < row_page * rows_visible + rows_visible - 1) {
             move((*y)++, x);
             attron(COLOR_PAIR(6));
-            addstr("├");
+            addstr(ui_box_char(UI_BOX_ROW_LEFT_TEE));
             if (layout->use_gutter) {
-                ui_add_repeat("─", layout->gutter_width);
-                addstr((layout->start_col < layout->end_col) ? "┼" : "┤");
+                ui_add_repeat(ui_box_char(UI_BOX_LIGHT_HORIZONTAL), layout->gutter_width);
+                addstr(ui_box_char((layout->start_col < layout->end_col) ? UI_BOX_ROW_CROSS : UI_BOX_ROW_RIGHT_TEE));
             }
             for (int j = layout->start_col; j < layout->end_col; ++j) {
-                ui_add_repeat("─", col_widths[j]);
-                addstr((j < layout->end_col - 1) ? "┼" : "┤");
+                ui_add_repeat(ui_box_char(UI_BOX_LIGHT_HORIZONTAL), col_widths[j]);
+                addstr(ui_box_char((j < layout->end_col - 1) ? UI_BOX_ROW_CROSS : UI_BOX_ROW_RIGHT_TEE));
             }
             attroff(COLOR_PAIR(6));
         }
@@ -201,14 +225,14 @@ static void ui_draw_grid_body_rows(Table *table, const UiGridLayout *layout, con
 static void ui_draw_grid_bottom_border(const UiGridLayout *layout, const int *col_widths, int x, int *y)
 {
     attron(COLOR_PAIR(6));
-    mvprintw((*y)++, x, "└");
+    mvprintw((*y)++, x, "%s", ui_box_char(UI_BOX_BOTTOM_LEFT));
     if (layout->use_gutter) {
-        ui_add_repeat("─", layout->gutter_width);
-        addstr((layout->start_col < layout->end_col) ? "┴" : "┘");
+        ui_add_repeat(ui_box_char(UI_BOX_LIGHT_HORIZONTAL), layout->gutter_width);
+        addstr(ui_box_char((layout->start_col < layout->end_col) ? UI_BOX_BOTTOM_TEE : UI_BOX_BOTTOM_RIGHT));
     }
     for (int j = layout->start_col; j < layout->end_col; ++j) {
-        ui_add_repeat("─", col_widths[j]);
-        addstr((j < layout->end_col - 1) ? "┴" : "┘");
+        ui_add_repeat(ui_box_char(UI_BOX_LIGHT_HORIZONTAL), col_widths[j]);
+        addstr(ui_box_char((j < layout->end_col - 1) ? UI_BOX_BOTTOM_TEE : UI_BOX_BOTTOM_RIGHT));
     }
     attroff(COLOR_PAIR(6));
 }
