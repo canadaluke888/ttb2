@@ -61,6 +61,7 @@ int main(int argc, char **argv) {
 
     start_ui_loop(table);  // From ui_loop.c
 
+    workspace_flush_autosave(NULL, 0);
     free_table(table);
     workspace_shutdown();
     pm_teardown();

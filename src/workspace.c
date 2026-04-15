@@ -17,12 +17,14 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #define WORKSPACE_DIR "workspace"
 #define WORKSPACE_SESSION_BOOK WORKSPACE_DIR "/session.ttbx"
 #define WORKSPACE_DEFAULT_BOOK_NAME "Untitled Book"
 #define WORKSPACE_DEFAULT_TABLE_NAME "Untitled Table"
+#define WORKSPACE_AUTOSAVE_IDLE_MS 400
 
 static char g_project_path[PATH_MAX] = WORKSPACE_SESSION_BOOK;
 static char g_active_table_id[256] = "";
@@ -30,12 +32,22 @@ static char g_book_name[256] = WORKSPACE_DEFAULT_BOOK_NAME;
 static int g_autosave_on = 1;
 static Table *g_active_table = NULL;
 static int g_book_active = 1;
+static int g_autosave_pending = 0;
+static long long g_autosave_due_ms = 0;
 
 static void set_err(char *err, size_t err_sz, const char *msg)
 {
     if (!err || err_sz == 0 || !msg) return;
     strncpy(err, msg, err_sz - 1);
     err[err_sz - 1] = '\0';
+}
+
+static long long monotonic_millis(void)
+{
+    struct timespec ts;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
+    return ((long long)ts.tv_sec * 1000LL) + (ts.tv_nsec / 1000000LL);
 }
 
 static int path_exists(const char *path)
@@ -654,16 +666,48 @@ int workspace_autosave(const Table *table, char *err, size_t err_sz)
     Table *mutable_table = (Table *)table;
 
     if (!g_autosave_on) return 0;
+    g_autosave_pending = 0;
+    g_autosave_due_ms = 0;
     workspace_set_active_table(mutable_table);
     if (save_project(table, err, err_sz) != 0) return -1;
     if (mutable_table) mutable_table->dirty = 0;
     return 0;
 }
 
+void workspace_queue_autosave(Table *table)
+{
+    workspace_set_active_table(table);
+    if (!g_autosave_on || !table) return;
+    g_autosave_pending = 1;
+    g_autosave_due_ms = monotonic_millis() + WORKSPACE_AUTOSAVE_IDLE_MS;
+}
+
+int workspace_process_autosave(char *err, size_t err_sz)
+{
+    if (!g_autosave_pending || !g_autosave_on) return 0;
+    if (monotonic_millis() < g_autosave_due_ms) return 0;
+    return workspace_flush_autosave(err, err_sz);
+}
+
+int workspace_flush_autosave(char *err, size_t err_sz)
+{
+    if (!g_autosave_pending || !g_autosave_on) return 0;
+    if (!g_active_table) {
+        g_autosave_pending = 0;
+        g_autosave_due_ms = 0;
+        return 0;
+    }
+    g_autosave_pending = 0;
+    g_autosave_due_ms = 0;
+    return workspace_autosave(g_active_table, err, err_sz);
+}
+
 int workspace_manual_save(const Table *table, char *err, size_t err_sz)
 {
     Table *mutable_table = (Table *)table;
 
+    g_autosave_pending = 0;
+    g_autosave_due_ms = 0;
     workspace_set_active_table(mutable_table);
     if (save_project(table, err, err_sz) != 0) return -1;
     if (mutable_table) mutable_table->dirty = 0;

@@ -31,6 +31,13 @@ void start_ui_loop(Table *table)
         draw_ui(table);
         wnoutrefresh(stdscr);
         pm_update();
+        {
+            char autosave_err[256] = {0};
+
+            if (workspace_process_autosave(autosave_err, sizeof(autosave_err)) != 0) {
+                show_error_message(autosave_err[0] ? autosave_err : "Autosave failed.");
+            }
+        }
         if (ui_handle_pending_grid_edit(table)) continue;
 
         while ((ch = getch()) != ERR) {

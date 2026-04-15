@@ -14,6 +14,7 @@
 #include "db/db_manager.h"
 #include "data/table_ops.h"
 #include "ui/internal.h"
+#include "core/workspace.h"
 
 #define UI_HISTORY_LIMIT 128
 
@@ -599,9 +600,9 @@ static void fill_result(UiHistoryApplyResult *result, int actual_row, int col, i
 
 static int autosave_after_history(Table *table, char *err, size_t err_sz)
 {
-    if (db_autosave_table(table, err, err_sz) != 0) {
-        return -1;
-    }
+    (void)err;
+    (void)err_sz;
+    workspace_queue_autosave(table);
     return 0;
 }
 
