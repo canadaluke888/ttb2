@@ -26,21 +26,16 @@ void start_ui_loop(Table *table)
         int fetched = 0;
         int final_vdir = 0;
         int vcount = 0;
+        int had_input = 0;
         int quit = 0;
 
         draw_ui(table);
         wnoutrefresh(stdscr);
         pm_update();
-        {
-            char autosave_err[256] = {0};
-
-            if (workspace_process_autosave(autosave_err, sizeof(autosave_err)) != 0) {
-                show_error_message(autosave_err[0] ? autosave_err : "Autosave failed.");
-            }
-        }
         if (ui_handle_pending_grid_edit(table)) continue;
 
         while ((ch = getch()) != ERR) {
+            had_input = 1;
             if (ch == KEY_RESIZE) {
                 pm_on_resize();
                 continue;
@@ -576,6 +571,14 @@ void start_ui_loop(Table *table)
                     default:
                         break;
                 }
+            }
+        }
+
+        if (!quit && !had_input) {
+            char autosave_err[256] = {0};
+
+            if (workspace_process_autosave(autosave_err, sizeof(autosave_err)) != 0) {
+                show_error_message(autosave_err[0] ? autosave_err : "Autosave failed.");
             }
         }
 

@@ -45,6 +45,8 @@ typedef struct {
 
 /* Table lifecycle helpers. */
 Table *create_table(const char *name);
+/* Deep-clone a table including all cells, preserving nulls and metadata. */
+Table *clone_table(const Table *table);
 void free_table(Table *table);
 /* Clear all rows and columns while keeping the table object reusable. */
 void clear_table(Table *table, const char *name);

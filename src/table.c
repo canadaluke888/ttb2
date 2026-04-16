@@ -10,6 +10,28 @@
 #include <string.h>
 #include "data/table.h"
 
+static void *clone_cell_value(DataType type, const void *value) {
+    void *copy = NULL;
+
+    if (!value) return NULL;
+
+    switch (type) {
+        case TYPE_INT:
+        case TYPE_BOOL:
+            copy = malloc(sizeof(int));
+            if (copy) *(int *)copy = *(const int *)value;
+            return copy;
+        case TYPE_FLOAT:
+            copy = malloc(sizeof(float));
+            if (copy) *(float *)copy = *(const float *)value;
+            return copy;
+        case TYPE_STR:
+            return strdup((const char *)value);
+        default:
+            return NULL;
+    }
+}
+
 Table *create_table(const char *name) {
     Table *t = malloc(sizeof(Table));
     t->name = strdup(name);
@@ -21,6 +43,63 @@ Table *create_table(const char *name) {
     t->capacity_rows = 0;
     t->dirty = 0;
     return t;
+}
+
+Table *clone_table(const Table *table) {
+    Table *copy;
+
+    if (!table) return NULL;
+
+    copy = create_table(table->name ? table->name : "Untitled Table");
+    if (!copy) return NULL;
+
+    if (table->column_count > 0) {
+        copy->columns = calloc((size_t)table->column_count, sizeof(Column));
+        if (!copy->columns) {
+            free_table(copy);
+            return NULL;
+        }
+        copy->column_count = table->column_count;
+        copy->capacity_columns = table->column_count;
+        for (int c = 0; c < table->column_count; ++c) {
+            copy->columns[c].name = strdup(table->columns[c].name ? table->columns[c].name : "");
+            if (!copy->columns[c].name) {
+                free_table(copy);
+                return NULL;
+            }
+            copy->columns[c].type = table->columns[c].type;
+            copy->columns[c].color_pair_id = table->columns[c].color_pair_id;
+        }
+    }
+
+    if (table->row_count > 0) {
+        copy->rows = calloc((size_t)table->row_count, sizeof(Row));
+        if (!copy->rows) {
+            free_table(copy);
+            return NULL;
+        }
+        copy->row_count = table->row_count;
+        copy->capacity_rows = table->row_count;
+        for (int r = 0; r < table->row_count; ++r) {
+            if (table->column_count <= 0) continue;
+            copy->rows[r].values = calloc((size_t)table->column_count, sizeof(void *));
+            if (!copy->rows[r].values) {
+                free_table(copy);
+                return NULL;
+            }
+            for (int c = 0; c < table->column_count; ++c) {
+                copy->rows[r].values[c] = clone_cell_value(table->columns[c].type,
+                                                            table->rows[r].values ? table->rows[r].values[c] : NULL);
+                if (table->rows[r].values && table->rows[r].values[c] && !copy->rows[r].values[c]) {
+                    free_table(copy);
+                    return NULL;
+                }
+            }
+        }
+    }
+
+    copy->dirty = table->dirty;
+    return copy;
 }
 
 /* Free the table object together with all owned columns, rows, and cells. */

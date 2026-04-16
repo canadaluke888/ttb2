@@ -209,6 +209,258 @@ static int get_meta(BookDB *db, const char *key, char *out, size_t out_sz, const
     return 0;
 }
 
+static void bind_cell_text(sqlite3_stmt *stmt, int param_index, DataType type, const void *val)
+{
+    if (!val) {
+        sqlite3_bind_null(stmt, param_index);
+        return;
+    }
+
+    switch (type) {
+        case TYPE_INT: {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%d", *(const int *)val);
+            sqlite3_bind_text(stmt, param_index, buf, -1, SQLITE_TRANSIENT);
+            break;
+        }
+        case TYPE_FLOAT: {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%.9g", (double)*(const float *)val);
+            sqlite3_bind_text(stmt, param_index, buf, -1, SQLITE_TRANSIENT);
+            break;
+        }
+        case TYPE_BOOL:
+            sqlite3_bind_text(stmt, param_index, (*(const int *)val) ? "true" : "false", -1, SQLITE_TRANSIENT);
+            break;
+        case TYPE_STR:
+        default:
+            sqlite3_bind_text(stmt, param_index, (const char *)val, -1, SQLITE_TRANSIENT);
+            break;
+    }
+}
+
+static int table_layout_matches(const Table *left, const Table *right)
+{
+    if (!left || !right) return 0;
+    if (left->column_count != right->column_count) return 0;
+    for (int i = 0; i < left->column_count; ++i) {
+        if (left->columns[i].type != right->columns[i].type) return 0;
+    }
+    return 1;
+}
+
+static int rows_equal_at(const Table *left, const Table *right, int row)
+{
+    if (!left || !right || row < 0 || row >= left->row_count || row >= right->row_count) return 0;
+    if (left->column_count != right->column_count) return 0;
+
+    for (int c = 0; c < left->column_count; ++c) {
+        void *lv = left->rows[row].values ? left->rows[row].values[c] : NULL;
+        void *rv = right->rows[row].values ? right->rows[row].values[c] : NULL;
+
+        if (!lv || !rv) {
+            if (lv != rv) return 0;
+            continue;
+        }
+
+        switch (left->columns[c].type) {
+            case TYPE_INT:
+            case TYPE_BOOL:
+                if (*(int *)lv != *(int *)rv) return 0;
+                break;
+            case TYPE_FLOAT:
+                if (*(float *)lv != *(float *)rv) return 0;
+                break;
+            case TYPE_STR:
+                if (strcmp((const char *)lv, (const char *)rv) != 0) return 0;
+                break;
+            default:
+                return 0;
+        }
+    }
+
+    return 1;
+}
+
+static int sync_column_metadata(sqlite3 *conn, const char *table_id, const Table *table, char *err, size_t err_sz)
+{
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+
+    rc = sqlite3_prepare_v2(conn,
+        "INSERT INTO book_columns(table_id, col_index, name, type, color_pair_id) "
+        "VALUES(?1, ?2, ?3, ?4, ?5) "
+        "ON CONFLICT(table_id, col_index) DO UPDATE SET "
+        "name = excluded.name, type = excluded.type, color_pair_id = excluded.color_pair_id;",
+        -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        set_err(err, err_sz, sqlite3_errmsg(conn));
+        return -1;
+    }
+
+    for (int i = 0; i < table->column_count; ++i) {
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        sqlite3_bind_text(stmt, 1, table_id, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 2, i);
+        sqlite3_bind_text(stmt, 3, table->columns[i].name ? table->columns[i].name : "", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 4, type_to_string(table->columns[i].type), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 5, table->columns[i].color_pair_id);
+        rc = sqlite3_step(stmt);
+        if (rc != SQLITE_DONE) {
+            set_err(err, err_sz, sqlite3_errmsg(conn));
+            sqlite3_finalize(stmt);
+            return -1;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return 0;
+}
+
+static int sync_rows_incremental(sqlite3 *conn, const char *q_storage_name, const Table *previous, const Table *table, char *err, size_t err_sz)
+{
+    sqlite3_stmt *update_stmt = NULL;
+    sqlite3_stmt *insert_stmt = NULL;
+    char *update_sql = NULL;
+    char *insert_sql = NULL;
+    size_t sql_sz;
+    size_t off;
+    int rc;
+    int common_rows;
+
+    if (!previous || !table) {
+        set_err(err, err_sz, "Missing table snapshot");
+        return -1;
+    }
+    if (table->column_count <= 0) return 0;
+
+    sql_sz = 160 + ((size_t)table->column_count * 20);
+
+    update_sql = (char *)malloc(sql_sz);
+    insert_sql = (char *)malloc(sql_sz);
+    if (!update_sql || !insert_sql) {
+        free(update_sql);
+        free(insert_sql);
+        set_err(err, err_sz, "Out of memory");
+        return -1;
+    }
+
+    off = (size_t)snprintf(update_sql, sql_sz, "UPDATE %s SET ", q_storage_name);
+    for (int i = 0; i < table->column_count; ++i) {
+        int written = snprintf(update_sql + off, sql_sz - off, "%sc%d = ?%d", i ? ", " : "", i, i + 1);
+        if (written < 0 || (size_t)written >= sql_sz - off) {
+            free(update_sql);
+            free(insert_sql);
+            set_err(err, err_sz, "SQL buffer overflow");
+            return -1;
+        }
+        off += (size_t)written;
+    }
+    snprintf(update_sql + off, sql_sz - off, " WHERE row_id = ?%d;", table->column_count + 1);
+
+    off = (size_t)snprintf(insert_sql, sql_sz, "INSERT INTO %s (row_id", q_storage_name);
+    for (int i = 0; i < table->column_count; ++i) {
+        int written = snprintf(insert_sql + off, sql_sz - off, ", c%d", i);
+        if (written < 0 || (size_t)written >= sql_sz - off) {
+            free(update_sql);
+            free(insert_sql);
+            set_err(err, err_sz, "SQL buffer overflow");
+            return -1;
+        }
+        off += (size_t)written;
+    }
+    off += (size_t)snprintf(insert_sql + off, sql_sz - off, ") VALUES (?1");
+    for (int i = 0; i < table->column_count; ++i) {
+        int written = snprintf(insert_sql + off, sql_sz - off, ", ?%d", i + 2);
+        if (written < 0 || (size_t)written >= sql_sz - off) {
+            free(update_sql);
+            free(insert_sql);
+            set_err(err, err_sz, "SQL buffer overflow");
+            return -1;
+        }
+        off += (size_t)written;
+    }
+    strcpy(insert_sql + off, ");");
+
+    rc = sqlite3_prepare_v2(conn, update_sql, -1, &update_stmt, NULL);
+    if (rc != SQLITE_OK) {
+        free(update_sql);
+        free(insert_sql);
+        set_err(err, err_sz, sqlite3_errmsg(conn));
+        return -1;
+    }
+    rc = sqlite3_prepare_v2(conn, insert_sql, -1, &insert_stmt, NULL);
+    free(update_sql);
+    free(insert_sql);
+    if (rc != SQLITE_OK) {
+        sqlite3_finalize(update_stmt);
+        set_err(err, err_sz, sqlite3_errmsg(conn));
+        return -1;
+    }
+
+    common_rows = previous->row_count < table->row_count ? previous->row_count : table->row_count;
+
+    for (int r = 0; r < common_rows; ++r) {
+        if (rows_equal_at(previous, table, r)) continue;
+        sqlite3_reset(update_stmt);
+        sqlite3_clear_bindings(update_stmt);
+        for (int c = 0; c < table->column_count; ++c) {
+            bind_cell_text(update_stmt, c + 1, table->columns[c].type,
+                           table->rows[r].values ? table->rows[r].values[c] : NULL);
+        }
+        sqlite3_bind_int(update_stmt, table->column_count + 1, r + 1);
+        rc = sqlite3_step(update_stmt);
+        if (rc != SQLITE_DONE) {
+            sqlite3_finalize(update_stmt);
+            sqlite3_finalize(insert_stmt);
+            set_err(err, err_sz, sqlite3_errmsg(conn));
+            return -1;
+        }
+    }
+
+    for (int r = common_rows; r < table->row_count; ++r) {
+        sqlite3_reset(insert_stmt);
+        sqlite3_clear_bindings(insert_stmt);
+        sqlite3_bind_int(insert_stmt, 1, r + 1);
+        for (int c = 0; c < table->column_count; ++c) {
+            bind_cell_text(insert_stmt, c + 2, table->columns[c].type,
+                           table->rows[r].values ? table->rows[r].values[c] : NULL);
+        }
+        rc = sqlite3_step(insert_stmt);
+        if (rc != SQLITE_DONE) {
+            sqlite3_finalize(update_stmt);
+            sqlite3_finalize(insert_stmt);
+            set_err(err, err_sz, sqlite3_errmsg(conn));
+            return -1;
+        }
+    }
+
+    sqlite3_finalize(update_stmt);
+    sqlite3_finalize(insert_stmt);
+
+    if (table->row_count < previous->row_count) {
+        char delete_sql[1200];
+        sqlite3_stmt *trim_stmt = NULL;
+
+        snprintf(delete_sql, sizeof(delete_sql), "DELETE FROM %s WHERE row_id > ?1;", q_storage_name);
+        rc = sqlite3_prepare_v2(conn, delete_sql, -1, &trim_stmt, NULL);
+        if (rc != SQLITE_OK) {
+            set_err(err, err_sz, sqlite3_errmsg(conn));
+            return -1;
+        }
+        sqlite3_bind_int(trim_stmt, 1, table->row_count);
+        rc = sqlite3_step(trim_stmt);
+        sqlite3_finalize(trim_stmt);
+        if (rc != SQLITE_DONE) {
+            set_err(err, err_sz, sqlite3_errmsg(conn));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 static int save_table_with_id(BookDB *db, const char *table_id, const Table *table, int preserve_sort_index, int explicit_sort_index, char *err, size_t err_sz)
 {
     sqlite3_stmt *stmt = NULL;
@@ -648,6 +900,63 @@ int bookdb_save_table(BookDB *db, const char *table_id, const Table *table, char
         return bookdb_set_active_table_id(db, generated_id, err, err_sz);
     }
     return save_table_with_id(db, effective_id, table, 0, -1, err, err_sz);
+}
+
+int bookdb_save_table_incremental(BookDB *db, const char *table_id, const Table *previous, const Table *table, char *err, size_t err_sz)
+{
+    sqlite3_stmt *stmt = NULL;
+    char storage_name[512];
+    char q_storage_name[1024];
+    int exists = 0;
+    int sort_index = -1;
+    int rc;
+
+    if (!db || !db->conn || !table || !table_id || !*table_id) {
+        set_err(err, err_sz, "Invalid args");
+        return -1;
+    }
+    if (!previous || !table_layout_matches(previous, table)) {
+        return save_table_with_id(db, table_id, table, 0, -1, err, err_sz);
+    }
+    if (storage_table_name(table_id, storage_name, sizeof(storage_name)) != 0) {
+        set_err(err, err_sz, "Table id too long");
+        return -1;
+    }
+    quote_ident(q_storage_name, sizeof(q_storage_name), storage_name);
+    if (table_exists(db, table_id, &exists, &sort_index, err, err_sz) != 0) return -1;
+    if (!exists) {
+        return save_table_with_id(db, table_id, table, 0, -1, err, err_sz);
+    }
+
+    if (exec_sql(db->conn, "BEGIN IMMEDIATE;", err, err_sz) != 0) return -1;
+
+    rc = sqlite3_prepare_v2(db->conn,
+        "UPDATE book_tables SET name = ?1 WHERE id = ?2;",
+        -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        set_err(err, err_sz, sqlite3_errmsg(db->conn));
+        goto rollback;
+    }
+    sqlite3_bind_text(stmt, 1, table->name ? table->name : "Untitled Table", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, table_id, -1, SQLITE_TRANSIENT);
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    stmt = NULL;
+    if (rc != SQLITE_DONE) {
+        set_err(err, err_sz, sqlite3_errmsg(db->conn));
+        goto rollback;
+    }
+
+    if (sync_column_metadata(db->conn, table_id, table, err, err_sz) != 0) goto rollback;
+    if (sync_rows_incremental(db->conn, q_storage_name, previous, table, err, err_sz) != 0) goto rollback;
+
+    if (exec_sql(db->conn, "COMMIT;", err, err_sz) != 0) return -1;
+    return 0;
+
+rollback:
+    if (stmt) sqlite3_finalize(stmt);
+    sqlite3_exec(db->conn, "ROLLBACK;", NULL, NULL, NULL);
+    return -1;
 }
 
 Table *bookdb_load_table(BookDB *db, const char *table_id, char *err, size_t err_sz)

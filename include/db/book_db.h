@@ -36,6 +36,8 @@ int bookdb_set_active_table_id(BookDB *db, const char *table_id, char *err, size
 int bookdb_list_tables(BookDB *db, char ***names_out, char ***ids_out, int *count_out, char *err, size_t err_sz);
 
 int bookdb_save_table(BookDB *db, const char *table_id, const Table *table, char *err, size_t err_sz);
+/* Save a table by updating only changed rows when the previous snapshot is compatible. */
+int bookdb_save_table_incremental(BookDB *db, const char *table_id, const Table *previous, const Table *table, char *err, size_t err_sz);
 /* Load a single stored table into a newly allocated in-memory table. */
 Table *bookdb_load_table(BookDB *db, const char *table_id, char *err, size_t err_sz);
 

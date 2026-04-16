@@ -31,6 +31,7 @@ static char g_active_table_id[256] = "";
 static char g_book_name[256] = WORKSPACE_DEFAULT_BOOK_NAME;
 static int g_autosave_on = 1;
 static Table *g_active_table = NULL;
+static Table *g_saved_snapshot = NULL;
 static int g_book_active = 1;
 static int g_autosave_pending = 0;
 static long long g_autosave_due_ms = 0;
@@ -48,6 +49,31 @@ static long long monotonic_millis(void)
 
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) return 0;
     return ((long long)ts.tv_sec * 1000LL) + (ts.tv_nsec / 1000000LL);
+}
+
+static void clear_saved_snapshot(void)
+{
+    if (g_saved_snapshot) {
+        free_table(g_saved_snapshot);
+        g_saved_snapshot = NULL;
+    }
+}
+
+static int capture_saved_snapshot(const Table *table, char *err, size_t err_sz)
+{
+    Table *copy = NULL;
+
+    if (table) {
+        copy = clone_table(table);
+        if (!copy) {
+            set_err(err, err_sz, "Out of memory");
+            return -1;
+        }
+    }
+
+    clear_saved_snapshot();
+    g_saved_snapshot = copy;
+    return 0;
 }
 
 static int path_exists(const char *path)
@@ -294,7 +320,7 @@ static int save_project(const Table *table, char *err, size_t err_sz)
     }
     if (open_session_db(&db, table, err, err_sz) != 0) return -1;
     if (g_active_table_id[0]) {
-        if (bookdb_save_table(db, g_active_table_id, table, err, err_sz) != 0) {
+        if (bookdb_save_table_incremental(db, g_active_table_id, g_saved_snapshot, table, err, err_sz) != 0) {
             bookdb_close(db);
             return -1;
         }
@@ -310,6 +336,7 @@ static int save_project(const Table *table, char *err, size_t err_sz)
         return -1;
     }
     bookdb_close(db);
+    if (capture_saved_snapshot(table, err, err_sz) != 0) return -1;
     return 0;
 }
 
@@ -354,6 +381,7 @@ void workspace_clear_book(void)
     copy_project_path(WORKSPACE_SESSION_BOOK);
     copy_book_name(WORKSPACE_DEFAULT_BOOK_NAME);
     copy_active_table_id("");
+    clear_saved_snapshot();
     g_book_active = 1;
 }
 
@@ -412,6 +440,7 @@ int workspace_open_book(Table *table, const char *path, char *err, size_t err_sz
 
     replace_table_contents(table, loaded);
     workspace_set_active_table(table);
+    if (capture_saved_snapshot(table, err, err_sz) != 0) return -1;
     return 0;
 }
 
@@ -444,6 +473,7 @@ int workspace_switch_table(Table *table, const char *table_id, char *err, size_t
     bookdb_close(db);
     replace_table_contents(table, loaded);
     workspace_set_active_table(table);
+    if (capture_saved_snapshot(table, err, err_sz) != 0) return -1;
     return 0;
 }
 
@@ -476,6 +506,7 @@ int workspace_new_table(Table *table, char *err, size_t err_sz)
     bookdb_close(db);
     replace_table_contents(table, fresh);
     workspace_set_active_table(table);
+    if (capture_saved_snapshot(table, err, err_sz) != 0) return -1;
     return 0;
 }
 
@@ -508,6 +539,7 @@ int workspace_rename_table(Table *table, const char *table_id, const char *name,
         }
         free(table->name);
         table->name = new_name;
+        if (capture_saved_snapshot(table, err, err_sz) != 0) return -1;
     }
     return 0;
 }
@@ -617,9 +649,11 @@ int workspace_delete_table(Table *table, const char *table_id, char *err, size_t
     if (loaded) {
         replace_table_contents(table, loaded);
         workspace_set_active_table(table);
+        if (capture_saved_snapshot(table, err, err_sz) != 0) return -1;
     } else if (fresh) {
         replace_table_contents(table, fresh);
         workspace_set_active_table(table);
+        if (capture_saved_snapshot(table, err, err_sz) != 0) return -1;
     }
     return 0;
 }
@@ -730,11 +764,16 @@ int workspace_init(Table **out_table, char *err, size_t err_sz)
     bookdb_close(db);
     if (!table) return -1;
     workspace_set_active_table(table);
+    if (capture_saved_snapshot(table, err, err_sz) != 0) {
+        free_table(table);
+        return -1;
+    }
     if (out_table) *out_table = table;
     return 0;
 }
 
 void workspace_shutdown(void)
 {
+    clear_saved_snapshot();
     remove_path_recursive(WORKSPACE_SESSION_BOOK, NULL, 0);
 }
