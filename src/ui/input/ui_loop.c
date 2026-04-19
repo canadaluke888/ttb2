@@ -44,9 +44,9 @@ void start_ui_loop(Table *table)
                 MEVENT event;
 
                 if (getmouse(&event) != OK) continue;
-                if (event.bstate & BUTTON4_PRESSED) {
+                if (event.bstate & ui_mouse_wheel_up_mask()) {
                     ch = (event.bstate & BUTTON_SHIFT) ? KEY_LEFT : KEY_UP;
-                } else if (event.bstate & BUTTON5_PRESSED) {
+                } else if (event.bstate & ui_mouse_wheel_down_mask()) {
                     ch = (event.bstate & BUTTON_SHIFT) ? KEY_RIGHT : KEY_DOWN;
                 } else if (event.bstate & BUTTON1_DOUBLE_CLICKED) {
                     if (ui_handle_cell_click(table, event.x, event.y, 1)) continue;

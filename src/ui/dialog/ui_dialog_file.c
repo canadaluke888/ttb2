@@ -252,7 +252,15 @@ int ui_pick_directory(char *out, size_t out_sz, const char *title)
             pm_update();
 
             ch = wgetch(modal->win);
-            if (ch == KEY_UP) {
+            if (ch == KEY_MOUSE) {
+                int activate = 0;
+                int nav_dir = 0;
+
+                if (ui_dialog_handle_list_mouse(modal->win, ch, 3, visible, count, &top, &sel, &activate, &nav_dir)) {
+                    if (activate) break;
+                    continue;
+                }
+            } else if (ch == KEY_UP) {
                 sel = (sel > 0) ? sel - 1 : count - 1;
                 if (sel < top) top = sel;
             } else if (ch == KEY_DOWN) {
@@ -354,7 +362,15 @@ UiMenuResult show_open_file(Table *table) {
             }
             pm_wnoutrefresh(shadow); pm_wnoutrefresh(modal); pm_update();
             ch = wgetch(modal->win);
-            if (ch == KEY_UP) { sel = (sel > 0) ? sel - 1 : count - 1; if (sel < top) top = sel; }
+            if (ch == KEY_MOUSE) {
+                int activate = 0;
+                int nav_dir = 0;
+
+                if (ui_dialog_handle_list_mouse(modal->win, ch, 3, visible, count, &top, &sel, &activate, &nav_dir)) {
+                    if (activate) break;
+                    continue;
+                }
+            } else if (ch == KEY_UP) { sel = (sel > 0) ? sel - 1 : count - 1; if (sel < top) top = sel; }
             else if (ch == KEY_DOWN) { sel = (sel + 1) % count; if (sel >= top + visible) top = sel - visible + 1; }
             else if (ch == KEY_LEFT) { sel = 0; ch = 10; /* treat as enter on '..' */ }
             else if (ch == '\n') break;

@@ -373,6 +373,15 @@ static UiMenuResult show_book_tables_page(Table *table)
             pm_update();
 
             ch = wgetch(modal->win);
+            if (ch == KEY_MOUSE) {
+                int activate = 0;
+                int nav_dir = 0;
+
+                if (ui_dialog_handle_list_mouse(modal->win, ch, 3, visible, count, &top, &sel, &activate, &nav_dir)) {
+                    if (activate) ch = '\n';
+                    else continue;
+                }
+            }
             if (ch == KEY_UP) {
                 sel = (sel > 0) ? sel - 1 : count - 1;
             } else if (ch == KEY_DOWN) {
@@ -729,7 +738,27 @@ void show_table_menu(Table *table) {
             pm_update();
 
             ch = wgetch(modal->win);
-            if (ch == KEY_UP) {
+            if (ch == KEY_MOUSE) {
+                int top = 0;
+                int activate = 0;
+                int nav_dir = 0;
+                int prev_selected = selected;
+
+                if (ui_dialog_handle_list_mouse(modal->win, ch, 3, entry_count, entry_count, &top, &selected, &activate, &nav_dir)) {
+                    if (selected >= 0 && selected < entry_count && entries[selected].kind != TABLE_MENU_ROW_ACTION) {
+                        if (nav_dir != 0) selected = table_menu_next_selectable(entries, entry_count, selected, nav_dir);
+                        else selected = prev_selected;
+                    }
+                    if (activate &&
+                        selected >= 0 &&
+                        selected < entry_count &&
+                        entries[selected].kind == TABLE_MENU_ROW_ACTION) {
+                        chosen_action = entries[selected].action_id;
+                        break;
+                    }
+                    continue;
+                }
+            } else if (ch == KEY_UP) {
                 int next = table_menu_next_selectable(entries, entry_count, selected, -1);
                 if (next >= 0) selected = next;
             } else if (ch == KEY_DOWN) {

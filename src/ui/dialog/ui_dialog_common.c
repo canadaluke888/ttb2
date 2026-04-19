@@ -13,6 +13,123 @@
 #include "ui/panel_manager.h"
 #include "ui/dialog_internal.h"
 
+mmask_t ui_mouse_wheel_up_mask(void)
+{
+    mmask_t mask = 0;
+
+#ifdef BUTTON4_PRESSED
+    mask |= BUTTON4_PRESSED;
+#endif
+#ifdef BUTTON4_RELEASED
+    mask |= BUTTON4_RELEASED;
+#endif
+#ifdef BUTTON4_CLICKED
+    mask |= BUTTON4_CLICKED;
+#endif
+#ifdef BUTTON4_DOUBLE_CLICKED
+    mask |= BUTTON4_DOUBLE_CLICKED;
+#endif
+#ifdef BUTTON4_TRIPLE_CLICKED
+    mask |= BUTTON4_TRIPLE_CLICKED;
+#endif
+    return mask;
+}
+
+mmask_t ui_mouse_wheel_down_mask(void)
+{
+    mmask_t mask = 0;
+
+#ifdef BUTTON5_PRESSED
+    mask |= BUTTON5_PRESSED;
+#endif
+#ifdef BUTTON5_RELEASED
+    mask |= BUTTON5_RELEASED;
+#endif
+#ifdef BUTTON5_CLICKED
+    mask |= BUTTON5_CLICKED;
+#endif
+#ifdef BUTTON5_DOUBLE_CLICKED
+    mask |= BUTTON5_DOUBLE_CLICKED;
+#endif
+#ifdef BUTTON5_TRIPLE_CLICKED
+    mask |= BUTTON5_TRIPLE_CLICKED;
+#endif
+    return mask;
+}
+
+void ui_dialog_clamp_list_view(int count, int visible, int *top, int *selected)
+{
+    int max_top;
+
+    if (!top || !selected || count <= 0) return;
+    if (visible < 1) visible = 1;
+
+    if (*selected < 0) *selected = 0;
+    if (*selected >= count) *selected = count - 1;
+    if (*selected < *top) *top = *selected;
+    if (*selected >= *top + visible) *top = *selected - visible + 1;
+
+    max_top = (count > visible) ? (count - visible) : 0;
+    if (*top < 0) *top = 0;
+    if (*top > max_top) *top = max_top;
+}
+
+int ui_dialog_handle_list_mouse(WINDOW *win,
+                                int ch,
+                                int list_top_row,
+                                int visible,
+                                int count,
+                                int *top,
+                                int *selected,
+                                int *activate,
+                                int *nav_dir)
+{
+    MEVENT event;
+    int win_y;
+    int win_x;
+    int win_h;
+    int win_w;
+    int row;
+    int idx;
+
+    if (activate) *activate = 0;
+    if (nav_dir) *nav_dir = 0;
+    if (!win || ch != KEY_MOUSE || count <= 0 || !top || !selected) return 0;
+    if (getmouse(&event) != OK) return 1;
+
+    getbegyx(win, win_y, win_x);
+    getmaxyx(win, win_h, win_w);
+    if (event.y < win_y || event.y >= win_y + win_h || event.x < win_x || event.x >= win_x + win_w) {
+        return 1;
+    }
+
+    if (event.bstate & ui_mouse_wheel_up_mask()) {
+        if (*selected > 0) (*selected)--;
+        ui_dialog_clamp_list_view(count, visible, top, selected);
+        if (nav_dir) *nav_dir = -1;
+        return 1;
+    }
+    if (event.bstate & ui_mouse_wheel_down_mask()) {
+        if (*selected < count - 1) (*selected)++;
+        ui_dialog_clamp_list_view(count, visible, top, selected);
+        if (nav_dir) *nav_dir = +1;
+        return 1;
+    }
+
+    if (!(event.bstate & (BUTTON1_CLICKED | BUTTON1_RELEASED | BUTTON1_PRESSED))) return 1;
+
+    row = event.y - win_y;
+    if (row < list_top_row || row >= list_top_row + visible) return 1;
+
+    idx = *top + (row - list_top_row);
+    if (idx < 0 || idx >= count) return 1;
+
+    *selected = idx;
+    ui_dialog_clamp_list_view(count, visible, top, selected);
+    if (activate) *activate = 1;
+    return 1;
+}
+
 int ui_dialog_show_simple_list_modal(const char *title, const char **items, int count, int initial_selected)
 {
     int prev_vis = curs_set(0);
@@ -78,15 +195,23 @@ int ui_dialog_show_simple_list_modal(const char *title, const char **items, int 
             pm_update();
 
             ch = wgetch(modal->win);
-            if (ch == KEY_UP) {
+            if (ch == KEY_MOUSE) {
+                int activate = 0;
+                int nav_dir = 0;
+
+                if (ui_dialog_handle_list_mouse(modal->win, ch, 3, visible, count, &top, &selected, &activate, &nav_dir)) {
+                    if (activate) break;
+                    continue;
+                }
+            } else if (ch == KEY_UP) {
                 if (count > 0) {
                     selected = (selected > 0) ? selected - 1 : count - 1;
-                    if (selected < top) top = selected;
+                    ui_dialog_clamp_list_view(count, visible, &top, &selected);
                 }
             } else if (ch == KEY_DOWN) {
                 if (count > 0) {
                     selected = (selected + 1) % count;
-                    if (selected >= top + visible) top = selected - visible + 1;
+                    ui_dialog_clamp_list_view(count, visible, &top, &selected);
                 }
             } else if (ch == '\n') {
                 break;

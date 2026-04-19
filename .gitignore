@@ -15,7 +15,8 @@ build/
 # Dev Artifacts
 .codex
 
-chatify_export/
+.chatify.json
+ttb2_export/
 
 # Generated workspace directory
 workspace/

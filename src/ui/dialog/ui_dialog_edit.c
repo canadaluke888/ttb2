@@ -50,7 +50,16 @@ void edit_header_cell(Table *t, int col) {
         pm_wnoutrefresh(modal);
         pm_update();
         ch = wgetch(modal->win);
-        if (ch == KEY_LEFT || ch == KEY_UP) {
+        if (ch == KEY_MOUSE) {
+            int top = 0;
+            int activate = 0;
+            int nav_dir = 0;
+
+            if (ui_dialog_handle_list_mouse(modal->win, ch, 2, 1, 2, &top, &selected, &activate, &nav_dir)) {
+                if (activate) break;
+                continue;
+            }
+        } else if (ch == KEY_LEFT || ch == KEY_UP) {
             selected = 0;
         } else if (ch == KEY_RIGHT || ch == KEY_DOWN) {
             selected = 1;
@@ -116,7 +125,16 @@ void edit_header_cell(Table *t, int col) {
             }
             pm_wnoutrefresh(sh2); pm_wnoutrefresh(mo2); pm_update();
             ch2 = wgetch(mo2->win);
-            if (ch2 == KEY_UP) selected_type = (selected_type > 0) ? selected_type - 1 : 3;
+            if (ch2 == KEY_MOUSE) {
+                int top = 0;
+                int activate = 0;
+                int nav_dir = 0;
+
+                if (ui_dialog_handle_list_mouse(mo2->win, ch2, 3, 4, 4, &top, &selected_type, &activate, &nav_dir)) {
+                    if (activate) break;
+                    continue;
+                }
+            } else if (ch2 == KEY_UP) selected_type = (selected_type > 0) ? selected_type - 1 : 3;
             else if (ch2 == KEY_DOWN) selected_type = (selected_type + 1) % 4;
             else if (ch2 == '\n') break;
             else if (ch2 == 27) { selected_type = -1; break; }
@@ -292,7 +310,16 @@ static int list_confirm(const char *title, const char **items, int count) {
         }
         pm_wnoutrefresh(shadow); pm_wnoutrefresh(modal); pm_update();
         ch = wgetch(modal->win);
-        if (ch == KEY_UP) sel = (sel > 0) ? sel - 1 : count - 1;
+        if (ch == KEY_MOUSE) {
+            int top = 0;
+            int activate = 0;
+            int nav_dir = 0;
+
+            if (ui_dialog_handle_list_mouse(modal->win, ch, 2, count, count, &top, &sel, &activate, &nav_dir)) {
+                if (activate) break;
+                continue;
+            }
+        } else if (ch == KEY_UP) sel = (sel > 0) ? sel - 1 : count - 1;
         else if (ch == KEY_DOWN) sel = (sel + 1) % count;
         else if (ch == '\n') break;
         else if (ch == 27) { sel = -1; break; }

@@ -64,7 +64,15 @@ UiMenuResult show_export_menu(Table *table)
                 pm_update();
 
                 ch = wgetch(modal->win);
-                if (ch == KEY_UP) selected = (selected > 0) ? selected - 1 : options_count - 1;
+                if (ch == KEY_MOUSE) {
+                    int activate = 0;
+                    int nav_dir = 0;
+
+                    if (ui_dialog_handle_list_mouse(modal->win, ch, 3, options_count, options_count, &selected, &selected, &activate, &nav_dir)) {
+                        if (activate) break;
+                        continue;
+                    }
+                } else if (ch == KEY_UP) selected = (selected > 0) ? selected - 1 : options_count - 1;
                 else if (ch == KEY_DOWN) selected = (selected + 1) % options_count;
                 else if (ch == '\n') break;
                 else if (ch == 27) {

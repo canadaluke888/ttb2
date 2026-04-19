@@ -8,6 +8,7 @@
 #ifndef UI_INTERNAL_H
 #define UI_INTERNAL_H
 
+#include <ncurses.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include "data/table.h"
@@ -126,6 +127,18 @@ int show_text_input_modal(const char *title,
                           char *out,
                           size_t out_sz,
                           bool allow_empty);
+void ui_dialog_clamp_list_view(int count, int visible, int *top, int *selected);
+int ui_dialog_handle_list_mouse(WINDOW *win,
+                                int ch,
+                                int list_top_row,
+                                int visible,
+                                int count,
+                                int *top,
+                                int *selected,
+                                int *activate,
+                                int *nav_dir);
+mmask_t ui_mouse_wheel_up_mask(void);
+mmask_t ui_mouse_wheel_down_mask(void);
 /* Seek-mode controls for low-memory browsing of large tables. */
 int seek_mode_active(void);
 int seek_mode_open_for_table(const char *db_path, const char *table_name, Table *view, int page_size, char *err, size_t err_sz);

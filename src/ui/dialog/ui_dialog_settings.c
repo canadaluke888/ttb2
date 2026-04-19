@@ -110,6 +110,21 @@ UiMenuResult show_settings_menu(void) {
         }
         pm_wnoutrefresh(shadow); pm_wnoutrefresh(modal); pm_update();
         ch = wgetch(modal->win);
+        if (ch == KEY_MOUSE) {
+            int top = 0;
+            int activate = 0;
+            int nav_dir = 0;
+            int prev_sel = sel;
+
+            if (ui_dialog_handle_list_mouse(modal->win, ch, 3, count, count, &top, &sel, &activate, &nav_dir)) {
+                if (sel == ROW_CORE || sel == ROW_COSMETIC) {
+                    if (nav_dir != 0) sel = next_selectable_row(sel, nav_dir, count);
+                    else sel = prev_sel;
+                }
+                if (activate) ch = '\n';
+                else continue;
+            }
+        }
         if (ch == KEY_UP) sel = next_selectable_row(sel, -1, count);
         else if (ch == KEY_DOWN) sel = next_selectable_row(sel, 1, count);
         else if (ch == '\n') {
