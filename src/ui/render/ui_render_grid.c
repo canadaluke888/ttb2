@@ -146,7 +146,7 @@ static void ui_draw_grid_body_rows(Table *table, const UiGridLayout *layout, con
         addstr(ui_box_char(UI_BOX_LIGHT_VERTICAL));
         attroff(COLOR_PAIR(6));
         if (layout->use_gutter) {
-            long long rn = seek_mode_active() ? (layout->row_number_base + (i - row_page * rows_visible)) : (long long)(i + 1);
+            long long rn = (long long)(i + 1);
             char buf[32];
             int numlen;
             int pad;

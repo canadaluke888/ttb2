@@ -7,6 +7,7 @@
 
 #include "db/book_db.h"
 #include "io/ttb_io.h"
+#include "vector/table_index.h"
 
 #include <sqlite3.h>
 #include <errno.h>
@@ -40,6 +41,93 @@ static int exec_sql(sqlite3 *conn, const char *sql, char *err, size_t err_sz)
         return -1;
     }
     if (sqlite_err) sqlite3_free(sqlite_err);
+    return 0;
+}
+
+static int semantic_index_exists(BookDB *db, const char *table_id, int *exists_out, char *err, size_t err_sz)
+{
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+
+    if (exists_out) *exists_out = 0;
+    if (!db || !db->conn || !table_id || !*table_id) {
+        set_err(err, err_sz, "Invalid semantic index lookup");
+        return -1;
+    }
+
+    rc = sqlite3_prepare_v2(db->conn,
+        "SELECT 1 FROM book_semantic_meta WHERE table_id = ?1;",
+        -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        set_err(err, err_sz, sqlite3_errmsg(db->conn));
+        return -1;
+    }
+    sqlite3_bind_text(stmt, 1, table_id, -1, SQLITE_TRANSIENT);
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        if (exists_out) *exists_out = 1;
+    } else if (rc != SQLITE_DONE) {
+        set_err(err, err_sz, sqlite3_errmsg(db->conn));
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    sqlite3_finalize(stmt);
+    return 0;
+}
+
+static int delete_semantic_index_tx(sqlite3 *conn, const char *table_id, char *err, size_t err_sz)
+{
+    sqlite3_stmt *stmt = NULL;
+    const char *sqls[] = {
+        "DELETE FROM book_semantic_rows WHERE table_id = ?1;",
+        "DELETE FROM book_semantic_stats WHERE table_id = ?1;",
+        "DELETE FROM book_semantic_meta WHERE table_id = ?1;"
+    };
+    int i;
+    int rc;
+
+    if (!conn || !table_id || !*table_id) return 0;
+
+    for (i = 0; i < 3; ++i) {
+        rc = sqlite3_prepare_v2(conn, sqls[i], -1, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+            set_err(err, err_sz, sqlite3_errmsg(conn));
+            return -1;
+        }
+        sqlite3_bind_text(stmt, 1, table_id, -1, SQLITE_TRANSIENT);
+        rc = sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+        if (rc != SQLITE_DONE) {
+            set_err(err, err_sz, sqlite3_errmsg(conn));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int mark_semantic_index_stale_tx(sqlite3 *conn, const char *table_id, char *err, size_t err_sz)
+{
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+
+    if (!conn || !table_id || !*table_id) return 0;
+
+    rc = sqlite3_prepare_v2(conn,
+        "UPDATE book_semantic_meta SET stale = 1 WHERE table_id = ?1;",
+        -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        set_err(err, err_sz, sqlite3_errmsg(conn));
+        return -1;
+    }
+    sqlite3_bind_text(stmt, 1, table_id, -1, SQLITE_TRANSIENT);
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) {
+        set_err(err, err_sz, sqlite3_errmsg(conn));
+        return -1;
+    }
     return 0;
 }
 
@@ -684,6 +772,8 @@ static int save_table_with_id(BookDB *db, const char *table_id, const Table *tab
         stmt = NULL;
     }
 
+    if (mark_semantic_index_stale_tx(db->conn, table_id, err, err_sz) != 0) goto rollback;
+
     if (exec_sql(db->conn, "COMMIT;", err, err_sz) != 0) return -1;
     return 0;
 
@@ -749,6 +839,41 @@ int bookdb_init_schema(BookDB *db, char *err, size_t err_sz)
             "name TEXT NOT NULL,"
             "type TEXT NOT NULL,"
             "color_pair_id INTEGER NOT NULL,"
+            "PRIMARY KEY (table_id, col_index)"
+            ");"
+            "CREATE TABLE IF NOT EXISTS book_semantic_meta ("
+            "table_id TEXT PRIMARY KEY,"
+            "fingerprint INTEGER NOT NULL,"
+            "config_version INTEGER NOT NULL,"
+            "dimensions INTEGER NOT NULL,"
+            "row_count INTEGER NOT NULL,"
+            "column_count INTEGER NOT NULL,"
+            "max_tokens_per_row INTEGER NOT NULL,"
+            "use_char_trigrams INTEGER NOT NULL,"
+            "include_numeric_stats INTEGER NOT NULL,"
+            "unigram_weight REAL NOT NULL,"
+            "trigram_weight REAL NOT NULL,"
+            "lexical_weight REAL NOT NULL,"
+            "semantic_weight REAL NOT NULL,"
+            "stale INTEGER NOT NULL DEFAULT 0"
+            ");"
+            "CREATE TABLE IF NOT EXISTS book_semantic_rows ("
+            "table_id TEXT NOT NULL,"
+            "row_id INTEGER NOT NULL,"
+            "norm REAL NOT NULL,"
+            "embedding BLOB NOT NULL,"
+            "PRIMARY KEY (table_id, row_id)"
+            ");"
+            "CREATE TABLE IF NOT EXISTS book_semantic_stats ("
+            "table_id TEXT NOT NULL,"
+            "col_index INTEGER NOT NULL,"
+            "type TEXT NOT NULL,"
+            "value_count INTEGER NOT NULL,"
+            "null_count INTEGER NOT NULL,"
+            "min_value REAL NOT NULL,"
+            "max_value REAL NOT NULL,"
+            "mean_value REAL NOT NULL,"
+            "has_values INTEGER NOT NULL,"
             "PRIMARY KEY (table_id, col_index)"
             ");",
             err, err_sz) != 0) {
@@ -949,6 +1074,7 @@ int bookdb_save_table_incremental(BookDB *db, const char *table_id, const Table 
 
     if (sync_column_metadata(db->conn, table_id, table, err, err_sz) != 0) goto rollback;
     if (sync_rows_incremental(db->conn, q_storage_name, previous, table, err, err_sz) != 0) goto rollback;
+    if (mark_semantic_index_stale_tx(db->conn, table_id, err, err_sz) != 0) goto rollback;
 
     if (exec_sql(db->conn, "COMMIT;", err, err_sz) != 0) return -1;
     return 0;
@@ -1220,6 +1346,8 @@ int bookdb_delete_table(BookDB *db, const char *table_id, char *err, size_t err_
         goto rollback_delete;
     }
 
+    if (delete_semantic_index_tx(db->conn, table_id, err, err_sz) != 0) goto rollback_delete;
+
     snprintf(drop_sql, sizeof(drop_sql), "DROP TABLE IF EXISTS %s;", q_storage_name);
     if (exec_sql(db->conn, drop_sql, err, err_sz) != 0) goto rollback_delete;
 
@@ -1260,6 +1388,313 @@ int bookdb_rename_table(BookDB *db, const char *table_id, const char *name, char
         set_err(err, err_sz, "Book table not found");
         return -1;
     }
+    return 0;
+}
+
+int bookdb_save_semantic_index(BookDB *db, const char *table_id, const TableIndex *index, char *err, size_t err_sz)
+{
+    sqlite3_stmt *stmt = NULL;
+    int rc;
+    int row;
+    int col;
+
+    if (!db || !db->conn || !table_id || !*table_id || !index) {
+        set_err(err, err_sz, "Invalid semantic index save");
+        return -1;
+    }
+
+    if (exec_sql(db->conn, "BEGIN IMMEDIATE;", err, err_sz) != 0) return -1;
+    if (delete_semantic_index_tx(db->conn, table_id, err, err_sz) != 0) goto rollback_semantic_save;
+
+    rc = sqlite3_prepare_v2(db->conn,
+        "INSERT INTO book_semantic_meta("
+        "table_id, fingerprint, config_version, dimensions, row_count, column_count, "
+        "max_tokens_per_row, use_char_trigrams, include_numeric_stats, unigram_weight, trigram_weight, lexical_weight, semantic_weight, stale"
+        ") VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 0);",
+        -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        set_err(err, err_sz, sqlite3_errmsg(db->conn));
+        goto rollback_semantic_save;
+    }
+    sqlite3_bind_text(stmt, 1, table_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 2, (sqlite3_int64)index->fingerprint);
+    sqlite3_bind_int(stmt, 3, (int)index->config.config_version);
+    sqlite3_bind_int(stmt, 4, index->dimensions);
+    sqlite3_bind_int(stmt, 5, index->row_count);
+    sqlite3_bind_int(stmt, 6, index->column_count);
+    sqlite3_bind_int(stmt, 7, index->config.max_tokens_per_row);
+    sqlite3_bind_int(stmt, 8, index->config.use_char_trigrams);
+    sqlite3_bind_int(stmt, 9, index->config.include_numeric_stats);
+    sqlite3_bind_double(stmt, 10, index->config.unigram_weight);
+    sqlite3_bind_double(stmt, 11, index->config.trigram_weight);
+    sqlite3_bind_double(stmt, 12, index->config.lexical_weight);
+    sqlite3_bind_double(stmt, 13, index->config.semantic_weight);
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    stmt = NULL;
+    if (rc != SQLITE_DONE) {
+        set_err(err, err_sz, sqlite3_errmsg(db->conn));
+        goto rollback_semantic_save;
+    }
+
+    if (index->row_count > 0) {
+        rc = sqlite3_prepare_v2(db->conn,
+            "INSERT INTO book_semantic_rows(table_id, row_id, norm, embedding) VALUES(?1, ?2, ?3, ?4);",
+            -1, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+            set_err(err, err_sz, sqlite3_errmsg(db->conn));
+            goto rollback_semantic_save;
+        }
+        for (row = 0; row < index->row_count; ++row) {
+            const void *embedding = &index->embeddings[(size_t)row * (size_t)index->dimensions];
+
+            sqlite3_reset(stmt);
+            sqlite3_clear_bindings(stmt);
+            sqlite3_bind_text(stmt, 1, table_id, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int(stmt, 2, index->row_ids ? index->row_ids[row] : row);
+            sqlite3_bind_double(stmt, 3, index->norms ? index->norms[row] : 0.0f);
+            sqlite3_bind_blob(stmt, 4, embedding, (int)(sizeof(float) * (size_t)index->dimensions), SQLITE_TRANSIENT);
+            rc = sqlite3_step(stmt);
+            if (rc != SQLITE_DONE) {
+                sqlite3_finalize(stmt);
+                stmt = NULL;
+                set_err(err, err_sz, sqlite3_errmsg(db->conn));
+                goto rollback_semantic_save;
+            }
+        }
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+    }
+
+    if (index->column_stats && index->column_count > 0) {
+        rc = sqlite3_prepare_v2(db->conn,
+            "INSERT INTO book_semantic_stats("
+            "table_id, col_index, type, value_count, null_count, min_value, max_value, mean_value, has_values"
+            ") VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9);",
+            -1, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+            set_err(err, err_sz, sqlite3_errmsg(db->conn));
+            goto rollback_semantic_save;
+        }
+        for (col = 0; col < index->column_count; ++col) {
+            const TableIndexColumnStats *stats = &index->column_stats[col];
+
+            sqlite3_reset(stmt);
+            sqlite3_clear_bindings(stmt);
+            sqlite3_bind_text(stmt, 1, table_id, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int(stmt, 2, stats->column_index);
+            sqlite3_bind_text(stmt, 3, type_to_string(stats->type), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int64(stmt, 4, (sqlite3_int64)stats->value_count);
+            sqlite3_bind_int64(stmt, 5, (sqlite3_int64)stats->null_count);
+            sqlite3_bind_double(stmt, 6, stats->min_value);
+            sqlite3_bind_double(stmt, 7, stats->max_value);
+            sqlite3_bind_double(stmt, 8, stats->mean_value);
+            sqlite3_bind_int(stmt, 9, stats->has_values);
+            rc = sqlite3_step(stmt);
+            if (rc != SQLITE_DONE) {
+                sqlite3_finalize(stmt);
+                stmt = NULL;
+                set_err(err, err_sz, sqlite3_errmsg(db->conn));
+                goto rollback_semantic_save;
+            }
+        }
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+    }
+
+    if (exec_sql(db->conn, "COMMIT;", err, err_sz) != 0) return -1;
+    return 0;
+
+rollback_semantic_save:
+    if (stmt) sqlite3_finalize(stmt);
+    sqlite3_exec(db->conn, "ROLLBACK;", NULL, NULL, NULL);
+    return -1;
+}
+
+TableIndex *bookdb_load_semantic_index(BookDB *db, const char *table_id, char *err, size_t err_sz)
+{
+    sqlite3_stmt *stmt = NULL;
+    TableIndex *index = NULL;
+    int rc;
+    int row_i = 0;
+
+    if (!db || !db->conn || !table_id || !*table_id) {
+        set_err(err, err_sz, "Invalid semantic index load");
+        return NULL;
+    }
+
+    rc = sqlite3_prepare_v2(db->conn,
+        "SELECT fingerprint, config_version, dimensions, row_count, column_count, "
+        "max_tokens_per_row, use_char_trigrams, include_numeric_stats, unigram_weight, trigram_weight, lexical_weight, semantic_weight, stale "
+        "FROM book_semantic_meta WHERE table_id = ?1;",
+        -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        set_err(err, err_sz, sqlite3_errmsg(db->conn));
+        return NULL;
+    }
+    sqlite3_bind_text(stmt, 1, table_id, -1, SQLITE_TRANSIENT);
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        return NULL;
+    }
+    if (rc != SQLITE_ROW) {
+        set_err(err, err_sz, sqlite3_errmsg(db->conn));
+        sqlite3_finalize(stmt);
+        return NULL;
+    }
+
+    index = (TableIndex *)calloc(1, sizeof(*index));
+    if (!index) {
+        sqlite3_finalize(stmt);
+        set_err(err, err_sz, "Out of memory");
+        return NULL;
+    }
+    index->fingerprint = (unsigned long long)sqlite3_column_int64(stmt, 0);
+    index->config.config_version = (unsigned int)sqlite3_column_int(stmt, 1);
+    index->dimensions = sqlite3_column_int(stmt, 2);
+    index->row_count = sqlite3_column_int(stmt, 3);
+    index->column_count = sqlite3_column_int(stmt, 4);
+    index->config.dimensions = index->dimensions;
+    index->config.max_tokens_per_row = sqlite3_column_int(stmt, 5);
+    index->config.use_char_trigrams = sqlite3_column_int(stmt, 6);
+    index->config.include_numeric_stats = sqlite3_column_int(stmt, 7);
+    index->config.unigram_weight = (float)sqlite3_column_double(stmt, 8);
+    index->config.trigram_weight = (float)sqlite3_column_double(stmt, 9);
+    index->config.lexical_weight = (float)sqlite3_column_double(stmt, 10);
+    index->config.semantic_weight = (float)sqlite3_column_double(stmt, 11);
+    index->stale = sqlite3_column_int(stmt, 12);
+    sqlite3_finalize(stmt);
+    stmt = NULL;
+
+    if (index->row_count > 0) {
+        index->row_ids = (int *)calloc((size_t)index->row_count, sizeof(int));
+        index->embeddings = (float *)calloc((size_t)index->row_count * (size_t)index->dimensions, sizeof(float));
+        index->norms = (float *)calloc((size_t)index->row_count, sizeof(float));
+        if (!index->row_ids || !index->embeddings || !index->norms) {
+            table_index_free(index);
+            set_err(err, err_sz, "Out of memory");
+            return NULL;
+        }
+
+        rc = sqlite3_prepare_v2(db->conn,
+            "SELECT row_id, norm, embedding FROM book_semantic_rows WHERE table_id = ?1 ORDER BY row_id;",
+            -1, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+            table_index_free(index);
+            set_err(err, err_sz, sqlite3_errmsg(db->conn));
+            return NULL;
+        }
+        sqlite3_bind_text(stmt, 1, table_id, -1, SQLITE_TRANSIENT);
+        while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+            const void *blob;
+            int blob_bytes;
+
+            if (row_i >= index->row_count) break;
+            blob = sqlite3_column_blob(stmt, 2);
+            blob_bytes = sqlite3_column_bytes(stmt, 2);
+            if (!blob || blob_bytes != (int)(sizeof(float) * (size_t)index->dimensions)) {
+                sqlite3_finalize(stmt);
+                table_index_free(index);
+                set_err(err, err_sz, "Invalid semantic embedding payload");
+                return NULL;
+            }
+            index->row_ids[row_i] = sqlite3_column_int(stmt, 0);
+            index->norms[row_i] = (float)sqlite3_column_double(stmt, 1);
+            memcpy(&index->embeddings[(size_t)row_i * (size_t)index->dimensions], blob, (size_t)blob_bytes);
+            row_i++;
+        }
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+        if (rc != SQLITE_DONE || row_i != index->row_count) {
+            table_index_free(index);
+            set_err(err, err_sz, rc != SQLITE_DONE ? sqlite3_errmsg(db->conn) : "Incomplete semantic row payload");
+            return NULL;
+        }
+    }
+
+    if (index->column_count > 0) {
+        int stats_loaded = 0;
+
+        index->column_stats = (TableIndexColumnStats *)calloc((size_t)index->column_count, sizeof(*index->column_stats));
+        if (!index->column_stats) {
+            table_index_free(index);
+            set_err(err, err_sz, "Out of memory");
+            return NULL;
+        }
+
+        rc = sqlite3_prepare_v2(db->conn,
+            "SELECT col_index, type, value_count, null_count, min_value, max_value, mean_value, has_values "
+            "FROM book_semantic_stats WHERE table_id = ?1 ORDER BY col_index;",
+            -1, &stmt, NULL);
+        if (rc != SQLITE_OK) {
+            table_index_free(index);
+            set_err(err, err_sz, sqlite3_errmsg(db->conn));
+            return NULL;
+        }
+        sqlite3_bind_text(stmt, 1, table_id, -1, SQLITE_TRANSIENT);
+        while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+            int col = sqlite3_column_int(stmt, 0);
+            const unsigned char *type_text = sqlite3_column_text(stmt, 1);
+
+            if (col < 0 || col >= index->column_count) continue;
+            index->column_stats[col].column_index = col;
+            index->column_stats[col].type = parse_type_from_string(type_text ? (const char *)type_text : "");
+            index->column_stats[col].value_count = (long long)sqlite3_column_int64(stmt, 2);
+            index->column_stats[col].null_count = (long long)sqlite3_column_int64(stmt, 3);
+            index->column_stats[col].min_value = sqlite3_column_double(stmt, 4);
+            index->column_stats[col].max_value = sqlite3_column_double(stmt, 5);
+            index->column_stats[col].mean_value = sqlite3_column_double(stmt, 6);
+            index->column_stats[col].has_values = sqlite3_column_int(stmt, 7);
+            stats_loaded++;
+        }
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+        if (rc != SQLITE_DONE) {
+            table_index_free(index);
+            set_err(err, err_sz, sqlite3_errmsg(db->conn));
+            return NULL;
+        }
+        if (stats_loaded == 0 && !index->config.include_numeric_stats) {
+            free(index->column_stats);
+            index->column_stats = NULL;
+        }
+    }
+
+    return index;
+}
+
+int bookdb_delete_semantic_index(BookDB *db, const char *table_id, char *err, size_t err_sz)
+{
+    if (!db || !db->conn || !table_id || !*table_id) {
+        set_err(err, err_sz, "Invalid semantic index delete");
+        return -1;
+    }
+    if (exec_sql(db->conn, "BEGIN IMMEDIATE;", err, err_sz) != 0) return -1;
+    if (delete_semantic_index_tx(db->conn, table_id, err, err_sz) != 0) {
+        sqlite3_exec(db->conn, "ROLLBACK;", NULL, NULL, NULL);
+        return -1;
+    }
+    if (exec_sql(db->conn, "COMMIT;", err, err_sz) != 0) return -1;
+    return 0;
+}
+
+int bookdb_mark_semantic_index_stale(BookDB *db, const char *table_id, char *err, size_t err_sz)
+{
+    int exists = 0;
+
+    if (!db || !db->conn || !table_id || !*table_id) {
+        set_err(err, err_sz, "Invalid semantic index stale request");
+        return -1;
+    }
+    if (semantic_index_exists(db, table_id, &exists, err, err_sz) != 0) return -1;
+    if (!exists) return 0;
+    if (exec_sql(db->conn, "BEGIN IMMEDIATE;", err, err_sz) != 0) return -1;
+    if (mark_semantic_index_stale_tx(db->conn, table_id, err, err_sz) != 0) {
+        sqlite3_exec(db->conn, "ROLLBACK;", NULL, NULL, NULL);
+        return -1;
+    }
+    if (exec_sql(db->conn, "COMMIT;", err, err_sz) != 0) return -1;
     return 0;
 }
 

@@ -2,7 +2,7 @@
 
 ![logo](assets/ttb2_img.png)
 
-TTB2 is the new and improved 2.0 version of the terminal table builder. It features a clean ncurses UI that displays table data live, list-based menus, autosave, paging for wide and tall tables, an inline search mode, and interactive row/column deletion. CSV and XLSX import/export support is built in, with simple PDF export for sharing table snapshots.
+TTB2 is the new and improved 2.0 version of the terminal table builder. It features a clean ncurses UI that displays table data live, list-based menus, autosave, paging for wide and tall tables, a hybrid ranked search mode, and interactive row/column deletion. CSV and XLSX import/export support is built in, with simple PDF export for sharing table snapshots.
 
 All of the features you're used to, just improved.
 
@@ -75,12 +75,13 @@ Supported startup inputs:
 ## Highlights
 - Interactive table editing (add columns/rows; rename columns; change types; edit cells)
 - Fast load and render times; smooth scrolling even on large tables
-- Low‑RAM seek paging (SQLite-backed, streaming windows; no OFFSET) — toggle in Settings
+- SQLite-backed workspace and book storage
 - Row‑number gutter (centered, toggle in Settings)
 - Data types: int, float, str, bool (color‑coded)
 - Column paging with ←/→ and footer hints
 - Row paging with ↑/↓
-- Search mode: press F to search; navigate matches with ←/→/↑/↓; Esc exits; exact substring highlight inside the selected cell
+- Hybrid semantic search: press `F` to rank visible rows using lexical and vector signals; exact substring hits still highlight inside the selected cell
+- Persisted semantic index metadata inside SQLite `.ttbx` books for faster rebuilds after save/reopen
 - Edit mode tools: [x] Delete Row, [Shift+X] Delete Column (guarded), [Backspace] Clear Cell, [v] Move Row/Column, [V] Swap Row/Column
 - Paged edit footer hints with `Tab` to switch between footer pages
 - Workspace auto-save to `.ttbx` projects (toggle via Settings, manual save with `S`)
@@ -107,7 +108,7 @@ Supported startup inputs:
 - `c` Add column
 - `r` Add row
 - `e` Edit mode (`W/A/S/D` or arrows to navigate, Enter to edit, Esc to exit)
-- `f` Search mode (arrows to jump matches, Esc to exit)
+- `f` Hybrid search mode (arrows to jump ranked rows, Esc to exit)
 - `S` Save workspace project
 - `Ctrl+H` Jump to top‑left (Home)
 - `m` Table menu (Rename, Save, Load, New Table, DB Manager, Settings)
@@ -133,10 +134,11 @@ Supported startup inputs:
   - `Ctrl+H` Jump to top‑left (Home)
   - `Esc` Exit edit mode
 
-## Performance / Low‑RAM Mode
-- Enable “Low‑RAM seek paging” in Settings to browse large datasets without loading everything into memory.
-- Rows are fetched in small windows and rendered incrementally to keep memory and latency stable.
-- On Windows terminals, flicker is minimized by double‑buffered updates and scanning only visible rows for column widths.
+## Search and Storage
+- Search ranks the current visible rows with a hybrid lexical/vector index built from column names and row values.
+- Exact substring hits still win strongly and keep in-cell highlighting for the selected result.
+- Semantic index metadata is stored in the active SQLite `.ttbx` workspace or exported book.
+- The old seek/low‑RAM paging path has been removed; SQLite-backed books are now the single storage path.
 
 ## Workspace & Exports
 - A project workspace lives in `workspace/session.ttbx` by default. The file is a SQLite-backed `.ttbx` book created automatically and updated whenever autosave triggers or you press `S`.

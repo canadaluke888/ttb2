@@ -24,7 +24,6 @@ static void ensure_loaded(void) {
     settings_ensure_directory();
     settings_load(settings_default_path(), &g_settings);
     workspace_set_autosave_enabled(g_settings.autosave_enabled);
-    ui_set_low_ram_mode(g_settings.low_ram_enabled);
     ui_set_row_gutter_enabled(g_settings.show_row_gutter);
     apply_ui_color_settings(&g_settings);
     g_loaded = 1;
@@ -32,7 +31,7 @@ static void ensure_loaded(void) {
 
 static int is_selectable_row(int row)
 {
-    return row != 0 && row != 4;
+    return row != 0 && row != 3;
 }
 
 static int next_selectable_row(int row, int dir, int count)
@@ -52,7 +51,6 @@ UiMenuResult show_settings_menu(void) {
         ROW_CORE = 0,
         ROW_AUTOSAVE,
         ROW_TYPE_INFER,
-        ROW_LOW_RAM,
         ROW_COSMETIC,
         ROW_ROW_GUTTER,
         ROW_THEME,
@@ -88,7 +86,6 @@ UiMenuResult show_settings_menu(void) {
             if (i == ROW_CORE) snprintf(linebuf, sizeof(linebuf), "General");
             else if (i == ROW_AUTOSAVE) snprintf(linebuf, sizeof(linebuf), "Autosave workspace: %s", g_settings.autosave_enabled ? "On" : "Off");
             else if (i == ROW_TYPE_INFER) snprintf(linebuf, sizeof(linebuf), "Type inference: %s", g_settings.type_infer_enabled ? "On" : "Off");
-            else if (i == ROW_LOW_RAM) snprintf(linebuf, sizeof(linebuf), "Low-RAM seek paging: %s", g_settings.low_ram_enabled ? "On" : "Off");
             else if (i == ROW_COSMETIC) snprintf(linebuf, sizeof(linebuf), "Appearance");
             else if (i == ROW_ROW_GUTTER) snprintf(linebuf, sizeof(linebuf), "Row gutter: %s", g_settings.show_row_gutter ? "On" : "Off");
             else if (i == ROW_THEME) snprintf(linebuf, sizeof(linebuf), "Theme: %s", settings_theme_name(g_settings.theme_id));
@@ -130,7 +127,6 @@ UiMenuResult show_settings_menu(void) {
         else if (ch == '\n') {
             if (sel == ROW_AUTOSAVE) { g_settings.autosave_enabled = !g_settings.autosave_enabled; workspace_set_autosave_enabled(g_settings.autosave_enabled); }
             else if (sel == ROW_TYPE_INFER) { g_settings.type_infer_enabled = !g_settings.type_infer_enabled; }
-            else if (sel == ROW_LOW_RAM) { g_settings.low_ram_enabled = !g_settings.low_ram_enabled; ui_set_low_ram_mode(g_settings.low_ram_enabled); }
             else if (sel == ROW_ROW_GUTTER) { g_settings.show_row_gutter = !g_settings.show_row_gutter; ui_set_row_gutter_enabled(g_settings.show_row_gutter); }
             else if (sel == ROW_THEME) { g_settings.theme_id = (g_settings.theme_id + 1) % settings_theme_count(); apply_ui_color_settings(&g_settings); }
             else if (sel == ROW_SAVE) { settings_save(settings_default_path(), &g_settings); result = UI_MENU_DONE; break; }

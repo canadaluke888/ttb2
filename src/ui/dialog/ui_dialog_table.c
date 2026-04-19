@@ -463,10 +463,6 @@ void prompt_sort_rows(Table *table)
         show_error_message("Add at least one column first.");
         return;
     }
-    if (low_ram_mode) {
-        show_error_message("Sort is disabled in low-RAM mode.");
-        return;
-    }
 
     char **items = calloc((size_t)table->column_count, sizeof(char *));
     const char **labels = calloc((size_t)table->column_count, sizeof(char *));
@@ -522,10 +518,6 @@ void prompt_filter_rows(Table *table)
 {
     if (!table || table->column_count <= 0) {
         show_error_message("Add at least one column first.");
-        return;
-    }
-    if (low_ram_mode) {
-        show_error_message("Filter is disabled in low-RAM mode.");
         return;
     }
 

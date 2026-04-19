@@ -43,6 +43,7 @@ void ui_reset_table_view(Table *table)
 {
     (void)table;
     ui_search_exit();
+    ui_search_service_reset();
     ui_clear_reorder_mode();
     ui_history_reset();
     footer_page = 0;

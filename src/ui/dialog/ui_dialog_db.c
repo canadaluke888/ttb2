@@ -189,23 +189,12 @@ void show_db_manager(Table *table) {
             const char **items = (const char**)tables; int pick = 0;
             pick = ui_dialog_show_simple_list_modal("Select table to load", items, tcount, pick);
             if (pick >= 0) {
-                if (low_ram_mode) {
-                    // Low-RAM seek-only view over selected table
-                    const char *db_path = db_current_path(cur);
-                    int page = 200; // initial default; UI will recompute per screen
-                    if (seek_mode_open_for_table(db_path, tables[pick], table, page, err, sizeof(err)) != 0) {
-                        show_error_message(err[0] ? err : "Seek view failed");
-                    } else {
-                        show_error_message("Loaded table in Low-RAM view.");
-                    }
-                } else {
-                    Table *loaded = db_load_table(cur, tables[pick], err, sizeof(err));
-                    if (!loaded) { show_error_message(err[0] ? err : "Load failed"); }
-                    else if (table) {
-                        replace_table_contents(table, loaded);
-                        workspace_manual_save(table, NULL, 0);
-                        db_autosave_table(table, err, sizeof(err));
-                    }
+                Table *loaded = db_load_table(cur, tables[pick], err, sizeof(err));
+                if (!loaded) { show_error_message(err[0] ? err : "Load failed"); }
+                else if (table) {
+                    replace_table_contents(table, loaded);
+                    workspace_manual_save(table, NULL, 0);
+                    db_autosave_table(table, err, sizeof(err));
                 }
             }
             free_string_list(tables, tcount);

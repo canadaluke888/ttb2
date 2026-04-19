@@ -24,7 +24,6 @@ typedef struct {
 typedef struct {
     bool autosave_enabled;
     bool type_infer_enabled;
-    bool low_ram_enabled;   // use seek-only paging for large tables
     bool show_row_gutter;   // show row number gutter in grid
     int theme_id;
 } AppSettings;

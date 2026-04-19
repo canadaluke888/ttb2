@@ -10,6 +10,7 @@
 
 #include <stddef.h>
 #include "data/table.h"
+#include "core/progress.h"
 
 /* Initialize the workspace and return the active table if one is available. */
 int workspace_init(Table **out_table, char *err, size_t err_sz);
@@ -23,6 +24,7 @@ int workspace_process_autosave(char *err, size_t err_sz);
 int workspace_flush_autosave(char *err, size_t err_sz);
 /* Persist the active workspace to its project path on explicit user request. */
 int workspace_manual_save(const Table *table, char *err, size_t err_sz);
+int workspace_manual_save_with_progress(const Table *table, const ProgressReporter *progress, char *err, size_t err_sz);
 /* Open a workspace book into the current in-memory table. */
 int workspace_open_book(Table *table, const char *path, char *err, size_t err_sz);
 /* Switch the active table within the currently opened workspace book. */

@@ -11,6 +11,8 @@
 #include <stddef.h>
 #include "data/table.h"
 
+typedef struct TableIndex TableIndex;
+
 /* Opaque handle for a SQLite-backed multi-table workspace file. */
 typedef struct BookDB BookDB;
 
@@ -45,6 +47,10 @@ Table *bookdb_load_table(BookDB *db, const char *table_id, char *err, size_t err
 int bookdb_create_table(BookDB *db, const Table *table, char *out_table_id, size_t out_sz, char *err, size_t err_sz);
 int bookdb_delete_table(BookDB *db, const char *table_id, char *err, size_t err_sz);
 int bookdb_rename_table(BookDB *db, const char *table_id, const char *name, char *err, size_t err_sz);
+int bookdb_save_semantic_index(BookDB *db, const char *table_id, const TableIndex *index, char *err, size_t err_sz);
+TableIndex *bookdb_load_semantic_index(BookDB *db, const char *table_id, char *err, size_t err_sz);
+int bookdb_delete_semantic_index(BookDB *db, const char *table_id, char *err, size_t err_sz);
+int bookdb_mark_semantic_index_stale(BookDB *db, const char *table_id, char *err, size_t err_sz);
 
 /* Convert between SQLite-backed books and legacy directory-based books. */
 int bookdb_export_legacy_ttbx(BookDB *db, const char *dest_path, char *err, size_t err_sz);

@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Iinclude -Isrc/ui
-LDFLAGS = -lncursesw -lpanelw -lsqlite3 -ljson-c -lz
+LDFLAGS = -lncursesw -lpanelw -lsqlite3 -ljson-c -lz -lm
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 DATADIR ?= $(PREFIX)/share
@@ -80,11 +80,16 @@ clean:
 	rm -rf $(BIN_DIR)
 	rm -rf $(OBJ_DIR)
 
-.PHONY: run install uninstall deb clean seekdb_bench history_test
-seekdb_bench: tools/seekdb_bench.c src/db/seekdb.c include/seekdb.h
-	mkdir -p $(BIN_DIR)
-	$(CC) -O2 -Wall -Iinclude -o $(BIN_DIR)/seekdb_bench tools/seekdb_bench.c src/db/seekdb.c -lsqlite3
+.PHONY: run install uninstall deb clean history_test table_index_test bookdb_semantic_test
 
 history_test: tests/ui_history_test.c src/table.c src/table_ops.c src/ui/data/ui_history.c include/ui/ui_history.h
 	mkdir -p $(BIN_DIR)
 	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/history_test tests/ui_history_test.c src/table.c src/table_ops.c src/ui/data/ui_history.c
+
+table_index_test: tests/table_index_test.c src/vector/table_index.c src/table.c src/table_ops.c src/db/book_db.c src/io/ttb_io.c
+	mkdir -p $(BIN_DIR)
+	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/table_index_test tests/table_index_test.c src/vector/table_index.c src/table.c src/table_ops.c src/db/book_db.c src/io/ttb_io.c -lsqlite3 -ljson-c -lz -lm
+
+bookdb_semantic_test: tests/bookdb_semantic_test.c src/vector/table_index.c src/table.c src/table_ops.c src/db/book_db.c src/io/ttb_io.c
+	mkdir -p $(BIN_DIR)
+	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/bookdb_semantic_test tests/bookdb_semantic_test.c src/vector/table_index.c src/table.c src/table_ops.c src/db/book_db.c src/io/ttb_io.c -lsqlite3 -ljson-c -lz -lm

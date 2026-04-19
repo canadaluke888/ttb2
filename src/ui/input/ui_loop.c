@@ -23,7 +23,6 @@ void start_ui_loop(Table *table)
     tableview_init(&ui_table_view);
 
     while (1) {
-        int fetched = 0;
         int final_vdir = 0;
         int vcount = 0;
         int had_input = 0;
@@ -70,12 +69,6 @@ void start_ui_loop(Table *table)
                     row_page = 0;
                     cursor_col = 0;
                     cursor_row = -1;
-                    if (low_ram_mode && seek_mode_active()) {
-                        char err[128] = {0};
-                        int page = (rows_visible > 0 ? rows_visible : 200);
-
-                        seek_mode_fetch_first(table, page, err, sizeof(err));
-                    }
                 } else if (ch == 'S') {
                     char serr[256] = {0};
 
@@ -102,37 +95,13 @@ void start_ui_loop(Table *table)
                 } else if (ch == KEY_UP || ch == 'w' || ch == 'W') {
                     final_vdir = -1;
                     vcount++;
-                    if (low_ram_mode && seek_mode_active()) {
-                        if (cursor_row <= 0) {
-                            char err[128] = {0};
-                            int page = (rows_visible > 0 ? rows_visible : 200);
-
-                            if (!fetched && seek_mode_fetch_prev(table, page, err, sizeof(err)) > 0) {
-                                fetched = 1;
-                                cursor_row = 0;
-                            }
-                        } else if (row_page > 0) {
-                            row_page--;
-                        }
-                    } else if (row_page > 0) {
+                    if (row_page > 0) {
                         row_page--;
                     }
                 } else if (ch == KEY_DOWN || ch == 's') {
                     final_vdir = +1;
                     vcount++;
-                    if (low_ram_mode && seek_mode_active()) {
-                        if (cursor_row >= table->row_count - 1) {
-                            char err[128] = {0};
-                            int page = (rows_visible > 0 ? rows_visible : 200);
-
-                            if (!fetched && seek_mode_fetch_next(table, page, err, sizeof(err)) > 0) {
-                                fetched = 1;
-                                cursor_row = table->row_count - 1;
-                            }
-                        } else if (row_page < total_row_pages - 1) {
-                            row_page++;
-                        }
-                    } else if (row_page < total_row_pages - 1) {
+                    if (row_page < total_row_pages - 1) {
                         row_page++;
                     }
                 }
@@ -369,41 +338,13 @@ void start_ui_loop(Table *table)
                     case 'W':
                         final_vdir = -1;
                         vcount++;
-                        if (low_ram_mode && seek_mode_active()) {
-                            if (cursor_row <= 0) {
-                                char err[128] = {0};
-                                int page = (rows_visible > 0 ? rows_visible : 200);
-                                if (!fetched && seek_mode_fetch_prev(table, page, err, sizeof(err)) > 0) {
-                                    fetched = 1;
-                                    cursor_row = 0;
-                                } else if (cursor_row > -1) {
-                                    cursor_row--;
-                                }
-                            } else {
-                                cursor_row--;
-                            }
-                        } else {
-                            ui_move_cursor_up_cross_page(table);
-                        }
+                        ui_move_cursor_up_cross_page(table);
                         break;
                     case KEY_DOWN:
                     case 's':
                         final_vdir = +1;
                         vcount++;
-                        if (low_ram_mode && seek_mode_active()) {
-                            if (cursor_row >= table->row_count - 1) {
-                                char err[128] = {0};
-                                int page = (rows_visible > 0 ? rows_visible : 200);
-                                if (!fetched && seek_mode_fetch_next(table, page, err, sizeof(err)) > 0) {
-                                    fetched = 1;
-                                    cursor_row = table->row_count - 1;
-                                }
-                            } else {
-                                cursor_row++;
-                            }
-                        } else {
-                            ui_move_cursor_down_cross_page(table);
-                        }
+                        ui_move_cursor_down_cross_page(table);
                         break;
                     case 27:
                         ui_clear_reorder_mode();
@@ -418,11 +359,6 @@ void start_ui_loop(Table *table)
                         cursor_row = row_page * (rows_visible > 0 ? rows_visible : 1);
                         if (cursor_row >= ui_visible_row_count(table)) cursor_row = ui_visible_row_count(table) - 1;
                         if (cursor_row < 0) cursor_row = -1;
-                        if (low_ram_mode && seek_mode_active()) {
-                            char err[128] = {0};
-                            int page = (rows_visible > 0 ? rows_visible : 200);
-                            seek_mode_fetch_first(table, page, err, sizeof(err));
-                        }
                         break;
                     case 21: {
                         UiHistoryApplyResult result = {0};

@@ -22,7 +22,6 @@ int col_start = 0;
 int row_page = 0;
 int rows_visible = 0;
 int total_row_pages = 1;
-int low_ram_mode = 0;
 int row_gutter_enabled = 1;
 int footer_page = 0;
 UiReorderMode reorder_mode = UI_REORDER_NONE;
@@ -82,16 +81,6 @@ void ui_enter_edit_mode(Table *table)
     visible_rows = ui_visible_row_count(table);
     cursor_row = (start_row < visible_rows) ? start_row : (visible_rows > 0 ? visible_rows - 1 : -1);
     cursor_col = col_start;
-}
-
-void ui_set_low_ram_mode(int enabled)
-{
-    low_ram_mode = enabled ? 1 : 0;
-}
-
-int ui_low_ram_mode_enabled(void)
-{
-    return low_ram_mode;
 }
 
 void ui_set_row_gutter_enabled(int enabled)

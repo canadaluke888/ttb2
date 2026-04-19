@@ -74,7 +74,7 @@ int ui_alloc_column_widths(Table *table, int **col_widths_out)
     return 0;
 }
 
-static int ui_layout_available_width(int *use_gutter, int *gutter_w, long long *base)
+static int ui_layout_available_width(int *use_gutter, int *gutter_w)
 {
     int available = COLS - 4;
     int rows_vis_est = (LINES - 5 - 3) / 2;
@@ -82,16 +82,12 @@ static int ui_layout_available_width(int *use_gutter, int *gutter_w, long long *
     if (rows_vis_est < 1) rows_vis_est = 1;
 
     *use_gutter = row_gutter_enabled ? 1 : 0;
-    *base = seek_mode_active() ? seek_mode_row_base() : 1;
     *gutter_w = 0;
 
     if (*use_gutter) {
-        long long max_row_num;
+        long long max_row_num = (long long)(row_page * rows_vis_est + rows_vis_est);
         long long tmpn;
 
-        max_row_num = seek_mode_active()
-                        ? (*base + rows_vis_est - 1)
-                        : (long long)(row_page * rows_vis_est + rows_vis_est);
         if (max_row_num < 1) max_row_num = 1;
         tmpn = max_row_num;
         *gutter_w = 1;
@@ -112,7 +108,6 @@ void ui_update_column_paging(Table *table, const int *col_widths)
     int available;
     int use_gutter;
     int gutter_w;
-    long long base;
     int max_pages;
     int *page_starts;
     int pages = 0;
@@ -120,10 +115,9 @@ void ui_update_column_paging(Table *table, const int *col_widths)
 
     if (!table || table->column_count <= 0 || !col_widths) return;
 
-    available = ui_layout_available_width(&use_gutter, &gutter_w, &base);
+    available = ui_layout_available_width(&use_gutter, &gutter_w);
     (void)use_gutter;
     (void)gutter_w;
-    (void)base;
 
     max_pages = table->column_count > 0 ? table->column_count : 1;
     page_starts = malloc(max_pages * sizeof(int));
@@ -239,6 +233,6 @@ void ui_fill_grid_layout(Table *table, UiGridLayout *layout)
     layout->start_col = col_start;
     layout->end_col = table ? col_start + cols_visible : 0;
     if (table && layout->end_col > table->column_count) layout->end_col = table->column_count;
-    available = ui_layout_available_width(&layout->use_gutter, &layout->gutter_width, &layout->row_number_base);
+    available = ui_layout_available_width(&layout->use_gutter, &layout->gutter_width);
     (void)available;
 }

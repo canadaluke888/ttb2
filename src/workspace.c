@@ -8,6 +8,7 @@
 #include "core/workspace.h"
 #include "db/book_db.h"
 #include "io/ttb_io.h"
+#include "vector/table_index.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -309,7 +310,7 @@ static int open_session_db(BookDB **out_db, const Table *seed_table, char *err, 
     return 0;
 }
 
-static int save_project(const Table *table, char *err, size_t err_sz)
+static int save_project_with_progress(const Table *table, const ProgressReporter *progress, char *err, size_t err_sz)
 {
     BookDB *db = NULL;
     char created_id[256];
@@ -335,9 +336,31 @@ static int save_project(const Table *table, char *err, size_t err_sz)
         bookdb_close(db);
         return -1;
     }
+
+    if (g_active_table_id[0]) {
+        TableIndex *index = NULL;
+        char semantic_err[256] = {0};
+
+        if (table_index_sync_bookdb_with_progress(db,
+                                                  g_active_table_id,
+                                                  table,
+                                                  NULL,
+                                                  progress,
+                                                  &index,
+                                                  semantic_err,
+                                                  sizeof(semantic_err)) == 0) {
+            table_index_free(index);
+        }
+    }
+
     bookdb_close(db);
     if (capture_saved_snapshot(table, err, err_sz) != 0) return -1;
     return 0;
+}
+
+static int save_project(const Table *table, char *err, size_t err_sz)
+{
+    return save_project_with_progress(table, NULL, err, err_sz);
 }
 
 int workspace_set_project_path(const char *path)
@@ -738,12 +761,17 @@ int workspace_flush_autosave(char *err, size_t err_sz)
 
 int workspace_manual_save(const Table *table, char *err, size_t err_sz)
 {
+    return workspace_manual_save_with_progress(table, NULL, err, err_sz);
+}
+
+int workspace_manual_save_with_progress(const Table *table, const ProgressReporter *progress, char *err, size_t err_sz)
+{
     Table *mutable_table = (Table *)table;
 
     g_autosave_pending = 0;
     g_autosave_due_ms = 0;
     workspace_set_active_table(mutable_table);
-    if (save_project(table, err, err_sz) != 0) return -1;
+    if (save_project_with_progress(table, progress, err, err_sz) != 0) return -1;
     if (mutable_table) mutable_table->dirty = 0;
     return 0;
 }

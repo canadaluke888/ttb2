@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include "data/table.h"
 #include "data/table_view.h"
+#include "core/progress.h"
 #include "core/settings.h"
 #include "ui/ui.h"
 
@@ -33,7 +34,6 @@ extern int col_start;
 extern int row_page;
 extern int rows_visible;
 extern int total_row_pages;
-extern int low_ram_mode;
 extern int row_gutter_enabled;
 extern int footer_page;
 extern int del_row_mode;
@@ -65,8 +65,17 @@ typedef struct {
     int end_col;
     int use_gutter;
     int gutter_width;
-    long long row_number_base;
 } UiGridLayout;
+
+typedef struct {
+    int actual_row;
+    int best_col;
+    int match_start;
+    int match_len;
+    float score;
+    float lexical_score;
+    float semantic_score;
+} UiSearchResult;
 
 /* Named box-drawing glyphs used by UTF-8 grid renderers. */
 typedef enum {
@@ -139,21 +148,21 @@ int ui_dialog_handle_list_mouse(WINDOW *win,
                                 int *nav_dir);
 mmask_t ui_mouse_wheel_up_mask(void);
 mmask_t ui_mouse_wheel_down_mask(void);
-/* Seek-mode controls for low-memory browsing of large tables. */
-int seek_mode_active(void);
-int seek_mode_open_for_table(const char *db_path, const char *table_name, Table *view, int page_size, char *err, size_t err_sz);
-int seek_mode_fetch_first(Table *view, int page_size, char *err, size_t err_sz);
-int seek_mode_fetch_next(Table *view, int page_size, char *err, size_t err_sz);
-int seek_mode_fetch_prev(Table *view, int page_size, char *err, size_t err_sz);
-long long seek_mode_row_base(void);
-int seek_mode_last_count(void);
-void seek_mode_close(void);
 void ui_reset_table_view(Table *table);
 void ui_focus_location(Table *table, int actual_row, int col, int prefer_header);
 int ui_visible_row_count(Table *table);
 int ui_actual_row_for_visible(Table *table, int visible_row);
 int ui_rebuild_table_view(Table *table, char *err, size_t err_sz);
 int ui_table_view_is_active(void);
+void ui_search_service_reset(void);
+int ui_search_service_query_with_progress(Table *table,
+                                          const char *query,
+                                          const ProgressReporter *progress,
+                                          UiSearchResult **out_results,
+                                          int *out_count,
+                                          char *err,
+                                          size_t err_sz);
+int ui_search_service_query(Table *table, const char *query, UiSearchResult **out_results, int *out_count, char *err, size_t err_sz);
 int ui_format_cell_value(const Table *table, int row, int col, char *buf, size_t buf_sz);
 int ui_compute_column_widths(Table *table, int *col_widths);
 int ui_alloc_column_widths(Table *table, int **col_widths_out);

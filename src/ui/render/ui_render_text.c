@@ -10,6 +10,21 @@
 #include "ui/internal.h"
 #include "ui/ui_text.h"
 
+static int ui_exact_match_color_pair(int base_pair)
+{
+    switch (base_pair) {
+        case 10: return 15; /* red -> cyan */
+        case 11: return 14; /* green -> magenta */
+        case 12: return 13; /* yellow -> blue */
+        case 13: return 12; /* blue -> yellow */
+        case 14: return 11; /* magenta -> green */
+        case 15: return 10; /* cyan -> red */
+        case 16: return 13; /* white -> blue */
+        case 2:  return 10; /* default body white -> red */
+        default: return 10;
+    }
+}
+
 void ui_add_repeat(const char *text, int count)
 {
     for (int i = 0; i < count; ++i) addstr(text);
@@ -65,6 +80,7 @@ void ui_draw_highlighted_cell_text(const char *text, int width, int color_pair, 
 {
     size_t text_len;
     int used = 0;
+    int highlight_pair = ui_exact_match_color_pair(color_pair);
 
     if (!text) text = "";
     text_len = strlen(text);
@@ -84,9 +100,9 @@ void ui_draw_highlighted_cell_text(const char *text, int width, int color_pair, 
         size_t match_bytes = (size_t)match_len;
 
         if ((size_t)match_start + match_bytes > text_len) match_bytes = text_len - (size_t)match_start;
-        attron(COLOR_PAIR(10) | A_BOLD);
+        attron(COLOR_PAIR(highlight_pair) | A_BOLD);
         used += ui_text_addnstr_width(stdscr, text + match_start, match_bytes, width - used);
-        attroff(COLOR_PAIR(10) | A_BOLD);
+        attroff(COLOR_PAIR(highlight_pair) | A_BOLD);
     }
 
     if (used < width) {

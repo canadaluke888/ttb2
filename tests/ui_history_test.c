@@ -28,7 +28,6 @@ int search_hit_count = 0;
 int search_hit_index = 0;
 int search_sel_start = -1;
 int search_sel_len = 0;
-int low_ram_mode = 0;
 int row_gutter_enabled = 1;
 int footer_page = 0;
 int del_row_mode = 0;
@@ -44,6 +43,11 @@ int db_autosave_table(const Table *t, char *err, size_t err_sz)
     (void)t;
     if (err && err_sz > 0) err[0] = '\0';
     return 0;
+}
+
+void workspace_queue_autosave(Table *table)
+{
+    (void)table;
 }
 
 int ui_visible_row_count(Table *table)
@@ -65,6 +69,20 @@ int ui_table_view_is_active(void)
 int ui_rebuild_table_view(Table *table, char *err, size_t err_sz)
 {
     (void)table;
+    if (err && err_sz > 0) err[0] = '\0';
+    return 0;
+}
+
+void ui_search_service_reset(void)
+{
+}
+
+int ui_search_service_query(Table *table, const char *query, UiSearchResult **out_results, int *out_count, char *err, size_t err_sz)
+{
+    (void)table;
+    (void)query;
+    if (out_results) *out_results = NULL;
+    if (out_count) *out_count = 0;
     if (err && err_sz > 0) err[0] = '\0';
     return 0;
 }

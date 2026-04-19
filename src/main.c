@@ -41,7 +41,6 @@ int main(int argc, char **argv) {
     settings_ensure_directory();
     settings_load(settings_default_path(), &s);
     workspace_set_autosave_enabled(s.autosave_enabled);
-    ui_set_low_ram_mode(s.low_ram_enabled);
     ui_set_row_gutter_enabled(s.show_row_gutter);
 
     Table *table = NULL;
@@ -70,7 +69,6 @@ int main(int argc, char **argv) {
     settings_init_defaults(&s);
     settings_load(settings_default_path(), &s);
     s.autosave_enabled = workspace_autosave_enabled();
-    s.low_ram_enabled = ui_low_ram_mode_enabled();
     s.show_row_gutter = ui_row_gutter_enabled();
     settings_save(settings_default_path(), &s);
     return 0;

@@ -28,6 +28,13 @@ typedef struct {
     int is_dir;
 } Entry;
 
+typedef struct {
+    const ProgressReporter *base;
+    double start;
+    double end;
+    char prefix[48];
+} ScaledProgress;
+
 /* Sort directory entries with folders first and names in lexical order. */
 static int entry_cmp(const void *a, const void *b) {
     const Entry *ea = (const Entry*)a, *eb = (const Entry*)b;
@@ -71,6 +78,40 @@ static void replace_loaded_table(Table *table, Table *loaded)
     replace_table_contents(table, loaded);
     workspace_set_active_table(table);
     ui_reset_table_view(table);
+}
+
+static void scaled_progress_update(void *ctx, double progress, const char *message)
+{
+    ScaledProgress *scaled = (ScaledProgress *)ctx;
+    double mapped;
+    char buf[256];
+
+    if (!scaled || !scaled->base || !scaled->base->update) return;
+
+    if (progress < 0.0) progress = 0.0;
+    if (progress > 1.0) progress = 1.0;
+
+    mapped = scaled->start + ((scaled->end - scaled->start) * progress);
+    if (message && message[0] && scaled->prefix[0]) {
+        snprintf(buf, sizeof(buf), "%s: %s", scaled->prefix, message);
+        scaled->base->update(scaled->base->ctx, mapped, buf);
+    } else {
+        scaled->base->update(scaled->base->ctx, mapped, message);
+    }
+}
+
+static void scaled_progress_init(ScaledProgress *scaled,
+                                 const ProgressReporter *base,
+                                 double start,
+                                 double end,
+                                 const char *prefix)
+{
+    if (!scaled) return;
+    scaled->base = base;
+    scaled->start = start;
+    scaled->end = end;
+    strncpy(scaled->prefix, prefix ? prefix : "", sizeof(scaled->prefix) - 1);
+    scaled->prefix[sizeof(scaled->prefix) - 1] = '\0';
 }
 
 static int prepare_for_single_table_open(Table *table)
@@ -125,6 +166,11 @@ int ui_open_path(Table *table, const char *path, int preserve_current_table, int
     Table *loaded = NULL;
     UiLoadingModal *loading_modal = NULL;
     ProgressReporter reporter = {0};
+    ProgressReporter parse_reporter = {0};
+    ProgressReporter encode_reporter = {0};
+    ScaledProgress parse_scaled = {0};
+    ScaledProgress encode_scaled = {0};
+    const char *loading_title = "Open Table";
 
     if (!table || !path || !*path) {
         show_error_message("No file path provided.");
@@ -153,26 +199,46 @@ int ui_open_path(Table *table, const char *path, int preserve_current_table, int
     settings_init_defaults(&s);
     settings_load(settings_default_path(), &s);
 
+    if (is_csv) loading_title = "Import CSV";
+    else if (is_xlsx) loading_title = "Import XLSX";
+    else if (is_ttbl) loading_title = "Open TTBL";
+
+    if (!is_ttbx) {
+        loading_modal = ui_loading_modal_start(loading_title, "Starting import...", &reporter);
+        if (loading_modal && reporter.update) {
+            scaled_progress_init(&parse_scaled, &reporter, 0.0, 0.68, "Load");
+            parse_reporter.update = scaled_progress_update;
+            parse_reporter.ctx = &parse_scaled;
+
+            scaled_progress_init(&encode_scaled, &reporter, 0.68, 1.0, "Index");
+            encode_reporter.update = scaled_progress_update;
+            encode_reporter.ctx = &encode_scaled;
+        }
+    }
+
     if (is_csv) {
-        loading_modal = ui_loading_modal_start("Import CSV", "Reading file...", &reporter);
-        const ProgressReporter *cb = (loading_modal && reporter.update) ? &reporter : NULL;
+        const ProgressReporter *cb = (parse_reporter.update) ? &parse_reporter : NULL;
         loaded = csv_load_with_progress(path, s.type_infer_enabled, err, sizeof(err), cb);
     } else if (is_xlsx) {
-        loading_modal = ui_loading_modal_start("Import XLSX", "Parsing workbook...", &reporter);
-        const ProgressReporter *cb = (loading_modal && reporter.update) ? &reporter : NULL;
+        const ProgressReporter *cb = (parse_reporter.update) ? &parse_reporter : NULL;
         loaded = xl_load_with_progress(path, s.type_infer_enabled, err, sizeof(err), cb);
     } else if (is_ttbl) {
+        if (parse_reporter.update) {
+            parse_reporter.update(parse_reporter.ctx, 0.15, "Load: Reading TTBL...");
+        }
         loaded = ttbl_load(path, err, sizeof(err));
+        if (parse_reporter.update) {
+            parse_reporter.update(parse_reporter.ctx, loaded ? 1.0 : 0.3, loaded ? "Load: Parsed TTBL." : "Load: Failed to parse TTBL.");
+        }
     } else if (workspace_open_book(table, path, err, sizeof(err)) == 0) {
         workspace_set_active_table(table);
         ui_reset_table_view(table);
     }
 
-    if (loading_modal) {
-        ui_loading_modal_finish(loading_modal);
-    }
-
     if (is_ttbx) {
+        if (loading_modal) {
+            ui_loading_modal_finish(loading_modal);
+        }
         if (err[0]) {
             show_error_message(err);
             return -1;
@@ -181,14 +247,29 @@ int ui_open_path(Table *table, const char *path, int preserve_current_table, int
     }
 
     if (!loaded) {
+        if (loading_modal) {
+            ui_loading_modal_finish(loading_modal);
+        }
         show_error_message(err[0] ? err : "Failed to load file");
         return -1;
     }
 
+    if (loading_modal) {
+        ui_loading_modal_update(loading_modal, 0.68, "Index: Preparing semantic index...");
+    }
     replace_loaded_table(table, loaded);
-    if (workspace_manual_save(table, err, sizeof(err)) != 0) {
+    if (workspace_manual_save_with_progress(table,
+                                            encode_reporter.update ? &encode_reporter : NULL,
+                                            err,
+                                            sizeof(err)) != 0) {
+        if (loading_modal) {
+            ui_loading_modal_finish(loading_modal);
+        }
         show_error_message(err[0] ? err : "Failed to save opened file.");
         return -1;
+    }
+    if (loading_modal) {
+        ui_loading_modal_finish(loading_modal);
     }
     return 0;
 }
