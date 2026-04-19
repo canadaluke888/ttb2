@@ -38,6 +38,8 @@ extern int row_gutter_enabled;
 extern int footer_page;
 extern int del_row_mode;
 extern int del_col_mode;
+extern int footer_activity_active;
+extern int footer_activity_frame;
 extern TableView ui_table_view;
 
 /* Active row or column reorder operation owned by the editor state. */
@@ -177,6 +179,10 @@ void ui_advance_footer_page(void);
 void ui_enter_edit_mode(Table *table);
 void ui_request_pending_grid_edit(void);
 int ui_take_pending_grid_edit(void);
+void ui_footer_activity_start(void);
+void ui_footer_activity_stop(void);
+int ui_footer_activity_is_active(void);
+void ui_footer_activity_tick(void);
 
 void ui_ensure_cursor_column_visible(const Table *table);
 void ui_ensure_cursor_row_visible(Table *table);
@@ -199,6 +205,8 @@ int ui_handle_cell_click(Table *table, int mouse_x, int mouse_y, int activate_ed
 void ui_search_enter(Table *table);
 void ui_search_exit(void);
 int ui_search_handle_key(Table *table, int ch);
+void ui_search_poll(Table *table);
+int ui_search_pending(void);
 
 /* Consume deferred edit requests queued by input handlers. */
 int ui_handle_pending_grid_edit(Table *table);

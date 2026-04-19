@@ -103,15 +103,16 @@ int ui_search_service_query_with_progress(Table *table,
         actual_rows[i] = ui_actual_row_for_visible(table, i);
     }
 
-    match_count = table_index_query(g_index,
-                                    table,
-                                    actual_rows,
-                                    visible_rows,
-                                    query,
-                                    matches,
-                                    (size_t)visible_rows,
-                                    err,
-                                    err_sz);
+    match_count = table_index_query_with_progress(g_index,
+                                                  table,
+                                                  actual_rows,
+                                                  visible_rows,
+                                                  query,
+                                                  matches,
+                                                  (size_t)visible_rows,
+                                                  progress,
+                                                  err,
+                                                  err_sz);
     if (match_count < 0) {
         free(actual_rows);
         free(matches);

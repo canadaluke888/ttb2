@@ -11,6 +11,21 @@
 #include "ui/internal.h"
 #include "ui/ui_text.h"
 
+static void ui_draw_footer_activity_spinner(int y, int right_x)
+{
+    static const char spinner[] = "|/-\\";
+    char ch;
+
+    if (!ui_footer_activity_is_active()) return;
+    if (right_x < 2) return;
+
+    ch = spinner[footer_activity_frame % 4];
+
+    attron(COLOR_PAIR(11) | A_BOLD);
+    mvaddch(y, right_x, ch);
+    attroff(COLOR_PAIR(11) | A_BOLD);
+}
+
 void ui_draw_status_segment(int y, int *x, int max_x, int color_attr, const char *text)
 {
     int remaining;
@@ -125,104 +140,108 @@ void ui_draw_footer(Table *table)
     int fy = LINES - 2;
     int fx = 2;
     int max_x = COLS - 3;
+    int content_max_x = ui_footer_activity_is_active() ? (max_x - 2) : max_x;
 
     if (search_mode) {
         char match_buf[64];
 
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[←][→][↑][↓] Prev/Next Ranked Row");
-        ui_draw_footer_separator(fy, &fx, max_x);
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[Esc] Exit Search");
-        ui_draw_footer_separator(fy, &fx, max_x);
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[←][→][↑][↓] Prev/Next Ranked Row");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[Esc] Exit Search");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
         snprintf(match_buf, sizeof(match_buf), "Ranked %d/%d", (search_hit_count > 0 ? (search_hit_index + 1) : 0), search_hit_count);
-        ui_draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), match_buf);
+        ui_draw_status_segment(fy, &fx, content_max_x, COLOR_PAIR(4), match_buf);
+        ui_draw_footer_activity_spinner(fy, max_x);
         return;
     }
 
     if (!editing_mode) {
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[C] Add Column  [R] Add Row");
-        ui_draw_footer_separator(fy, &fx, max_x);
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[F] Hybrid Search  [E] Edit Mode");
-        ui_draw_footer_separator(fy, &fx, max_x);
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[M] Menu  [S] Save  [Q] Quit");
-        ui_draw_footer_separator(fy, &fx, max_x);
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+H] Home");
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[C] Add Column  [R] Add Row");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[F] Hybrid Search  [E] Edit Mode");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[M] Menu  [S] Save  [Q] Quit");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[Ctrl+H] Home");
         if (ui_visible_row_count(table) == 0 && ui_table_view_is_active()) {
-            ui_draw_footer_separator(fy, &fx, max_x);
-            ui_draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, "0 results");
+            ui_draw_footer_separator(fy, &fx, content_max_x);
+            ui_draw_status_segment(fy, &fx, content_max_x, COLOR_PAIR(10) | A_BOLD, "0 results");
         }
         if (total_pages > 1) {
             char buf[64];
 
-            ui_draw_footer_separator(fy, &fx, max_x);
+            ui_draw_footer_separator(fy, &fx, content_max_x);
             snprintf(buf, sizeof(buf), "Cols Pg %d/%d [←][→] Columns", col_page + 1, total_pages);
-            ui_draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
+            ui_draw_status_segment(fy, &fx, content_max_x, COLOR_PAIR(4), buf);
         }
         if (total_row_pages > 1) {
             char buf[64];
 
-            ui_draw_footer_separator(fy, &fx, max_x);
+            ui_draw_footer_separator(fy, &fx, content_max_x);
             snprintf(buf, sizeof(buf), "Rows Pg %d/%d [↑][↓] Rows", row_page + 1, total_row_pages);
-            ui_draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
+            ui_draw_status_segment(fy, &fx, content_max_x, COLOR_PAIR(4), buf);
         }
+        ui_draw_footer_activity_spinner(fy, max_x);
         return;
     }
 
     if (del_row_mode) {
-        ui_draw_action_hint_segment(fy, &fx, max_x, "Del Row: [↑][↓] Select [Enter] Confirm [Esc] Cancel");
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "Del Row: [↑][↓] Select [Enter] Confirm [Esc] Cancel");
     } else if (del_col_mode) {
-        ui_draw_action_hint_segment(fy, &fx, max_x, "Del Col: [←][→] Select [Enter] Confirm [Esc] Cancel");
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "Del Col: [←][→] Select [Enter] Confirm [Esc] Cancel");
     } else if (reorder_mode == UI_REORDER_MOVE_ROW) {
-        ui_draw_action_hint_segment(fy, &fx, max_x, footer_page == 0
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, footer_page == 0
             ? "Move Row: [↑][↓] Destination [Enter] Place [Esc] Cancel"
             : "[Source] Highlighted [Cursor] Highlighted  Prompt: [Above] or [Below]");
     } else if (reorder_mode == UI_REORDER_MOVE_COL) {
-        ui_draw_action_hint_segment(fy, &fx, max_x, footer_page == 0
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, footer_page == 0
             ? "Move Col: [←][→] Destination [Enter] Place [Esc] Cancel"
             : "[Source] Highlighted [Cursor] Highlighted  Prompt: [Left] or [Right]");
     } else if (reorder_mode == UI_REORDER_SWAP_ROW) {
-        ui_draw_action_hint_segment(fy, &fx, max_x, footer_page == 0
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, footer_page == 0
             ? "Swap Row: [↑][↓] Destination [Enter] Confirm [Esc] Cancel"
             : "[Source] Highlighted [Cursor] Highlighted  Swap occurs after destination confirm");
     } else if (reorder_mode == UI_REORDER_SWAP_COL) {
-        ui_draw_action_hint_segment(fy, &fx, max_x, footer_page == 0
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, footer_page == 0
             ? "Swap Col: [←][→] Destination [Enter] Confirm [Esc] Cancel"
             : "[Source] Highlighted [Cursor] Highlighted  Swap occurs after destination confirm");
     } else if (footer_page == 0) {
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[Enter] Edit  [F] Search");
-        ui_draw_footer_separator(fy, &fx, max_x);
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[X] Del Row  [Shift+X] Del Col");
-        ui_draw_footer_separator(fy, &fx, max_x);
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+U] Undo  [Ctrl+R] Redo");
-        ui_draw_footer_separator(fy, &fx, max_x);
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[Ctrl+H] Home  [M] Menu  [Esc] Exit");
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[Enter] Edit  [F] Search");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[X] Del Row  [Shift+X] Del Col");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[Ctrl+U] Undo  [Ctrl+R] Redo");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[Ctrl+H] Home  [M] Menu  [Esc] Exit");
     } else {
-        ui_draw_action_hint_segment(fy, &fx, max_x, "Insert: [Left Bracket] Above  [Right Bracket] Below");
-        ui_draw_footer_separator(fy, &fx, max_x);
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[{] Left  [}] Right");
-        ui_draw_footer_separator(fy, &fx, max_x);
-        ui_draw_status_segment(fy, &fx, max_x, COLOR_PAIR(7) | A_BOLD, "V");
-        ui_draw_status_segment(fy, &fx, max_x, COLOR_PAIR(5), " Move  ");
-        ui_draw_action_hint_segment(fy, &fx, max_x, "[Shift+V] Swap");
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "Insert: [Left Bracket] Above  [Right Bracket] Below");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[{] Left  [}] Right");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
+        ui_draw_status_segment(fy, &fx, content_max_x, COLOR_PAIR(7) | A_BOLD, "V");
+        ui_draw_status_segment(fy, &fx, content_max_x, COLOR_PAIR(5), " Move  ");
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[Shift+V] Swap");
     }
 
-    ui_draw_footer_separator(fy, &fx, max_x);
-    ui_draw_footer_page_indicator(fy, &fx, max_x);
+    ui_draw_footer_separator(fy, &fx, content_max_x);
+    ui_draw_footer_page_indicator(fy, &fx, content_max_x);
     if (ui_visible_row_count(table) == 0 && ui_table_view_is_active()) {
-        ui_draw_footer_separator(fy, &fx, max_x);
-        ui_draw_status_segment(fy, &fx, max_x, COLOR_PAIR(10) | A_BOLD, "0 results");
+        ui_draw_footer_separator(fy, &fx, content_max_x);
+        ui_draw_status_segment(fy, &fx, content_max_x, COLOR_PAIR(10) | A_BOLD, "0 results");
     }
     if (total_pages > 1) {
         char buf[32];
 
-        ui_draw_footer_separator(fy, &fx, max_x);
+        ui_draw_footer_separator(fy, &fx, content_max_x);
         snprintf(buf, sizeof(buf), "Cols Pg %d/%d", col_page + 1, total_pages);
-        ui_draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
+        ui_draw_status_segment(fy, &fx, content_max_x, COLOR_PAIR(4), buf);
     }
     if (total_row_pages > 1) {
         char buf[32];
 
-        ui_draw_footer_separator(fy, &fx, max_x);
+        ui_draw_footer_separator(fy, &fx, content_max_x);
         snprintf(buf, sizeof(buf), "Rows Pg %d/%d", row_page + 1, total_row_pages);
-        ui_draw_status_segment(fy, &fx, max_x, COLOR_PAIR(4), buf);
+        ui_draw_status_segment(fy, &fx, content_max_x, COLOR_PAIR(4), buf);
     }
+    ui_draw_footer_activity_spinner(fy, max_x);
 }

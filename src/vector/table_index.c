@@ -588,15 +588,16 @@ int table_index_build_for_table(const Table *table,
     return table_index_build_for_table_with_progress(table, config, NULL, out_index, err, err_sz);
 }
 
-int table_index_query(const TableIndex *index,
-                      const Table *table,
-                      const int *actual_rows,
-                      int actual_row_count,
-                      const char *query,
-                      TableIndexMatch *out,
-                      size_t max_out,
-                      char *err,
-                      size_t err_sz)
+int table_index_query_with_progress(const TableIndex *index,
+                                    const Table *table,
+                                    const int *actual_rows,
+                                    int actual_row_count,
+                                    const char *query,
+                                    TableIndexMatch *out,
+                                    size_t max_out,
+                                    const ProgressReporter *progress,
+                                    char *err,
+                                    size_t err_sz)
 {
     TableIndexConfig config;
     TokenList query_tokens = {0};
@@ -631,6 +632,7 @@ int table_index_query(const TableIndex *index,
         return -1;
     }
 
+    progress_update(progress, 0.02, "Preparing ranked search...");
     for (row_i = 0; row_i < query_tokens.count; ++row_i) {
         add_token_features(query_tokens.items[row_i], query_vec, &config, 1.0f);
     }
@@ -671,8 +673,17 @@ int table_index_query(const TableIndex *index,
             ranked[row_i].match.lexical_score = lexical_score;
             ranked[row_i].match.semantic_score = semantic_score;
         }
+
+        if (actual_row_count > 0 && (((row_i + 1) % 32) == 0 || row_i + 1 == actual_row_count)) {
+            char message[96];
+            double value = 0.08 + (0.84 * ((double)(row_i + 1) / (double)actual_row_count));
+
+            snprintf(message, sizeof(message), "Scoring rows %d/%d...", row_i + 1, actual_row_count);
+            progress_update(progress, value, message);
+        }
     }
 
+    progress_update(progress, 0.95, "Sorting ranked results...");
     qsort(ranked, (size_t)actual_row_count, sizeof(*ranked), compare_ranked_match);
     for (row_i = 0; row_i < actual_row_count && kept < max_out; ++row_i) {
         if (!ranked[row_i].keep) break;
@@ -682,7 +693,30 @@ int table_index_query(const TableIndex *index,
     free(query_vec);
     free(ranked);
     token_list_free(&query_tokens);
+    progress_update(progress, 1.0, "Ranked search ready.");
     return (int)kept;
+}
+
+int table_index_query(const TableIndex *index,
+                      const Table *table,
+                      const int *actual_rows,
+                      int actual_row_count,
+                      const char *query,
+                      TableIndexMatch *out,
+                      size_t max_out,
+                      char *err,
+                      size_t err_sz)
+{
+    return table_index_query_with_progress(index,
+                                           table,
+                                           actual_rows,
+                                           actual_row_count,
+                                           query,
+                                           out,
+                                           max_out,
+                                           NULL,
+                                           err,
+                                           err_sz);
 }
 
 void table_index_invalidate(TableIndex **index_ptr)

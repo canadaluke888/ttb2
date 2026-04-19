@@ -15,6 +15,7 @@
 #include "core/settings.h"
 #include "db/db_manager.h"
 #include "core/workspace.h"
+#include "core/task_worker.h"
 #include "core/errors.h"
 
 /* Initialize ncurses, restore workspace state, and run the main editor loop. */
@@ -35,6 +36,8 @@ int main(int argc, char **argv) {
     curs_set(0);
     leaveok(stdscr, TRUE); // avoid moving the hardware cursor unnecessarily
 
+    char werr[256] = {0};
+
     // Load settings and apply
     AppSettings s;
     settings_init_defaults(&s);
@@ -43,8 +46,14 @@ int main(int argc, char **argv) {
     workspace_set_autosave_enabled(s.autosave_enabled);
     ui_set_row_gutter_enabled(s.show_row_gutter);
 
+    if (task_worker_init(werr, sizeof(werr)) != 0) {
+        endwin();
+        fprintf(stderr, "%s\n", werr[0] ? werr : "Failed to start worker thread");
+        pm_teardown();
+        return 1;
+    }
+
     Table *table = NULL;
-    char werr[256] = {0};
     if (workspace_init(&table, werr, sizeof(werr)) != 0 || !table) {
         table = create_table("Untitled Table");
         workspace_set_active_table(table);
@@ -63,6 +72,7 @@ int main(int argc, char **argv) {
     workspace_flush_autosave(NULL, 0);
     free_table(table);
     workspace_shutdown();
+    task_worker_shutdown();
     pm_teardown();
     endwin();
     // Save settings on exit (persist runtime toggles)

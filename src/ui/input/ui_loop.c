@@ -28,6 +28,8 @@ void start_ui_loop(Table *table)
         int had_input = 0;
         int quit = 0;
 
+        ui_search_poll(table);
+        ui_footer_activity_tick();
         draw_ui(table);
         wnoutrefresh(stdscr);
         pm_update();
@@ -58,7 +60,12 @@ void start_ui_loop(Table *table)
                 }
             }
 
+            if (ui_search_pending() && (ch == 'q' || ch == 'Q')) {
+                quit = 1;
+                break;
+            }
             if (ui_search_handle_key(table, ch)) continue;
+            if (ui_search_pending()) continue;
 
             if (!editing_mode) {
                 if (ch == 'q' || ch == 'Q') {

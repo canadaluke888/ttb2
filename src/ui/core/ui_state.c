@@ -24,6 +24,9 @@ int rows_visible = 0;
 int total_row_pages = 1;
 int row_gutter_enabled = 1;
 int footer_page = 0;
+int footer_activity_active = 0;
+int footer_activity_frame = 0;
+static int footer_activity_tick_count = 0;
 UiReorderMode reorder_mode = UI_REORDER_NONE;
 int reorder_source_row = -1;
 int reorder_source_col = -1;
@@ -91,4 +94,32 @@ void ui_set_row_gutter_enabled(int enabled)
 int ui_row_gutter_enabled(void)
 {
     return row_gutter_enabled;
+}
+
+void ui_footer_activity_start(void)
+{
+    footer_activity_active = 1;
+    footer_activity_frame = 0;
+    footer_activity_tick_count = 0;
+}
+
+void ui_footer_activity_stop(void)
+{
+    footer_activity_active = 0;
+    footer_activity_frame = 0;
+    footer_activity_tick_count = 0;
+}
+
+int ui_footer_activity_is_active(void)
+{
+    return footer_activity_active;
+}
+
+void ui_footer_activity_tick(void)
+{
+    if (!footer_activity_active) return;
+    footer_activity_tick_count++;
+    if (footer_activity_tick_count < 6) return;
+    footer_activity_tick_count = 0;
+    footer_activity_frame = (footer_activity_frame + 1) % 4;
 }

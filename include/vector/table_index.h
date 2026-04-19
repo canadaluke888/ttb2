@@ -82,6 +82,16 @@ int table_index_query(const TableIndex *index,
                       size_t max_out,
                       char *err,
                       size_t err_sz);
+int table_index_query_with_progress(const TableIndex *index,
+                                    const Table *table,
+                                    const int *actual_rows,
+                                    int actual_row_count,
+                                    const char *query,
+                                    TableIndexMatch *out,
+                                    size_t max_out,
+                                    const ProgressReporter *progress,
+                                    char *err,
+                                    size_t err_sz);
 void table_index_invalidate(TableIndex **index_ptr);
 void table_index_free(TableIndex *index);
 int table_index_sync_bookdb_with_progress(BookDB *db,

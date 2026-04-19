@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Iinclude -Isrc/ui
-LDFLAGS = -lncursesw -lpanelw -lsqlite3 -ljson-c -lz -lm
+CFLAGS = -Wall -pthread -Iinclude -Isrc/ui
+LDFLAGS = -pthread -lncursesw -lpanelw -lsqlite3 -ljson-c -lz -lm
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 DATADIR ?= $(PREFIX)/share
