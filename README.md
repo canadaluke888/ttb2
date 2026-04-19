@@ -125,6 +125,8 @@ Supported startup inputs:
   - `V` Swap row or column (shown as `Shift+V` in the insert footer; row when on a body row, column when on the header)
   - `M` Open the table menu without leaving edit mode
   - `Tab` Cycle footer hint pages
+    1. Edit Cell Content
+    2. Insert/Move Rows & Columns
   - Saving a blank value while editing a cell clears that cell
   - Move row prompts for `Above` or `Below` after you pick the destination row
   - Move column prompts for `Left` or `Right` after you pick the destination column
