@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "core/task_worker.h"
+#include "core/settings.h"
 #include "db/book_db.h"
 #include "vector/table_index.h"
 
@@ -101,6 +102,8 @@ static void *task_worker_main(void *unused)
             TableIndexConfig config = table_index_default_config();
             TableIndexMatch *matches = NULL;
             int match_count = -1;
+
+            config.row_vectorization_enabled = settings_row_vectorization_enabled() ? 1 : 0;
 
             if (job.table_id && *job.table_id && strcmp(cached_table_id, job.table_id) != 0) {
                 table_index_invalidate(&cached_index);

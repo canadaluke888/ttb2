@@ -45,6 +45,7 @@ int main(int argc, char **argv) {
     settings_load(settings_default_path(), &s);
     workspace_set_autosave_enabled(s.autosave_enabled);
     ui_set_row_gutter_enabled(s.show_row_gutter);
+    settings_set_row_vectorization_enabled(s.row_vectorization_enabled);
 
     if (task_worker_init(werr, sizeof(werr)) != 0) {
         endwin();
@@ -80,6 +81,7 @@ int main(int argc, char **argv) {
     settings_load(settings_default_path(), &s);
     s.autosave_enabled = workspace_autosave_enabled();
     s.show_row_gutter = ui_row_gutter_enabled();
+    s.row_vectorization_enabled = settings_row_vectorization_enabled();
     settings_save(settings_default_path(), &s);
     return 0;
 }

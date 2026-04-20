@@ -25,6 +25,7 @@ typedef struct {
     bool autosave_enabled;
     bool type_infer_enabled;
     bool show_row_gutter;   // show row number gutter in grid
+    bool row_vectorization_enabled;
     int theme_id;
 } AppSettings;
 
@@ -44,5 +45,7 @@ int settings_theme_count(void);
 int settings_normalize_theme(int theme_id);
 const char *settings_theme_name(int theme_id);
 void settings_theme_palette(int theme_id, AppThemePalette *out);
+void settings_set_row_vectorization_enabled(bool enabled);
+bool settings_row_vectorization_enabled(void);
 
 #endif

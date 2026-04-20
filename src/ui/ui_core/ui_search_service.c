@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "ui/internal.h"
+#include "core/settings.h"
 #include "core/workspace.h"
 #include "db/book_db.h"
 #include "vector/table_index.h"
@@ -61,6 +62,7 @@ int ui_search_service_query_with_progress(Table *table,
     }
 
     config = table_index_default_config();
+    config.row_vectorization_enabled = settings_row_vectorization_enabled() ? 1 : 0;
     if (table_id && *table_id) {
         char load_err[256] = {0};
 

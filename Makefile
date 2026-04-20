@@ -80,7 +80,7 @@ clean:
 	rm -rf $(BIN_DIR)
 	rm -rf $(OBJ_DIR)
 
-.PHONY: run install uninstall deb clean history_test table_index_test bookdb_semantic_test
+.PHONY: run install uninstall deb clean history_test table_index_test bookdb_semantic_test settings_test ui_dialog_list_test
 
 history_test: tests/ui_history_test.c src/table.c src/table_ops.c src/ui/ui_data/ui_history.c include/ui/ui_history.h
 	mkdir -p $(BIN_DIR)
@@ -93,3 +93,11 @@ table_index_test: tests/table_index_test.c src/vector/table_index.c src/table.c 
 bookdb_semantic_test: tests/bookdb_semantic_test.c src/vector/table_index.c src/table.c src/table_ops.c src/db/book_db.c src/io/ttb_io.c
 	mkdir -p $(BIN_DIR)
 	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/bookdb_semantic_test tests/bookdb_semantic_test.c src/vector/table_index.c src/table.c src/table_ops.c src/db/book_db.c src/io/ttb_io.c -lsqlite3 -ljson-c -lz -lm
+
+settings_test: tests/settings_test.c src/settings.c
+	mkdir -p $(BIN_DIR)
+	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/settings_test tests/settings_test.c src/settings.c -ljson-c
+
+ui_dialog_list_test: tests/ui_dialog_list_test.c src/ui/ui_dialog/ui_dialog_common.c
+	mkdir -p $(BIN_DIR)
+	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/ui_dialog_list_test tests/ui_dialog_list_test.c src/ui/ui_dialog/ui_dialog_common.c -lncursesw -lpanelw

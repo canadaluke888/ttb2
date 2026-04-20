@@ -37,48 +37,12 @@ typedef enum {
     TABLE_MENU_ACTION_BACK
 } TableMenuAction;
 
-typedef struct {
-    int kind;
-    const char *label;
-    int action_id;
-} TableMenuEntry;
-
-enum {
-    TABLE_MENU_ROW_ACTION = 0,
-    TABLE_MENU_ROW_HEADING,
-    TABLE_MENU_ROW_UNDERLINE,
-    TABLE_MENU_ROW_SPACER
-};
-
 static UiMenuResult prompt_rename_active_table(Table *table);
 static UiMenuResult prompt_rename_book(void);
 static UiMenuResult show_book_tables_page(Table *table);
 // (no local string-list helpers required here)
 static int prompt_add_column_at_internal(Table *table, int col_index, int focus_inserted, const char *title);
 static int prompt_add_row_at_internal(Table *table, int row_index, int focus_inserted, const char *title);
-
-static int table_menu_next_selectable(const TableMenuEntry *entries, int count, int start, int dir)
-{
-    int idx = start;
-
-    if (!entries || count <= 0 || dir == 0) return -1;
-    for (int step = 0; step < count; ++step) {
-        idx += dir;
-        if (idx < 0) idx = count - 1;
-        else if (idx >= count) idx = 0;
-        if (entries[idx].kind == TABLE_MENU_ROW_ACTION) return idx;
-    }
-    return -1;
-}
-
-static int table_menu_find_first_selectable(const TableMenuEntry *entries, int count)
-{
-    if (!entries) return -1;
-    for (int i = 0; i < count; ++i) {
-        if (entries[i].kind == TABLE_MENU_ROW_ACTION) return i;
-    }
-    return -1;
-}
 
 /* Free a list of heap-allocated strings returned by workspace helpers. */
 static void free_string_list(char **list, int count) {
@@ -626,152 +590,49 @@ void show_table_menu(Table *table) {
     int keep_open = 1;
 
     while (keep_open) {
-        const TableMenuEntry entries[] = {
-            {TABLE_MENU_ROW_HEADING, "Table", -1},
-            {TABLE_MENU_ROW_UNDERLINE, "Table", -1},
-            {TABLE_MENU_ROW_ACTION, "Rename Table", TABLE_MENU_ACTION_RENAME_TABLE},
-            {TABLE_MENU_ROW_ACTION, "New Table", TABLE_MENU_ACTION_NEW_TABLE},
-            {TABLE_MENU_ROW_ACTION, "Book Tables", TABLE_MENU_ACTION_BOOK_TABLES},
-            {TABLE_MENU_ROW_SPACER, "", -1},
-            {TABLE_MENU_ROW_HEADING, "View", -1},
-            {TABLE_MENU_ROW_UNDERLINE, "View", -1},
-            {TABLE_MENU_ROW_ACTION, "Sort Rows", TABLE_MENU_ACTION_SORT_ROWS},
-            {TABLE_MENU_ROW_ACTION, "Filter Rows", TABLE_MENU_ACTION_FILTER_ROWS},
-            {TABLE_MENU_ROW_ACTION, "Clear Sort/Filter", TABLE_MENU_ACTION_CLEAR_VIEW},
-            {TABLE_MENU_ROW_SPACER, "", -1},
-            {TABLE_MENU_ROW_HEADING, "File", -1},
-            {TABLE_MENU_ROW_UNDERLINE, "File", -1},
-            {TABLE_MENU_ROW_ACTION, "Export", TABLE_MENU_ACTION_EXPORT},
-            {TABLE_MENU_ROW_ACTION, "Open File", TABLE_MENU_ACTION_OPEN_FILE},
-            {TABLE_MENU_ROW_SPACER, "", -1},
-            {TABLE_MENU_ROW_HEADING, "Workspace", -1},
-            {TABLE_MENU_ROW_UNDERLINE, "Workspace", -1},
-            {TABLE_MENU_ROW_ACTION, "Rename Book", TABLE_MENU_ACTION_RENAME_BOOK},
-            {TABLE_MENU_ROW_ACTION, "Settings", TABLE_MENU_ACTION_SETTINGS},
-            {TABLE_MENU_ROW_SPACER, "", -1},
-            {TABLE_MENU_ROW_ACTION, "Back to Editor", TABLE_MENU_ACTION_BACK}
+        char title[256];
+        const UiDialogListRow rows[] = {
+            {UI_DIALOG_LIST_ROW_HEADER, "Table", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_DIVIDER, "", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_ITEM, "Rename Table", TABLE_MENU_ACTION_RENAME_TABLE, 1, 2},
+            {UI_DIALOG_LIST_ROW_ITEM, "New Table", TABLE_MENU_ACTION_NEW_TABLE, 1, 2},
+            {UI_DIALOG_LIST_ROW_ITEM, "Book Tables", TABLE_MENU_ACTION_BOOK_TABLES, 1, 2},
+            {UI_DIALOG_LIST_ROW_SPACER, "", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_HEADER, "View", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_DIVIDER, "", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_ITEM, "Sort Rows", TABLE_MENU_ACTION_SORT_ROWS, 1, 2},
+            {UI_DIALOG_LIST_ROW_ITEM, "Filter Rows", TABLE_MENU_ACTION_FILTER_ROWS, 1, 2},
+            {UI_DIALOG_LIST_ROW_ITEM, "Clear Sort/Filter", TABLE_MENU_ACTION_CLEAR_VIEW, 1, 2},
+            {UI_DIALOG_LIST_ROW_SPACER, "", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_HEADER, "File", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_DIVIDER, "", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_ITEM, "Export", TABLE_MENU_ACTION_EXPORT, 1, 2},
+            {UI_DIALOG_LIST_ROW_ITEM, "Open File", TABLE_MENU_ACTION_OPEN_FILE, 1, 2},
+            {UI_DIALOG_LIST_ROW_SPACER, "", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_HEADER, "Workspace", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_DIVIDER, "", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_ITEM, "Rename Book", TABLE_MENU_ACTION_RENAME_BOOK, 1, 2},
+            {UI_DIALOG_LIST_ROW_ITEM, "Settings", TABLE_MENU_ACTION_SETTINGS, 1, 2},
+            {UI_DIALOG_LIST_ROW_SPACER, "", -1, 0, 0},
+            {UI_DIALOG_LIST_ROW_ITEM, "Back to Editor", TABLE_MENU_ACTION_BACK, 1, 0}
         };
-        const int entry_count = (int)(sizeof(entries) / sizeof(entries[0]));
-        const char *hint = "[↑][↓] Navigate  [Enter] Select  [Esc] Back";
-        int body_rows = entry_count + 2; /* blank line before footer + footer hint row */
-        int content_w = 0;
-        int selected = table_menu_find_first_selectable(entries, entry_count);
+        const UiDialogListOptions options = {
+            title,
+            "[↑][↓] Navigate  [Enter] Select  [Esc] Back",
+            34,
+            0,
+            0,
+            0,
+            true,
+            true,
+            TABLE_MENU_ACTION_RENAME_TABLE
+        };
         int chosen_action = TABLE_MENU_ACTION_BACK;
-        int ch;
-
-        /* Menu uses key navigation only: hide cursor */
+        snprintf(title, sizeof(title), "Table Menu: %s", workspace_book_name());
         noecho();
         curs_set(0);
-
-        for (int i = 0; i < entry_count; ++i) {
-            int len = (int)strlen(entries[i].label);
-            if (len > content_w) content_w = len;
-        }
-        if ((int)strlen(hint) > content_w) content_w = (int)strlen(hint);
-
-        int h = body_rows + 4; /* title underline + body + footer area */
-        if (h < 8) h = 8; /* minimum height for comfort */
-        if (h > LINES - 2) h = LINES - 2;
-        int w = content_w + 8;
-        if (w < 34) w = 34;
-        if (w > COLS - 4) w = COLS - 4;
-        if (w < 20) w = COLS - 2;
-        if (w < 20) w = 20;
-        int y = (LINES - h) / 2;
-        int x = (COLS - w) / 2;
-
-        PmNode *shadow = pm_add(y + 1, x + 2, h, w, PM_LAYER_MODAL_SHADOW, PM_LAYER_MODAL_SHADOW);
-        PmNode *modal = pm_add(y, x, h, w, PM_LAYER_MODAL, PM_LAYER_MODAL);
-        keypad(modal->win, TRUE);
-
-        while (1) {
-            werase(modal->win);
-            box(modal->win, 0, 0);
-            wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
-            mvwprintw(modal->win, 1, 2, "Table Menu: %s", workspace_book_name());
-            wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
-            mvwhline(modal->win, 2, 1, ACS_HLINE, w - 2);
-            mvwaddch(modal->win, 2, 0, ACS_LTEE);
-            mvwaddch(modal->win, 2, w - 1, ACS_RTEE);
-
-            for (int i = 0; i < entry_count; i++) {
-                int row = 3 + i;
-                if (row >= h - 2) break;
-                if (entries[i].kind != TABLE_MENU_ROW_ACTION) {
-                    if (entries[i].kind == TABLE_MENU_ROW_SPACER) {
-                        mvwhline(modal->win, row, 2, ' ', w - 4);
-                    } else if (entries[i].kind == TABLE_MENU_ROW_UNDERLINE) {
-                        mvwhline(modal->win, row, 2, ACS_HLINE, w - 4);
-                    } else {
-                        int heading_x = (w - (int)strlen(entries[i].label)) / 2;
-                        if (heading_x < 2) heading_x = 2;
-                        wattron(modal->win, COLOR_PAIR(3) | A_BOLD);
-                        mvwprintw(modal->win, row, heading_x, "%s", entries[i].label);
-                        wattroff(modal->win, COLOR_PAIR(3) | A_BOLD);
-                    }
-                    continue;
-                }
-                if (i == selected) wattron(modal->win, COLOR_PAIR(4) | A_BOLD);
-                mvwprintw(modal->win,
-                          row,
-                          (entries[i].action_id == TABLE_MENU_ACTION_BACK) ? 2 : 4,
-                          "%s",
-                          entries[i].label);
-                if (i == selected) wattroff(modal->win, COLOR_PAIR(4) | A_BOLD);
-            }
-
-            mvwhline(modal->win, h - 3, 2, ' ', w - 4);
-            wattron(modal->win, COLOR_PAIR(4));
-            mvwprintw(modal->win, h - 2, 2, "%.*s", w - 4, hint);
-            wattroff(modal->win, COLOR_PAIR(4));
-
-            pm_wnoutrefresh(shadow);
-            pm_wnoutrefresh(modal);
-            pm_update();
-
-            ch = wgetch(modal->win);
-            if (ch == KEY_MOUSE) {
-                int top = 0;
-                int activate = 0;
-                int nav_dir = 0;
-                int prev_selected = selected;
-
-                if (ui_dialog_handle_list_mouse(modal->win, ch, 3, entry_count, entry_count, &top, &selected, &activate, &nav_dir)) {
-                    if (selected >= 0 && selected < entry_count && entries[selected].kind != TABLE_MENU_ROW_ACTION) {
-                        if (nav_dir != 0) selected = table_menu_next_selectable(entries, entry_count, selected, nav_dir);
-                        else selected = prev_selected;
-                    }
-                    if (activate &&
-                        selected >= 0 &&
-                        selected < entry_count &&
-                        entries[selected].kind == TABLE_MENU_ROW_ACTION) {
-                        chosen_action = entries[selected].action_id;
-                        break;
-                    }
-                    continue;
-                }
-            } else if (ch == KEY_UP) {
-                int next = table_menu_next_selectable(entries, entry_count, selected, -1);
-                if (next >= 0) selected = next;
-            } else if (ch == KEY_DOWN) {
-                int next = table_menu_next_selectable(entries, entry_count, selected, +1);
-                if (next >= 0) selected = next;
-            } else if (ch == '\n') {
-                if (selected >= 0 && selected < entry_count && entries[selected].kind == TABLE_MENU_ROW_ACTION) {
-                    chosen_action = entries[selected].action_id;
-                }
-                break;
-            } else if (ch == 27) { /* Esc */
-                chosen_action = TABLE_MENU_ACTION_BACK;
-                break;
-            }
-        }
-
-        pm_remove(modal);
-        pm_remove(shadow);
-        pm_update();
-        noecho();
-        curs_set(0);
+        chosen_action = ui_dialog_show_styled_list_modal(&options, rows, (int)(sizeof(rows) / sizeof(rows[0])));
+        if (chosen_action < 0) chosen_action = TABLE_MENU_ACTION_BACK;
 
         switch (chosen_action) {
             case TABLE_MENU_ACTION_RENAME_TABLE:

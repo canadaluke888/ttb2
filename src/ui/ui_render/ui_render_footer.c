@@ -145,11 +145,11 @@ void ui_draw_footer(Table *table)
     if (search_mode) {
         char match_buf[64];
 
-        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[←][→][↑][↓] Prev/Next Ranked Row");
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[←][→][↑][↓] Prev/Next Match");
         ui_draw_footer_separator(fy, &fx, content_max_x);
         ui_draw_action_hint_segment(fy, &fx, content_max_x, "[Esc] Exit Search");
         ui_draw_footer_separator(fy, &fx, content_max_x);
-        snprintf(match_buf, sizeof(match_buf), "Ranked %d/%d", (search_hit_count > 0 ? (search_hit_index + 1) : 0), search_hit_count);
+        snprintf(match_buf, sizeof(match_buf), "Match %d/%d", (search_hit_count > 0 ? (search_hit_index + 1) : 0), search_hit_count);
         ui_draw_status_segment(fy, &fx, content_max_x, COLOR_PAIR(4), match_buf);
         ui_draw_footer_activity_spinner(fy, max_x);
         return;
@@ -158,7 +158,7 @@ void ui_draw_footer(Table *table)
     if (!editing_mode) {
         ui_draw_action_hint_segment(fy, &fx, content_max_x, "[C] Add Column  [R] Add Row");
         ui_draw_footer_separator(fy, &fx, content_max_x);
-        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[F] Hybrid Search  [E] Edit Mode");
+        ui_draw_action_hint_segment(fy, &fx, content_max_x, "[F] Search  [E] Edit Mode");
         ui_draw_footer_separator(fy, &fx, content_max_x);
         ui_draw_action_hint_segment(fy, &fx, content_max_x, "[M] Menu  [S] Save  [Q] Quit");
         ui_draw_footer_separator(fy, &fx, content_max_x);

@@ -255,7 +255,7 @@ int ui_open_path(Table *table, const char *path, int preserve_current_table, int
     }
 
     if (loading_modal) {
-        ui_loading_modal_update(loading_modal, 0.68, "Index: Preparing semantic index...");
+        ui_loading_modal_update(loading_modal, 0.68, "Index: Preparing search index...");
     }
     replace_loaded_table(table, loaded);
     if (workspace_manual_save_with_progress(table,

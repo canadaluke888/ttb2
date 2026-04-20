@@ -19,6 +19,7 @@ typedef struct {
     int max_tokens_per_row;
     int use_char_trigrams;
     int include_numeric_stats;
+    int row_vectorization_enabled;
     float unigram_weight;
     float trigram_weight;
     float lexical_weight;

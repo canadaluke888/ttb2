@@ -40,6 +40,8 @@ static const struct {
     {"Sunset",  {3, 5, 7, 1, 6, 3}}
 };
 
+static bool g_row_vectorization_enabled = true;
+
 const char *settings_default_path(void)
 {
     return SETTINGS_FILE;
@@ -62,6 +64,7 @@ void settings_init_defaults(AppSettings *s) {
     s->autosave_enabled = true;
     s->type_infer_enabled = true;
     s->show_row_gutter = true;
+    s->row_vectorization_enabled = true;
     s->theme_id = 0;
 }
 
@@ -85,10 +88,15 @@ int settings_load(const char *path, AppSettings *out) {
     if (json_object_object_get_ex(root, "show_row_gutter", &jg)) {
         out->show_row_gutter = json_object_get_boolean(jg);
     }
+    struct json_object *jvec = NULL;
+    if (json_object_object_get_ex(root, "row_vectorization_enabled", &jvec)) {
+        out->row_vectorization_enabled = json_object_get_boolean(jvec);
+    }
     struct json_object *jtheme = NULL;
     if (json_object_object_get_ex(root, "theme_id", &jtheme)) {
         out->theme_id = settings_normalize_theme(json_object_get_int(jtheme));
     }
+    g_row_vectorization_enabled = out->row_vectorization_enabled;
     json_object_put(root);
     return 0;
 }
@@ -104,7 +112,9 @@ int settings_save(const char *path, const AppSettings *s) {
     json_object_object_add(root, "autosave_enabled", json_object_new_boolean(s->autosave_enabled));
     json_object_object_add(root, "type_infer_enabled", json_object_new_boolean(s->type_infer_enabled));
     json_object_object_add(root, "show_row_gutter", json_object_new_boolean(s->show_row_gutter));
+    json_object_object_add(root, "row_vectorization_enabled", json_object_new_boolean(s->row_vectorization_enabled));
     json_object_object_add(root, "theme_id", json_object_new_int(settings_normalize_theme(s->theme_id)));
+    g_row_vectorization_enabled = s->row_vectorization_enabled;
     int rc = json_object_to_file_ext(path, root, JSON_C_TO_STRING_PRETTY);
     json_object_put(root);
     return (rc == 0) ? 0 : -1;
@@ -137,4 +147,14 @@ void settings_theme_palette(int theme_id, AppThemePalette *out)
     out->table_line_color = normalize_color(out->table_line_color, 4);
     out->key_hint_color = normalize_color(out->key_hint_color, 7);
     out->separator_color = normalize_color(out->separator_color, 6);
+}
+
+void settings_set_row_vectorization_enabled(bool enabled)
+{
+    g_row_vectorization_enabled = enabled;
+}
+
+bool settings_row_vectorization_enabled(void)
+{
+    return g_row_vectorization_enabled;
 }

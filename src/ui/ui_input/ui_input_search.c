@@ -154,7 +154,7 @@ void ui_search_enter(Table *table)
 
     if (search_pending) return;
 
-    if (show_text_input_modal("Hybrid Search",
+    if (show_text_input_modal("Substring Search",
                               "[Enter] Search visible rows   [Esc] Cancel",
                               "Query: ",
                               query,
@@ -175,7 +175,7 @@ void ui_search_enter(Table *table)
             return;
         }
         if (queue_status == 0) {
-            show_error_message("No ranked matches found.");
+            show_error_message("No substring matches found.");
             return;
         }
     }
@@ -250,7 +250,7 @@ void ui_search_poll(Table *table)
     ui_footer_activity_stop();
 
     if (search_hit_count <= 0) {
-        show_error_message("No ranked matches found.");
+        show_error_message("No substring matches found.");
         return;
     }
 

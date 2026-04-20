@@ -269,6 +269,11 @@ static int build_row_vector(const Table *table, int row, const TableIndexConfig 
 
     if (!table || !config || !vec || !norm_out) return -1;
 
+    if (!config->row_vectorization_enabled) {
+        *norm_out = 0.0f;
+        return 0;
+    }
+
     remaining = config->max_tokens_per_row > 0 ? config->max_tokens_per_row : 256;
     for (col = 0; col < table->column_count && remaining > 0; ++col) {
         const char *text;
@@ -489,11 +494,12 @@ TableIndexConfig table_index_default_config(void)
     config.max_tokens_per_row = 128;
     config.use_char_trigrams = 1;
     config.include_numeric_stats = 1;
+    config.row_vectorization_enabled = 1;
     config.unigram_weight = 1.0f;
     config.trigram_weight = 0.35f;
     config.lexical_weight = 0.85f;
     config.semantic_weight = 0.65f;
-    config.config_version = 1U;
+    config.config_version = 2U;
     return config;
 }
 
@@ -529,7 +535,7 @@ int table_index_build_for_table_with_progress(const Table *table,
     index->column_count = table->column_count;
     index->dimensions = effective.dimensions;
 
-    if (index->row_count > 0) {
+    if (effective.row_vectorization_enabled && index->row_count > 0) {
         index->row_ids = (int *)calloc((size_t)index->row_count, sizeof(int));
         index->embeddings = (float *)calloc((size_t)index->row_count * (size_t)index->dimensions, sizeof(float));
         index->norms = (float *)calloc((size_t)index->row_count, sizeof(float));
@@ -549,23 +555,27 @@ int table_index_build_for_table_with_progress(const Table *table,
         }
     }
 
-    progress_update(progress, 0.02, "Preparing semantic index...");
-    for (row = 0; row < table->row_count; ++row) {
-        float *vec = &index->embeddings[(size_t)row * (size_t)index->dimensions];
+    if (effective.row_vectorization_enabled) {
+        progress_update(progress, 0.02, "Preparing row vectors...");
+        for (row = 0; row < table->row_count; ++row) {
+            float *vec = &index->embeddings[(size_t)row * (size_t)index->dimensions];
 
-        index->row_ids[row] = row;
-        if (build_row_vector(table, row, &effective, vec, &index->norms[row]) != 0) {
-            table_index_free(index);
-            set_err(err, err_sz, "Failed to build row vector");
-            return -1;
-        }
-        if (table->row_count > 0 && ((row + 1) % 32 == 0 || row + 1 == table->row_count)) {
-            char message[96];
-            double value = 0.05 + (0.85 * ((double)(row + 1) / (double)table->row_count));
+            index->row_ids[row] = row;
+            if (build_row_vector(table, row, &effective, vec, &index->norms[row]) != 0) {
+                table_index_free(index);
+                set_err(err, err_sz, "Failed to build row vector");
+                return -1;
+            }
+            if (table->row_count > 0 && ((row + 1) % 32 == 0 || row + 1 == table->row_count)) {
+                char message[96];
+                double value = 0.05 + (0.85 * ((double)(row + 1) / (double)table->row_count));
 
-            snprintf(message, sizeof(message), "Encoding rows %d/%d...", row + 1, table->row_count);
-            progress_update(progress, value, message);
+                snprintf(message, sizeof(message), "Encoding rows %d/%d...", row + 1, table->row_count);
+                progress_update(progress, value, message);
+            }
         }
+    } else {
+        progress_update(progress, 0.90, "Row vectorization disabled.");
     }
 
     if (index->column_stats) {
@@ -573,7 +583,7 @@ int table_index_build_for_table_with_progress(const Table *table,
         compute_numeric_stats(table, index);
     }
 
-    progress_update(progress, 1.0, "Semantic index ready.");
+    progress_update(progress, 1.0, effective.row_vectorization_enabled ? "Row vectors ready." : "Search index ready.");
 
     *out_index = index;
     return 0;
@@ -599,11 +609,7 @@ int table_index_query_with_progress(const TableIndex *index,
                                     char *err,
                                     size_t err_sz)
 {
-    TableIndexConfig config;
-    TokenList query_tokens = {0};
     RankedMatch *ranked = NULL;
-    float *query_vec = NULL;
-    int remaining;
     int row_i;
     size_t kept = 0;
 
@@ -613,87 +619,60 @@ int table_index_query_with_progress(const TableIndex *index,
     }
     if (actual_row_count <= 0) return 0;
 
-    config = index->config;
-    query_vec = (float *)calloc((size_t)config.dimensions, sizeof(float));
     ranked = (RankedMatch *)calloc((size_t)actual_row_count, sizeof(*ranked));
-    if (!query_vec || !ranked) {
-        free(query_vec);
+    if (!ranked) {
         free(ranked);
         set_err(err, err_sz, "Out of memory");
         return -1;
     }
 
-    remaining = config.max_tokens_per_row > 0 ? config.max_tokens_per_row : 64;
-    if (append_normalized_tokens(query, &query_tokens, &remaining) != 0 || query_tokens.count <= 0) {
-        free(query_vec);
-        free(ranked);
-        token_list_free(&query_tokens);
-        set_err(err, err_sz, "Search query is empty");
-        return -1;
-    }
-
-    progress_update(progress, 0.02, "Preparing ranked search...");
-    for (row_i = 0; row_i < query_tokens.count; ++row_i) {
-        add_token_features(query_tokens.items[row_i], query_vec, &config, 1.0f);
-    }
-    normalize_vector(query_vec, config.dimensions);
+    progress_update(progress, 0.02, "Searching visible rows...");
 
     for (row_i = 0; row_i < actual_row_count; ++row_i) {
         int actual_row = actual_rows[row_i];
-        int dim;
-        float semantic_score = 0.0f;
         int best_col = 0;
         int match_start = -1;
         int match_len = 0;
         float lexical_score;
-        float final_score;
 
         if (actual_row < 0 || actual_row >= index->row_count) continue;
-
-        for (dim = 0; dim < index->dimensions; ++dim) {
-            semantic_score += query_vec[dim] * index->embeddings[(size_t)actual_row * (size_t)index->dimensions + (size_t)dim];
-        }
 
         lexical_score = compute_lexical_score(table,
                                               actual_row,
                                               query,
-                                              &query_tokens,
+                                              NULL,
                                               &best_col,
                                               &match_start,
                                               &match_len);
-        final_score = (config.semantic_weight * semantic_score) + (config.lexical_weight * lexical_score);
-
-        if (lexical_score > 0.0f || semantic_score > 0.08f || final_score > 0.10f) {
+        if (match_start >= 0) {
             ranked[row_i].keep = 1;
             ranked[row_i].match.actual_row = actual_row;
             ranked[row_i].match.best_col = best_col;
             ranked[row_i].match.match_start = match_start;
             ranked[row_i].match.match_len = match_len;
-            ranked[row_i].match.score = final_score;
+            ranked[row_i].match.score = lexical_score;
             ranked[row_i].match.lexical_score = lexical_score;
-            ranked[row_i].match.semantic_score = semantic_score;
+            ranked[row_i].match.semantic_score = 0.0f;
         }
 
         if (actual_row_count > 0 && (((row_i + 1) % 32) == 0 || row_i + 1 == actual_row_count)) {
             char message[96];
             double value = 0.08 + (0.84 * ((double)(row_i + 1) / (double)actual_row_count));
 
-            snprintf(message, sizeof(message), "Scoring rows %d/%d...", row_i + 1, actual_row_count);
+            snprintf(message, sizeof(message), "Checking rows %d/%d...", row_i + 1, actual_row_count);
             progress_update(progress, value, message);
         }
     }
 
-    progress_update(progress, 0.95, "Sorting ranked results...");
+    progress_update(progress, 0.95, "Sorting matches...");
     qsort(ranked, (size_t)actual_row_count, sizeof(*ranked), compare_ranked_match);
     for (row_i = 0; row_i < actual_row_count && kept < max_out; ++row_i) {
         if (!ranked[row_i].keep) break;
         out[kept++] = ranked[row_i].match;
     }
 
-    free(query_vec);
     free(ranked);
-    token_list_free(&query_tokens);
-    progress_update(progress, 1.0, "Ranked search ready.");
+    progress_update(progress, 1.0, "Search complete.");
     return (int)kept;
 }
 
@@ -743,6 +722,7 @@ static int config_matches(const TableIndex *index, const TableIndexConfig *confi
            index->config.max_tokens_per_row == config->max_tokens_per_row &&
            index->config.use_char_trigrams == config->use_char_trigrams &&
            index->config.include_numeric_stats == config->include_numeric_stats &&
+           index->config.row_vectorization_enabled == config->row_vectorization_enabled &&
            fabsf(index->config.unigram_weight - config->unigram_weight) < 0.0001f &&
            fabsf(index->config.trigram_weight - config->trigram_weight) < 0.0001f &&
            fabsf(index->config.lexical_weight - config->lexical_weight) < 0.0001f &&
@@ -782,8 +762,8 @@ int table_index_sync_bookdb_with_progress(BookDB *db,
         return 0;
     }
 
-    if (db && table_id && *table_id) {
-        progress_update(progress, 0.02, "Checking stored semantic index...");
+    if (effective.row_vectorization_enabled && db && table_id && *table_id) {
+        progress_update(progress, 0.02, "Checking stored row vectors...");
         loaded = bookdb_load_semantic_index(db, table_id, err, err_sz);
         if (loaded &&
             !loaded->stale &&
@@ -793,7 +773,7 @@ int table_index_sync_bookdb_with_progress(BookDB *db,
             config_matches(loaded, &effective)) {
             table_index_invalidate(index_in_out);
             *index_in_out = loaded;
-            progress_update(progress, 1.0, "Loaded semantic index from SQLite cache.");
+            progress_update(progress, 1.0, "Loaded row vectors from SQLite cache.");
             return 0;
         }
         table_index_free(loaded);
@@ -801,16 +781,16 @@ int table_index_sync_bookdb_with_progress(BookDB *db,
 
     if (table_index_build_for_table_with_progress(table, &effective, progress, &built, err, err_sz) != 0) return -1;
 
-    if (db && table_id && *table_id) {
+    if (effective.row_vectorization_enabled && db && table_id && *table_id) {
         char save_err[256] = {0};
 
-        progress_update(progress, 0.97, "Saving semantic index to SQLite...");
+        progress_update(progress, 0.97, "Saving row vectors to SQLite...");
         (void)bookdb_save_semantic_index(db, table_id, built, save_err, sizeof(save_err));
     }
 
     table_index_invalidate(index_in_out);
     *index_in_out = built;
-    progress_update(progress, 1.0, "Semantic index saved.");
+    progress_update(progress, 1.0, effective.row_vectorization_enabled ? "Row vectors saved." : "Search index ready.");
     return 0;
 }
 
