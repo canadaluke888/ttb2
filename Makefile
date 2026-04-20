@@ -82,9 +82,9 @@ clean:
 
 .PHONY: run install uninstall deb clean history_test table_index_test bookdb_semantic_test
 
-history_test: tests/ui_history_test.c src/table.c src/table_ops.c src/ui/data/ui_history.c include/ui/ui_history.h
+history_test: tests/ui_history_test.c src/table.c src/table_ops.c src/ui/ui_data/ui_history.c include/ui/ui_history.h
 	mkdir -p $(BIN_DIR)
-	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/history_test tests/ui_history_test.c src/table.c src/table_ops.c src/ui/data/ui_history.c
+	$(CC) -Wall -Iinclude -Isrc/ui -o $(BIN_DIR)/history_test tests/ui_history_test.c src/table.c src/table_ops.c src/ui/ui_data/ui_history.c
 
 table_index_test: tests/table_index_test.c src/vector/table_index.c src/table.c src/table_ops.c src/db/book_db.c src/io/ttb_io.c
 	mkdir -p $(BIN_DIR)
