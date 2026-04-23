@@ -69,7 +69,6 @@ int ui_take_pending_grid_edit(void)
 
 void ui_enter_edit_mode(Table *table)
 {
-    int start_row;
     int visible_rows;
 
     if (!table) return;
@@ -77,13 +76,37 @@ void ui_enter_edit_mode(Table *table)
     editing_mode = 1;
     footer_page = 0;
     ui_clear_reorder_mode();
-
-    start_row = row_page * (rows_visible > 0 ? rows_visible : 1);
-    if (start_row < 0) start_row = 0;
+    del_row_mode = 0;
+    del_col_mode = 0;
 
     visible_rows = ui_visible_row_count(table);
-    cursor_row = (start_row < visible_rows) ? start_row : (visible_rows > 0 ? visible_rows - 1 : -1);
-    cursor_col = col_start;
+
+    if (table->column_count <= 0) {
+        cursor_col = 0;
+        cursor_row = -1;
+        col_page = 0;
+        row_page = 0;
+        return;
+    }
+
+    if (cursor_col < 0 || cursor_col >= table->column_count) {
+        cursor_col = (col_start >= 0 && col_start < table->column_count) ? col_start : 0;
+    }
+
+    if (visible_rows <= 0) {
+        cursor_row = -1;
+        row_page = 0;
+    } else if (cursor_row < -1) {
+        int start_row = row_page * (rows_visible > 0 ? rows_visible : 1);
+
+        if (start_row < 0) start_row = 0;
+        cursor_row = (start_row < visible_rows) ? start_row : (visible_rows - 1);
+    } else if (cursor_row >= visible_rows) {
+        cursor_row = visible_rows - 1;
+    }
+
+    if (cursor_row >= 0) ui_ensure_cursor_row_visible(table);
+    ui_ensure_cursor_column_visible(table);
 }
 
 void ui_set_row_gutter_enabled(int enabled)
