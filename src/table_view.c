@@ -27,18 +27,38 @@ static void set_err(char *err, size_t err_sz, const char *msg)
     err[err_sz - 1] = '\0';
 }
 
+static int strip_numeric_commas(const char *text, char *buf, size_t buf_sz)
+{
+    size_t out = 0;
+
+    if (!text || !buf || buf_sz == 0) return -1;
+    for (size_t i = 0; text[i] != '\0'; ++i) {
+        if (text[i] == ',') continue;
+        if (out + 1 >= buf_sz) return -1;
+        buf[out++] = text[i];
+    }
+    buf[out] = '\0';
+    return 0;
+}
+
 static int parse_numeric_value(DataType type, const char *text, double *out)
 {
     char *endptr = NULL;
+    char normalized[128];
+    const char *numeric_text = text;
 
     if (!text || !*text || !out) return -1;
+    if ((type == TYPE_INT || type == TYPE_FLOAT) &&
+        strip_numeric_commas(text, normalized, sizeof(normalized)) == 0) {
+        numeric_text = normalized;
+    }
 
     switch (type) {
         case TYPE_INT:
-            *out = strtol(text, &endptr, 10);
+            *out = strtol(numeric_text, &endptr, 10);
             return (*endptr == '\0') ? 0 : -1;
         case TYPE_FLOAT:
-            *out = strtod(text, &endptr);
+            *out = strtod(numeric_text, &endptr);
             return (*endptr == '\0') ? 0 : -1;
         case TYPE_BOOL:
             if (strcasecmp(text, "true") == 0 || strcmp(text, "1") == 0) {

@@ -89,9 +89,25 @@ static int parse_bool(const char *input, int *out)
     return -1;
 }
 
+static int strip_numeric_commas(const char *input, char *buf, size_t buf_sz)
+{
+    size_t out = 0;
+
+    if (!input || !buf || buf_sz == 0) return -1;
+    for (size_t i = 0; input[i] != '\0'; ++i) {
+        if (input[i] == ',') continue;
+        if (out + 1 >= buf_sz) return -1;
+        buf[out++] = input[i];
+    }
+    buf[out] = '\0';
+    return 0;
+}
+
 static int parse_value(DataType type, const char *input, void **out)
 {
     char *endptr = NULL;
+    char normalized[128];
+    const char *numeric_input = input;
 
     if (!out) return -1;
     *out = NULL;
@@ -102,13 +118,17 @@ static int parse_value(DataType type, const char *input, void **out)
     }
 
     if (!input || !*input) return -1;
+    if ((type == TYPE_INT || type == TYPE_FLOAT) &&
+        strip_numeric_commas(input, normalized, sizeof(normalized)) == 0) {
+        numeric_input = normalized;
+    }
 
     switch (type) {
         case TYPE_INT: {
             long parsed;
             int *v = malloc(sizeof(int));
             if (!v) return -1;
-            parsed = strtol(input, &endptr, 10);
+            parsed = strtol(numeric_input, &endptr, 10);
             if (*endptr != '\0') {
                 free(v);
                 return -1;
@@ -120,7 +140,7 @@ static int parse_value(DataType type, const char *input, void **out)
         case TYPE_FLOAT: {
             float *v = malloc(sizeof(float));
             if (!v) return -1;
-            *v = strtof(input, &endptr);
+            *v = strtof(numeric_input, &endptr);
             if (*endptr != '\0') {
                 free(v);
                 return -1;

@@ -14,6 +14,20 @@
 #include "ui/internal.h"
 #include "core/settings.h"
 
+static int strip_numeric_commas(const char *input, char *buf, size_t buf_sz)
+{
+    size_t out = 0;
+
+    if (!input || !buf || buf_sz == 0) return -1;
+    for (size_t i = 0; input[i] != '\0'; ++i) {
+        if (input[i] == ',') continue;
+        if (out + 1 >= buf_sz) return -1;
+        buf[out++] = input[i];
+    }
+    buf[out] = '\0';
+    return 0;
+}
+
 void apply_ui_color_settings(const AppSettings *settings)
 {
     AppThemePalette palette;
@@ -56,12 +70,19 @@ bool validate_input(const char *input, DataType type) {
         return false;
 
     char *endptr;
+    char normalized[128];
+    const char *numeric_input = input;
+
+    if ((type == TYPE_INT || type == TYPE_FLOAT) &&
+        strip_numeric_commas(input, normalized, sizeof(normalized)) == 0) {
+        numeric_input = normalized;
+    }
     switch (type) {
         case TYPE_INT:
-            strtol(input, &endptr, 10);
+            strtol(numeric_input, &endptr, 10);
             return *endptr == '\0';
         case TYPE_FLOAT:
-            strtof(input, &endptr);
+            strtof(numeric_input, &endptr);
             return *endptr == '\0';
         case TYPE_BOOL:
             return (strcasecmp(input, "true") == 0 ||
