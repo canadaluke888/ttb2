@@ -24,6 +24,8 @@ Replace `ttb2_VERSION_ARCH.deb` with the name of the file you downloaded.
 Install dependencies (Debian/Ubuntu packages):
 - GCC/Clang (`build-essential`) 
   `sudo apt install build-essential`
+- CMake and pkg-config (`cmake`, `pkg-config`)
+  `sudo apt install cmake pkg-config`
 - ncurses (wide-char) (`libncursesw5-dev`) 
   `sudo apt install libncursesw5-dev`
 - SQLite3 (`libsqlite3-dev`) 
@@ -38,6 +40,18 @@ Build the native binary:
 make
 ```
 This produces `./build/ttb2`.
+
+Build with CMake:
+```
+cmake -S . -B build/cmake -DCMAKE_BUILD_TYPE=Release
+cmake --build build/cmake
+```
+This produces `./build/cmake/ttb2` on Linux/macOS and `ttb2.exe` on Windows toolchains.
+
+Run the CMake test targets:
+```
+ctest --test-dir build/cmake --output-on-failure
+```
 
 Install to your `PATH`:
 ```
@@ -54,6 +68,38 @@ Clean:
 ```
 make clean
 ```
+
+### macOS build
+
+Install dependencies with Homebrew:
+```
+brew install cmake pkg-config ncurses sqlite json-c zlib
+```
+
+Build:
+```
+make macos
+```
+
+If Homebrew installs libraries outside CMake's default search paths, pass `CMAKE_PREFIX_PATH`:
+```
+cmake -S . -B build/cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix ncurses);$(brew --prefix sqlite);$(brew --prefix json-c);$(brew --prefix zlib)"
+cmake --build build/cmake
+```
+
+### Windows build
+
+The supported Windows path is MSYS2/MinGW first. Install the UCRT64 packages:
+```
+pacman -S --needed mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-ncurses mingw-w64-ucrt-x86_64-sqlite3 mingw-w64-ucrt-x86_64-json-c mingw-w64-ucrt-x86_64-zlib
+```
+
+From the "MSYS2 UCRT64" shell:
+```
+make windows-msys2
+```
+
+On startup, TTB2 applies Windows console defaults before curses initializes: UTF-8 input/output code pages, virtual-terminal processing, virtual-terminal input where available, quick-edit disablement, `TERM=xterm-256color` when unset, and `LANG=C.UTF-8`.
 
 ## Usage
 

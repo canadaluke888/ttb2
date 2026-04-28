@@ -17,6 +17,7 @@
 #include "core/workspace.h"
 #include "core/task_worker.h"
 #include "core/errors.h"
+#include "core/terminal_compat.h"
 
 /* Initialize ncurses, restore workspace state, and run the main editor loop. */
 int main(int argc, char **argv) {
@@ -25,6 +26,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    terminal_compat_prepare();
     setlocale(LC_ALL, "");
     initscr();
     set_escdelay(25);

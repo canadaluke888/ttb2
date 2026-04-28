@@ -8,10 +8,13 @@ DOCDIR ?= $(DATADIR)/doc/ttb2
 ICONDIR ?= $(DATADIR)/pixmaps
 DESTDIR ?=
 VERSION ?= $(shell cat VERSION)
-DEB_ARCH := $(shell dpkg --print-architecture)
+DEB_ARCH := $(shell command -v dpkg >/dev/null 2>&1 && dpkg --print-architecture || uname -m)
 DEB_STAGE := /tmp/ttb2-deb-stage
 DEB_CONTROL := $(DEB_STAGE)/DEBIAN/control
 DEB_PACKAGE := ttb2_$(VERSION)_$(DEB_ARCH).deb
+CMAKE_BUILD_DIR ?= build/cmake
+CMAKE_GENERATOR ?=
+CMAKE_BUILD_TYPE ?= Release
 
 OBJ_DIR = build/obj
 BIN_DIR = build
@@ -76,11 +79,24 @@ deb: $(OUT)
 		> $(DEB_CONTROL)
 	dpkg-deb --build $(DEB_STAGE) $(DEB_PACKAGE)
 
+cmake-configure:
+	cmake -S . -B $(CMAKE_BUILD_DIR) $(if $(CMAKE_GENERATOR),-G "$(CMAKE_GENERATOR)",) -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE)
+
+cmake-build: cmake-configure
+	cmake --build $(CMAKE_BUILD_DIR)
+
+cmake-test: cmake-build
+	ctest --test-dir $(CMAKE_BUILD_DIR) --output-on-failure
+
+macos: cmake-build
+
+windows-msys2: cmake-build
+
 clean:
 	rm -rf $(BIN_DIR)
 	rm -rf $(OBJ_DIR)
 
-.PHONY: run install uninstall deb clean history_test table_index_test bookdb_semantic_test settings_test ui_dialog_list_test
+.PHONY: run install uninstall deb cmake-configure cmake-build cmake-test macos windows-msys2 clean history_test table_index_test bookdb_semantic_test settings_test ui_dialog_list_test
 
 history_test: tests/ui_history_test.c src/table.c src/table_ops.c src/ui/ui_data/ui_history.c include/ui/ui_history.h
 	mkdir -p $(BIN_DIR)
